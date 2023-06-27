@@ -1,2 +1,3 @@
-# zeroheliumkit
-ZeroHeliumKit
+# ZeroHeliumKit
+
+ZeroHeliumKit is a Python module for planar geometry creation and manipulations designed for building microfabricated chips, and integrated electric field calculations. ZeroHeliumKit allows to create complex structure designs from simple geometries and assemble them in an intuitive Lego-style level. Geometry creation and assembly part is based on [Shapely](https://github.com/shapely/shapely) python package, which provides fast boolean operations on geometrical objects. ZeroHeliumKit enables seamless integration with Gmsh (mesh generation toolkit) and [FreeFEM++](https://github.com/FreeFem/FreeFem-sources) (finite element solver for partial differential equations) open source softwares to perform electric field calculations on designed geometrical structures. 
