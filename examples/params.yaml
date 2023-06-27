@@ -1,0 +1,109 @@
+# l - length
+# w - width
+# g - gap
+# s - spacing
+# ext - extension
+# gg - smaller gap
+
+device:
+  size: [7000, 2000]
+  offset_from_edge: 250
+  channel_location: [-200, 0]
+  w: 4
+  g: 3
+  w1: 2
+  g1: 1
+  gg: 0.4
+
+# central channel properties
+channel:
+  l: 100
+  w: 8
+  g: 0.5
+  ext: 5
+  pad_angle: -40
+
+# reservoir params
+reservoir:
+  l: 700
+  w: 10
+  g: 0.7
+  s: 20
+  num: 7
+  internal_angle: 30
+  pad_angle: -90
+
+# pinch gate
+pinch:
+  l: 20
+  w: 4
+  arm_l: 8
+  arm_w: 0.6
+  arm_g: 0.4
+  pad_angle: 40
+  line_offset: [-100, -80]
+
+# pinched zone
+pinched_zone:
+  l: 20
+  w: 1
+  g: 0.3
+
+# spiral inductor
+inductor_with_pad:
+  size: 200
+  num: 5
+  arc_resolution: 0.5
+
+# interdigitated capacitor
+idc:
+  l: 140
+  s: 16
+  num: 15
+
+# airbridge
+airbridge:
+  l: 42
+  w: 6
+  g: 1
+  ol: 2
+
+# resonator
+resonator:
+  type: 0.5
+  frequency: 6.5
+  eps: 11
+  substrate_h: 1500
+  geometry:
+    w: 2
+    g: 10
+    box_x: 1400
+    box_y: 1200
+    radius: 60
+    num: 2
+    end_w: 2
+    end_g: 0.2
+
+# trap
+trap:
+  l: 100
+  w: 1
+  g: 0.2
+  gate1_angle: 110
+
+# feedline
+feedline:
+  w: 6
+  g: 3.5
+  claw:
+    offset: 22
+    l: 180
+    w: 10
+  pad:
+    size: 150
+    gap: 50
+  
+# trapgate
+trapgate:
+  pad:
+    s: 150
