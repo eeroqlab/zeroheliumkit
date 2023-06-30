@@ -1,0 +1,26 @@
+device:
+  size: [7000, 2000]
+  offset_from_edge: 800
+
+# resonator
+resonator:
+  type: 0.25
+  frequency: 7.7
+  eps: 11
+  substrate_h: 1500
+  geometry:
+    w: 8
+    g: 4.5
+    coupling_length: 300
+    openend_length: 800
+    distance_from_waveguide: 0
+    radius: 50
+    num: 4
+
+# feedline
+feedline:
+  w: 10
+  g: 5.5
+  pad:
+    size: 150
+    gap: 50
