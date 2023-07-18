@@ -461,11 +461,12 @@ class Entity(_Base):
         save_geometries(geom_dict, filename)
 
     
-    def export_to_gds(self, devname: str, filename: str):
+    def export_to_gds(self, devname: str, filename: str, export_layers: list=None):
 
         from phidl import Device
 
-        export_layers = self.layer_names(geom_type="polygon")
+        if export_layers==None:
+            export_layers = self.layer_names(geom_type="polygon")
 
         D = Device(devname)
 
