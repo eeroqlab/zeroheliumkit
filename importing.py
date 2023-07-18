@@ -40,8 +40,12 @@ class reader_dxf():
     
     def convert_to_polygon(self, line: LineString, ignore_nonclosed: bool=False) -> Polygon:
         coords = list(line.coords)
-        if coords[0] == coords[-1]:
-            return Polygon(coords)
+        if len(coords) > 2:
+            p = Polygon(coords)
+            if p.area > 0:
+                return Polygon(coords)
+            else:
+                return None
         elif not ignore_nonclosed:
             errorMessage = 'LineString is not closed! check your dxf file and close objects'
             plt.plot(*line.xy)
@@ -54,6 +58,8 @@ class reader_dxf():
     def plot_dxf(self, **kwargs):
         self.raw_geometries.plot(**kwargs)
         plt.show()
+
+
 
 
 if __name__=="__main__":
