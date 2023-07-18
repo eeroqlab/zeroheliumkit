@@ -123,18 +123,21 @@ def convert_polygon_with_holes_into_muiltipolygon(p: Polygon) -> list:
     multipolygon = MultiPolygon([p])
 
     if has_interior(p):
+        disected_all = []
         for interior in p.interiors:
-            com = centroid(interior)    # center of mass
+            com = centroid(interior)
             cut_line = LineString([(com.x, -YCOORD), (com.x, YCOORD)])
             disected = ops.split(multipolygon, cut_line)
-            polgons_only = []
+            multipolygonlist = []
             for geom in list(disected.geoms):
-                # ignore LineString and Points, which can be the result of split
                 if isinstance(geom,Polygon):
-                    polgons_only += [geom]
-            multipolygon = MultiPolygon(polgons_only)
-            
-    return multipolygon
+                    multipolygonlist += [geom]
+            multipolygon = MultiPolygon(multipolygonlist)
+            disected_all += list(multipolygon.geoms)
+        
+        return multipolygon
+    else:
+        return multipolygon
 
 
 #---------------------------------------------
