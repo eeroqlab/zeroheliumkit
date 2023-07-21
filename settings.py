@@ -28,10 +28,3 @@ COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY]
 PTS_CLASSES   = [Point, MultiPoint]
 LINE_CLASSES  = [LineString, MultiLineString]
 PLG_CLASSES   = [Polygon, MultiPolygon]
-
-# constants
-hbar = 1.0546 * 1e-34
-qe = 1.602 * 1e-19
-me = 9.109 * 1e-31
-l0 = 1e-6
-Escale = hbar**2/2/me/l0**2
