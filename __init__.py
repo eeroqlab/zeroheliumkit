@@ -4,7 +4,7 @@
 # Developed by Niyaz Beysengulov and EeroQ team
 # --------------------------------------------------------------------------------------
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 from .core import Structure, Entity
 from .helpers import resonator_calc
