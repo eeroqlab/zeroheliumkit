@@ -13,6 +13,7 @@ from shapely import (affinity, unary_union, ops,
 from .helpers.plotting import *
 from .errors import *
 from .settings import *
+from .functions import *
 
 GRID_SIZE = 1e-4
 EPS = 1e-6
@@ -353,6 +354,19 @@ class Entity(_Base):
         body_list = [getattr(self, lname), object]
         setattr(self, lname, unary_union(body_list))
     
+    def add_text(self, text: str="abcdef", size: float=1000, loc: tuple=(0,0), layer: str=None):
+        """ Converts text into polygons and adds them into the Entity "layer"
+
+        Args:
+            text (str, optional): Defaults to "abcdef".
+            size (float, optional): Defaults to 1000.
+            loc (tuple, optional): Defaults to (0,0).
+            layer (str, optional): Defaults to None.
+        """
+        text_polygons = polygonize_text(text, size)
+        text_polygons = affinity.translate(text_polygons, *loc)
+        self.add_polygon(layer, text_polygons)
+    
     def add_layer(self, lname: str, geometry: Polygon | MultiPolygon):
         setattr(self, lname, geometry)
     
@@ -461,9 +475,22 @@ class Entity(_Base):
         save_geometries(geom_dict, filename)
 
     
-    def export_to_gds(self, devname: str, filename: str, export_layers: list=None):
+    def export_to_gds(self, 
+                      devname: str, 
+                      filename: str, 
+                      export_layers: list=None, 
+                      layer_order: dict=None):
+        """_summary_
+
+        Args:
+            devname (str): name of the device
+            filename (str): name of the exported file
+            export_layers (list, optional): defines, which layers to export. Defaults to None.
+            add_text (tuple(text, layer, location, size), optional): adds text to the "layer" at "location" [x,y]. Defaults to None.
+        """
 
         from phidl import Device
+        import phidl.geometry as pg
 
         if export_layers==None:
             export_layers = self.layer_names(geom_type="polygon")
@@ -472,17 +499,23 @@ class Entity(_Base):
 
         for i, l in enumerate(export_layers):
             mp = getattr(self, l)
+
+            if layer_order:
+                gds_layer = layer_order.get(l)
+            else:
+                gds_layer = i
+
             if isinstance(mp, MultiPolygon):
                 for p in list(mp.geoms):
                     prepared_polygons = convert_polygon_with_holes_into_muiltipolygon(p)
                     for pp in list(prepared_polygons.geoms):
                         xpts, ypts = zip(*list(pp.exterior.coords))
-                        D.add_polygon( [xpts, ypts], layer = i)
+                        D.add_polygon( [xpts, ypts], layer = gds_layer)
             else:
                 prepared_polygons = convert_polygon_with_holes_into_muiltipolygon(mp)
                 for pp in list(prepared_polygons.geoms):
                     xpts, ypts = zip(*list(pp.exterior.coords))
-                    D.add_polygon( [xpts, ypts], layer = i)
+                    D.add_polygon( [xpts, ypts], layer = gds_layer)
         
         D.write_gds(filename+'.gds')
     
