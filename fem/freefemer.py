@@ -9,13 +9,18 @@ import os
 
 from ..errors import *
 
-config_types_2D = ['xy', 'yz', 'xz']
-config_types_3D = ['xy_z']
+config_planes_2D = ['xy', 'yz', 'xz']
+config_planes_3D = ['xy_z']
+config_quantity = {'phi': 'u',
+                   'Ex': 'dx(u)',
+                   'Ey': 'dy(u)',
+                   'Ez': 'dz(u)'}
 
-def extract_results(name: str, type: str, axis1_params: tuple, axis2_params: tuple, axis3_value: float or tuple) -> dict:
+def extract_results(name: str, quantity:str, plane: str, axis1_params: tuple, axis2_params: tuple, axis3_value: float or tuple) -> dict:
     return {
         'name': name,
-        'type': type,
+        'quantity': quantity, 
+        'plane': plane,
         'n1': axis1_params[2],
         'n2': axis2_params[2],
         'xmin': axis1_params[0],
@@ -56,13 +61,17 @@ class FreeFEM():
         code += self.script_create_savefiles()
         code += self.script_problem_definition(self.config.get('ff_polynomial'))
         for extract_config in self.config.get('extract_opt'):
-            config_type = extract_config.get('type')
-            if config_type in config_types_2D:
+
+            if extract_config.get("quantity") not in config_quantity.keys():
+                raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
+            
+            config_plane = extract_config.get('plane')
+            if config_plane in config_planes_2D:
                 code += self.script_save_data_2D(extract_config)
-            elif config_type in config_types_3D:
+            elif config_plane in config_planes_3D:
                 code += self.script_save_data_3D(extract_config)
             else:
-                raise KeyError(f'Wrong type! choose from {config_types_2D} or {config_types_3D}')
+                raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
         code += "\n        }"
         return code
 
@@ -172,14 +181,14 @@ class FreeFEM():
 
     def script_save_data_2D(self, params: dict) -> str:
         
-        if params.get('type')=='xy':
+        if params.get('plane')=='xy':
             xyz = "ax1,ax2,ax3"
-        elif params.get('type')=='yz':
+        elif params.get('plane')=='yz':
             xyz = "ax3,ax1,ax2"
-        elif params.get('type')=='xz':
+        elif params.get('plane')=='xz':
             xyz = "ax1,ax3,ax2"
         else:
-            raise KeyError(f'Wrong type! choose from {config_types_2D}')
+            raise KeyError(f'Wrong plane! choose from {config_planes_2D}')
  
         code = """
         {"""
@@ -191,7 +200,7 @@ class FreeFEM():
         ymin = {params['ymin']};
         ymax = {params['ymax']};
         ax3  = {params['planeLoc']};
-        real[int,int] potential(n1,n2);
+        real[int,int] quantity(n1,n2);
         real[int] xList(n1), yList(n2);
         """
 
@@ -203,14 +212,15 @@ class FreeFEM():
         """
         code += """    for(int j = 0; j < n2; j++){
         """
+        quantity = config_quantity.get(params['quantity'])
         code += f"""        real ax2 = ymin + j*(ymax-ymin)/(n2-1);
                 yList[j] = ax2;
-                potential(i,j) = phi({xyz});"""+"}}\n"
+                quantity(i,j) = {quantity}({xyz});"""+"}}\n"
         
         name = params['name']
         code += f"""
         {name} << "startDATA " + electrodenames[k] + " ";
-        {name} << potential << endl;
+        {name} << quantity << endl;
         {name} << "END" << endl;
         """
 
@@ -230,10 +240,10 @@ class FreeFEM():
     
     def script_save_data_3D(self, params: dict) -> str:
         
-        if params.get('type')=='xy_z':
+        if params.get('plane')=='xy_z':
             xyz = "ax1,ax2,ax3"
         else:
-            raise KeyError(f'Wrong type! choose from {config_types_3D}')
+            raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
         
         name = params['name']
 
@@ -249,7 +259,7 @@ class FreeFEM():
         ymax = {params['ymax']};
         zmin  = {params['planeLoc'][0]};
         zmax  = {params['planeLoc'][1]};
-        real[int,int] potential(n1,n2);
+        real[int,int] quantity(n1,n2);
         real[int] xList(n1), yList(n2), zList(n3);
         {name} << "startDATA " + electrodenames[k] << endl;
         """
@@ -272,12 +282,14 @@ class FreeFEM():
                     real ax2 = ymin + j*(ymax-ymin)/(n2-1);
                     yList[j] = ax2;
         """
+
+        quantity = config_quantity.get(params['quantity'])
         code += f"""            
-                    potential(i,j) = phi({xyz});"""+"}}\n"
+                    quantity(i,j) = {quantity}({xyz});"""+"}}\n"
         
         
         code += f"""
-            {name} << potential << endl;
+            {name} << quantity << endl;
             {name} << "end" << endl;
         """
         code += """}\n"""
@@ -303,9 +315,9 @@ class FreeFEM():
 
         try:
             bashCommand_ff = ['freefem++', self.dirname + self.edp_name + '.edp']
-            #env = os.environ.copy()
-            #env['PATH'] += ":/Applications/FreeFem++.app/Contents/ff-4.12/bin"
-            process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE)#, env=env)
+            env = os.environ.copy()
+            env['PATH'] += ":/Applications/FreeFem++.app/Contents/ff-4.12/bin"
+            process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
 
             logs = ""
             items = iter(process.stdout.readline, b'')
@@ -349,13 +361,13 @@ class CreateFreeFEMscript_InducedCharge(FreeFEM):
 
         code += self.script_problem_definition(self.config.get('ff_polynomial'))
         for extract_config in self.config.get('extract_opt'):
-            config_type = extract_config.get('type')
-            if config_type in config_types_2D:
+            config_plane = extract_config.get('plane')
+            if config_plane in config_planes_2D:
                 code += self.script_save_data_2D(extract_config)
-            elif config_type in config_types_3D:
+            elif config_plane in config_planes_3D:
                 code += self.script_save_data_3D(extract_config)
             else:
-                raise KeyError(f'Wrong type! choose from {config_types_2D} or {config_types_3D}')
+                raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
         code += "\n        }"
         return code
     
