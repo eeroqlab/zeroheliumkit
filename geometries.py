@@ -5,6 +5,7 @@ from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, Mul
 from shapely import affinity, unary_union, box
 
 from .core import *
+from .importing import reader_dxf
 
 
 # Useful functions
@@ -186,10 +187,19 @@ class GeometryCollection(Entity):
             for k, item in layers.items():
                 setattr(self, k, item)
         if import_file:
-            geoms = read_geometries(import_file)
-            keys = list(geoms.keys())
-            print(import_file + f": {keys}")
+            if import_file[-3:]=="dxf":
+                geoms_dict = reader_dxf(import_file)
+                geoms = geoms_dict.geometries
+            elif import_file[-6:]=="pickle":
+                geoms = read_geometries(import_file)
+                keys = list(geoms.keys())
+                print(import_file + f": {keys}")
+            else:
+                raise ValueError("importing not supported format")
+            
             for k, item in geoms.items():
+                if not isinstance(k, str):
+                    k = str(k)
                 setattr(self, k, item)
 
 
