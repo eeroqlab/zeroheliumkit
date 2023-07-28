@@ -4,6 +4,9 @@ from shapely import (Point, MultiPoint,
                      LineString, MultiLineString, 
                      Polygon, MultiPolygon)
 
+GRID_SIZE = 1e-4
+EPS = 1e-6
+
 # plot size
 GM      = (sqrt(5) - 1.0)/2.0
 W       = 8.0

@@ -15,8 +15,6 @@ from .errors import *
 from .settings import *
 from .functions import *
 
-GRID_SIZE = 1e-4
-EPS = 1e-6
 
 #---------------------------------------------
 # some useful functions

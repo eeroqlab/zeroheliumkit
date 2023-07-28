@@ -163,6 +163,7 @@ class FreeFEM():
         code += "              ;\n"
 
         code += """
+        cout << "I'm on iteration " << k << "/" << numV << endl;
         Electro;
         func real phi(real X, real Y, real Z){
         if (abs(u(X, Y, Z)) < 1e-6) {return 0.0;} 

@@ -1,10 +1,13 @@
 # constants
-
-hbar = 1.0546e-34                   # Plank constant
-qe = 1.602e-19                      # electron charge
-me = 9.109e-31                      # electron mass
-ep0 = 8.854e-12                     # vacuum permittivity
-epHe = 1.057                        # dielectric constant of liquid helium
+hbar = 1.05457182e-34       # [J*s]             plank's constant          
+epsilon_0 = 8.854e-12       # [F/m]             vacuum permittivity
+epsilon_He = 1.057          # [1]               dielectric constant of helium
+qe = 1.602e-19              # [Coulombs]        electron charge
+me = 9.1093837e-31          # [kg]              electron mass
+g = 9.81                    # [m/s^2]           gravity constant
+alpha = 3.58e-4             # [N/p]             surface tension
+rho = 146                   # [kg/m^3]          helium density
+kb = 1.3806e-23             # [J/K]             boltzman constant
 
 # length scale / um
 l0 = 1e-6
