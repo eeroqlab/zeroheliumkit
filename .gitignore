@@ -1,5 +1,6 @@
 # Other files and folders
 .settings/
+.vscode/
 *data/
 
 *.DS_Store
