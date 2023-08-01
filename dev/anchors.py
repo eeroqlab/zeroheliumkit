@@ -44,6 +44,18 @@ class Anchor():
             if xfact < 0:
                 #rotation around y_axis
                 self.direction = 180 - self.direction
+    
+    @property
+    def x(self):
+        return self.point.x
+    
+    @property
+    def y(self):
+        return self.point.y
+    
+    @property
+    def coords(self):
+        return (self.point.x, self.point.y)
 
     def mirror(self, aroundaxis: str=None, update_label: str=None):
         if aroundaxis=='x':

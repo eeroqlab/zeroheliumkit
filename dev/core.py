@@ -161,7 +161,7 @@ class _Base:
             class attribute names with shapely geometries should not start with '_'
         """
 
-        if name[:1] != '_':
+        if (name[:1] != '_') or (name != "anchorsmod"):
             try:
                 if hasattr(value, "geoms"):
                     geometries = []
@@ -196,7 +196,7 @@ class Entity(_Base):
     def __init__(self):
         self.skeletone = LineString()
         self.anchors = MultiAnchor()
-        self._direction = np.asarray([0, 0], dtype='float64')    # [input, output] directions defined by angles in degeres
+        self.anchorsmod = MultiAnchor()    # [input, output] directions defined by angles in degeres
     
     def layer_names(self, geom_type: str=None) -> list:
         """ gets name of layers, containing geometry objects 
@@ -212,11 +212,11 @@ class Entity(_Base):
         for attribute in dir(self):
             if attribute[:1] != '_':
                 value = getattr(self, attribute)
-                if not callable(value) and (value is not None):
+                if not callable(value) and (value is not None) and (attribute != "anchorsmod"):
                     name_list.append(attribute)
         
         if not geom_type:
-            return [l for l in name_list if l not in ("anchors",)]
+            return name_list
         elif geom_type=="polygon":
             polygons_only = [l for l in name_list if l not in ("skeletone", "anchors")]
             return polygons_only
@@ -224,7 +224,7 @@ class Entity(_Base):
             raise NameError("Currently geom_type support only None or 'polygon'")
     
     
-    def rotate(self, angle: float, origin=(0,0)) -> None:
+    def rotate(self, angle: float=0, origin=(0,0)) -> None:
         """ rotates all objects in the class
 
         Args:
@@ -236,7 +236,8 @@ class Entity(_Base):
         for attr in attr_list:
             setattr(self, attr, affinity.rotate(getattr(self, attr), angle, origin))
         
-        self._direction += angle
+        self.anchorsmod.rotate(angle, origin)
+        
 
     def move(self, coord: tuple=None, point: Point=None, origin_anchor: int=None):
         """ translate all objects in the class
@@ -267,6 +268,31 @@ class Entity(_Base):
                                                      xoff = p.x - offset_x, 
                                                      yoff = p.y - offset_y)
             setattr(self, attr, translated_geometry)
+    
+    def moveby(self, xy: tuple=(0,0)):
+        attr_list = self.layer_names()
+        for a in attr_list:
+            translated_geometry = affinity.translate(getattr(self, a), 
+                                                     xoff = xy[0], 
+                                                     yoff = xy[1])
+            setattr(self, a, translated_geometry)
+        self.anchorsmod.move(xoff=xy[0], yoff=xy[1])
+
+
+    def moveby_snap(self, anchor: str, to_point: tuple | str | Point):
+        old_anchor_coord = self.anchorsmod.point(anchor).coords
+        if isinstance(to_point, tuple): 
+            new_anchor_coord = to_point
+        elif isinstance(to_point, str):
+            new_anchor_coord = self.anchorsmod.point(to_point).coords
+        elif isinstance(to_point, Point):
+            new_anchor_coord = to_point.xy
+        else:
+            raise ValueError("not supported type for 'to_point'")
+        dxdy = (new_anchor_coord[0] - old_anchor_coord[0],
+                new_anchor_coord[1] - old_anchor_coord[1])
+        
+        self.moveby(dxdy)
 
     def scale(self, xfact=1.0, yfact=1.0, origin=(0,0)):
         """ scales all objects in the class
@@ -290,10 +316,10 @@ class Entity(_Base):
 
         if aroundaxis=='y':
             self.scale(-1, 1, origin=(0,0))
-            self._direction = 180 - self._direction
+
         elif aroundaxis=='x':
             self.scale(1, -1, origin=(0,0))
-            self._direction = - self._direction
+
         else:
             raise("choose x or y axis for mirroring")
     
