@@ -11,6 +11,7 @@ from shapely import (affinity, unary_union, ops,
                      intersection, set_coordinates)
 
 from ..helpers.plotting import *
+from ..importing import reader_dxf
 from ..errors import *
 from ..settings import *
 from ..functions import *
@@ -161,7 +162,8 @@ class _Base:
             class attribute names with shapely geometries should not start with '_'
         """
 
-        if (name[:1] != '_') or (name != "anchorsmod"):
+        if (name[:1] != '_') and (name != "anchorsmod"):
+            
             try:
                 if hasattr(value, "geoms"):
                     geometries = []
@@ -174,7 +176,7 @@ class _Base:
                 self.__dict__[name] = geometry_on_grid
             except Exception as e:
                 self._errors = value
-                print("something went wrong with setting precision, check for _errors")
+                print("something went wrong with setting precision")
                 print("the error is ", e)
         else:
             self.__dict__[name] = value
@@ -195,7 +197,6 @@ class Entity(_Base):
 
     def __init__(self):
         self.skeletone = LineString()
-        self.anchors = MultiAnchor()
         self.anchorsmod = MultiAnchor()    # [input, output] directions defined by angles in degeres
     
     def layer_names(self, geom_type: str=None) -> list:
@@ -237,37 +238,6 @@ class Entity(_Base):
             setattr(self, attr, affinity.rotate(getattr(self, attr), angle, origin))
         
         self.anchorsmod.rotate(angle, origin)
-        
-
-    def move(self, coord: tuple=None, point: Point=None, origin_anchor: int=None):
-        """ translate all objects in the class
-
-        Args:
-            coord ((x,y), optional): offset coordinates. Defaults to (0,0).
-            p (Point, optional): offsets with respect to the p. Defaults to Point(0,0).
-            origin_anchor (int, optional): translates origin to specified ancher. Defaults to None.
-        """
-        if coord!=None:
-            p = Point(coord)
-
-        if point!=None:
-            p = point
-
-        if origin_anchor!=None:
-            anchors = list(self.anchors.geoms)
-            offset_x = anchors[origin_anchor].x
-            offset_y = anchors[origin_anchor].y
-            p = Point(0, 0)
-        else:
-            offset_x = 0
-            offset_y = 0
-
-        attr_list = self.layer_names()
-        for attr in attr_list:
-            translated_geometry = affinity.translate(getattr(self, attr), 
-                                                     xoff = p.x - offset_x, 
-                                                     yoff = p.y - offset_y)
-            setattr(self, attr, translated_geometry)
     
     def moveby(self, xy: tuple=(0,0)):
         attr_list = self.layer_names()
@@ -277,7 +247,6 @@ class Entity(_Base):
                                                      yoff = xy[1])
             setattr(self, a, translated_geometry)
         self.anchorsmod.move(xoff=xy[0], yoff=xy[1])
-
 
     def moveby_snap(self, anchor: str, to_point: tuple | str | Point):
         old_anchor_coord = self.anchorsmod.point(anchor).coords
@@ -307,7 +276,9 @@ class Entity(_Base):
         for attr in attr_list:
             setattr(self, attr, affinity.scale(getattr(self, attr), xfact, yfact, 1.0, origin))
 
-    def mirror(self, aroundaxis: str):
+        self.anchorsmod.scale(xfact=xfact, yfact=yfact, origin=origin)
+
+    def mirror(self, aroundaxis: str, update_labels: bool=False, keep_original: bool=False):
         """ mirrors all objects in the class
 
         Args:
@@ -315,13 +286,22 @@ class Entity(_Base):
         """
 
         if aroundaxis=='y':
-            self.scale(-1, 1, origin=(0,0))
-
+            sign = (-1,1)
         elif aroundaxis=='x':
-            self.scale(1, -1, origin=(0,0))
-
+            sign = (1,-1)
         else:
             raise("choose x or y axis for mirroring")
+        
+        attr_list = self.layer_names()
+        for attr in attr_list:
+            mirrored = affinity.scale(getattr(self, attr), *sign, 1.0, origin=(0,0))
+            if keep_original:
+                original = getattr(self, attr)
+                setattr(self, attr, unary_union([mirrored, original]))
+            else:
+                setattr(self, attr, mirrored)
+
+        self.anchorsmod.mirror(aroundaxis=aroundaxis, update_labels=update_labels, keep_original=keep_original)
     
     def add_buffer(self, name: str, offset: float, **kwargs) -> None:
         """ create a class attribute with a Polygon
@@ -353,19 +333,13 @@ class Entity(_Base):
         else:
             self.skeletone = l2
         
-    def add_anchor(self, points: list[tuple]=[]):
+    def add_anchor(self, points: list[Anchor] | Anchor=[]):
         """ adding points to 'anchors' class attribute
 
         Args:
             points (list[tuple], optional): _description_. Defaults to [].
         """
-        anchors = list(self.anchors.geoms)
-        for p in points:
-            if isinstance(p, Point):
-                anchors.append(p)
-            else:
-                anchors.append(Point(p))
-        self.anchors = MultiPoint(anchors)
+        self.anchorsmod.add(points)
 
     def add_polygon(self, lname: str, object: Polygon) -> None:
         """ appending to existing Polygon a new Polygon
@@ -404,14 +378,13 @@ class Entity(_Base):
         core_polygon = getattr(self, lname)
         setattr(self, lname, difference(core_polygon, object))
     
-    def delete_dublicate_anchors(self):
-        self.anchors = unary_union(self.anchors)
+    #def delete_dublicate_anchors(self):
+    #    self.anchors = unary_union(self.anchors)
     
-    def delete_anchors(self, idx_list: list):
-        list_of_anchors = list(self.anchors.geoms)
-        self.anchors = MultiPoint([anchor for idx, anchor in enumerate(list_of_anchors) if idx not in idx_list])
+    def remove_anchors(self, labels: list | str):
+        self.anchorsmod.remove(labels=labels)
     
-    def delete_layer(self, lname: str):
+    def remove_layer(self, lname: str):
         if hasattr(self, lname):
             delattr(self, lname)
         else:
@@ -544,7 +517,7 @@ class Entity(_Base):
         D.write_gds(filename+'.gds')
     
     
-    def plot(self, ax=None, layer: list=["all"], show_idx=False, color=None, alpha=1, **kwargs):
+    def plot(self, ax=None, layer: list=["all"], show_idx=False, color=None, alpha=1, draw_direction=True, **kwargs):
         if layer==["all"]:
             attr_list = self.layer_names()
             for i, attr in enumerate(attr_list):
@@ -558,7 +531,7 @@ class Entity(_Base):
                                   **kwargs)
         else:
             for l, c in zip(layer, color):
-                if hasattr(self, l):
+                if hasattr(self, l) and l != "anchorsmod":
                     geometry = getattr(self, l)
                     plot_geometry(geometry,
                                   ax=ax,
@@ -566,6 +539,8 @@ class Entity(_Base):
                                   color=c,
                                   alpha=alpha,
                                   **kwargs)
+                elif l == "anchorsmod":
+                    self.anchorsmod.plot(ax=ax, color=c, draw_direction=draw_direction)
 
 
 
@@ -744,3 +719,33 @@ class Structure(Entity):
         class_copy = self.copy()
         class_copy.mirror(aroundaxis)
         return class_copy
+    
+
+class GeometryCollection(Entity):
+    """ collection of geometries
+        class attributes are created by layers dictionary 
+        attr  |  dict
+        name  <- key
+        value <- item
+    """
+    def __init__(self, layers: dict=None, import_file: str=None):
+        super().__init__()
+        if layers:
+            for k, item in layers.items():
+                print(k)
+                setattr(self, k, item)
+        if import_file:
+            if import_file[-3:]=="dxf":
+                geoms_dict = reader_dxf(import_file)
+                geoms = geoms_dict.geometries
+            elif import_file[-6:]=="pickle":
+                geoms = read_geometries(import_file)
+                keys = list(geoms.keys())
+                print(import_file + f": {keys}")
+            else:
+                raise ValueError("importing not supported format")
+            
+            for k, item in geoms.items():
+                if not isinstance(k, str):
+                    k = str(k)
+                setattr(self, k, item)

@@ -55,7 +55,11 @@ class Anchor():
     
     @property
     def coords(self):
-        return (self.point.x, self.point.y)
+        return self.point.xy
+    
+    @coords.setter
+    def coords(self, xy: tuple):
+        self.point = Point(*xy)
 
     def mirror(self, aroundaxis: str=None, update_label: str=None):
         if aroundaxis=='x':
@@ -68,7 +72,7 @@ class Anchor():
         if aroundaxis and update_label:
             self.label = update_label
     
-    def plot(self, ax=None, color: str=None):
+    def plot(self, ax=None, color: str=None, draw_direction: bool=True):
         if ax is None:
             ax = default_ax()
         
@@ -76,7 +80,7 @@ class Anchor():
 
         x1, x2 = ax.get_xlim()
         y1, y2 = ax.get_ylim()
-        if self.direction != None:
+        if self.direction != None and draw_direction:
             arrow_length = min(np.abs(x2-x1), np.abs(y2-y1)) * 0.08
             arrow_kwargs = dict(arrowstyle='->', linewidth=2, color=RED)
             ax.annotate('', 
@@ -96,6 +100,16 @@ class MultiAnchor():
     
     def __init__(self, multipoint: list=[]):
         self.multipoint = multipoint
+    
+    @property
+    def labels(self) -> list:
+        return [p.label for p in self.multipoint]
+    
+    def label_exist(self, label: str) -> bool:
+        if label in self.labels:
+            return True
+        else:
+            False
     
     def copy(self):
         """ Returns  deepcopy of the class """
@@ -129,8 +143,7 @@ class MultiAnchor():
 
        
     def __point(self, label: str):
-        label_list = [p.label for p in self.multipoint]
-        idx = label_list.index(label)
+        idx = self.labels.index(label)
         return self.multipoint[idx]
 
     def point(self, labels: list[str]):
@@ -145,8 +158,24 @@ class MultiAnchor():
         S1 = set(self.point(labels))
         S2 = set(self.multipoint)
         self.multipoint = S2.difference(S1)
+    
+    def modify(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None):
+        if new_xy:
+            self.__point(label).coords = new_xy
+        if new_direction:
+            self.__point(label).direction = new_direction
+        if new_name:
+            self.__point(label).label = new_name
+    
+    def add(self, points: list[Anchor] | Anchor=[]):
+        if not isinstance(points, list):
+            points = [points]
+        for p in points:
+            if self.label_exist(p.label):
+                raise ValueError(f"point label {p} is already exist in MultiAnchor. Choose different label name.")
+        self.multipoint += points
 
 
-    def plot(self, ax=None, color: str=None):
+    def plot(self, ax=None, color: str=None, draw_direction: bool=True):
         for p in self.multipoint:
-            p.plot(ax=ax, color=color)
+            p.plot(ax=ax, color=color, draw_direction=draw_direction)
