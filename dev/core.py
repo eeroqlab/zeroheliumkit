@@ -224,7 +224,7 @@ class Entity(_Base):
         else:
             raise NameError("Currently geom_type support only None or 'polygon'")
     
-    
+
     ################################
     #### Geometrical operations ####
     ################################
@@ -327,7 +327,7 @@ class Entity(_Base):
         Returns:
             Anchor: class, contains label, direction and coordinates
         """
-        return self.anchorsmod.__point(label=label)
+        return self.anchorsmod.point(label)
 
     def modify_anchor(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None):
         """ Modifies the given anchor properties
@@ -783,7 +783,6 @@ class GeometryCollection(Entity):
         super().__init__()
         if layers:
             for k, item in layers.items():
-                print(k)
                 setattr(self, k, item)
         if import_file:
             if import_file[-3:]=="dxf":
