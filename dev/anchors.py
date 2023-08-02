@@ -3,6 +3,7 @@ import sys
 import matplotlib.pyplot as plt
 import copy
 
+from tabulate import tabulate
 from shapely import Point
 from shapely import affinity, set_precision
 
@@ -21,6 +22,27 @@ class Anchor():
             self.point = point
         self.direction = direction
         self.label = label
+    
+    @property
+    def x(self):
+        return self.point.x
+    
+    @property
+    def y(self):
+        return self.point.y
+    
+    @property
+    def coords(self):
+        return (self.point.x, self.point.y)
+    
+    @coords.setter
+    def coords(self, xy: tuple):
+        self.point = Point(*xy)
+    
+    @property
+    def properties(self):
+        print(tabulate([["label", "coords", "direction"], 
+                        [self.label, self.coords, self.direction]]))
     
     def rotate(self, angle: float, origin: tuple=(0,0)):
         """ Rotates the point by 'angle' around 'origin'"""
@@ -44,22 +66,6 @@ class Anchor():
             if xfact < 0:
                 #rotation around y_axis
                 self.direction = 180 - self.direction
-    
-    @property
-    def x(self):
-        return self.point.x
-    
-    @property
-    def y(self):
-        return self.point.y
-    
-    @property
-    def coords(self):
-        return self.point.xy
-    
-    @coords.setter
-    def coords(self, xy: tuple):
-        self.point = Point(*xy)
 
     def mirror(self, aroundaxis: str=None, update_label: str=None):
         if aroundaxis=='x':
