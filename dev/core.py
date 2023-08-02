@@ -225,6 +225,9 @@ class Entity(_Base):
             raise NameError("Currently geom_type support only None or 'polygon'")
     
     
+    ################################
+    #### Geometrical operations ####
+    ################################
     def rotate(self, angle: float=0, origin=(0,0)) -> None:
         """ rotates all objects in the class
 
@@ -302,18 +305,53 @@ class Entity(_Base):
                 setattr(self, attr, mirrored)
 
         self.anchorsmod.mirror(aroundaxis=aroundaxis, update_labels=update_labels, keep_original=keep_original)
-    
-    def add_buffer(self, name: str, offset: float, **kwargs) -> None:
-        """ create a class attribute with a Polygon
-            Polygon is created by buffering skeletone 
+
+
+    ###############################
+    #### Operations on anchors ####
+    ###############################
+    def add_anchor(self, points: list[Anchor] | Anchor=[]):
+        """ adding points to 'anchors' class attribute
 
         Args:
-            name (str): attribute name
-            offset (float): buffering skeletone by offset
+            points (list[tuple], optional): adds new anchor. Defaults to [].
         """
+        self.anchorsmod.add(points)
+    
+    def get_anchor(self, label: str) -> Anchor:
+        """ returns the Anchor class with given label
 
-        setattr(self, name, self.skeletone.buffer(offset, **kwargs))
-        
+        Args:
+            label (str): anchor label
+
+        Returns:
+            Anchor: class, contains label, direction and coordinates
+        """
+        return self.anchorsmod.__point(label=label)
+
+    def modify_anchor(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None):
+        """ Modifies the given anchor properties
+
+        Args:
+            label (str): the anchor to be modified
+            new_name (str, optional): updates the name. Defaults to None.
+            new_xy (tuple, optional): updates coordinates. Defaults to None.
+            new_direction (float, optional): updates the direction. Defaults to None.
+        """
+        self.anchorsmod.modify(label=label, new_name=new_name, new_xy=new_xy, new_direction=new_direction)
+    
+    def remove_anchor(self, labels: list | str):
+        """ Delete anchor from the Entity
+
+        Args:
+            labels (list | str): provide list of labels or a label name
+        """
+        self.anchorsmod.remove(labels=labels)
+
+
+    #############################
+    #### Operations on lines ####
+    #############################
     def add_line(self, object: LineString, direction: float=None, ignore_crossing=False) -> None:
         """ appending to skeletone a LineString """
 
@@ -333,14 +371,21 @@ class Entity(_Base):
         else:
             self.skeletone = l2
         
-    def add_anchor(self, points: list[Anchor] | Anchor=[]):
-        """ adding points to 'anchors' class attribute
+    def buffer_line(self, name: str, offset: float, **kwargs) -> None:
+        """ create a class attribute with a Polygon
+            Polygon is created by buffering skeletone 
 
         Args:
-            points (list[tuple], optional): _description_. Defaults to [].
+            name (str): attribute name
+            offset (float): buffering skeletone by offset
         """
-        self.anchorsmod.add(points)
 
+        setattr(self, name, self.skeletone.buffer(offset, **kwargs))
+
+
+    ################################
+    #### Operations on polygons ####
+    ################################
     def add_polygon(self, lname: str, object: Polygon) -> None:
         """ appending to existing Polygon a new Polygon
 
@@ -352,22 +397,6 @@ class Entity(_Base):
         body_list = [getattr(self, lname), object]
         setattr(self, lname, unary_union(body_list))
     
-    def add_text(self, text: str="abcdef", size: float=1000, loc: tuple=(0,0), layer: str=None):
-        """ Converts text into polygons and adds them into the Entity "layer"
-
-        Args:
-            text (str, optional): Defaults to "abcdef".
-            size (float, optional): Defaults to 1000.
-            loc (tuple, optional): Defaults to (0,0).
-            layer (str, optional): Defaults to None.
-        """
-        text_polygons = polygonize_text(text, size)
-        text_polygons = affinity.translate(text_polygons, *loc)
-        self.add_polygon(layer, text_polygons)
-    
-    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon):
-        setattr(self, lname, geometry)
-    
     def cut_polygon(self, lname: str, object: Polygon) -> None:
         """ cuts the object from main polygon in lname attribute
 
@@ -377,27 +406,16 @@ class Entity(_Base):
         """
         core_polygon = getattr(self, lname)
         setattr(self, lname, difference(core_polygon, object))
-    
-    #def delete_dublicate_anchors(self):
-    #    self.anchors = unary_union(self.anchors)
-    
-    def remove_anchors(self, labels: list | str):
-        self.anchorsmod.remove(labels=labels)
-    
-    def remove_layer(self, lname: str):
-        if hasattr(self, lname):
-            delattr(self, lname)
-        else:
-            raise TypeError(f"layer '{lname}' doesn't exist")
-    
-    def get_skeletone_boundary(self) -> list:
-        """ finds first and last points of the skeletone
 
-        Returns:
-            list: list of two Points
+    def crop_all(self, bbox: Polygon):
+        """ crop polygons in all layers
+
+        Args:
+            bbox (Polygon): cropping polygon
         """
-        coords = np.asarray(list(self.skeletone.coords))
-        return [coords[0], coords[-1]]
+        layer_names = self.layer_names(geom_type="polygon")
+        for lname in layer_names:
+            self.crop_layer(lname, bbox)
     
     def crop_layer(self, lname: str, bbox: Polygon):
         """ crop polygons in layer by bbox
@@ -421,19 +439,7 @@ class Entity(_Base):
             cropped_geoms = MultiPolygon(polygon_list)
         
         setattr(self, lname, cropped_geoms)
-
     
-    def crop_all(self, bbox: Polygon):
-        """ crop polygons in all layers
-
-        Args:
-            bbox (Polygon): cropping polygon
-        """
-        layer_names = self.layer_names(geom_type="polygon")
-        for lname in layer_names:
-            self.crop_layer(lname, bbox)
-
-
     def modify_polygon_points(self, lname: str, obj_idx: int, points: dict):
         """ Update the point coordinates of an object in a layer
 
@@ -458,8 +464,50 @@ class Entity(_Base):
 
         polygon_list[obj_idx] = set_coordinates(polygon, coords)
         setattr(self, lname, polygon_list)
+    
 
-            
+    ################################
+    #### Operations on layers ####
+    ################################
+    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon):
+        setattr(self, lname, geometry)
+
+    def remove_layer(self, lname: str):
+        if hasattr(self, lname):
+            delattr(self, lname)
+        else:
+            raise TypeError(f"layer '{lname}' doesn't exist")
+    
+
+    ###############################
+    #### Additional operations ####
+    ###############################    
+    def add_text(self, text: str="abcdef", size: float=1000, loc: tuple=(0,0), layer: str=None):
+        """ Converts text into polygons and adds them into the Entity "layer"
+
+        Args:
+            text (str, optional): Defaults to "abcdef".
+            size (float, optional): Defaults to 1000.
+            loc (tuple, optional): Defaults to (0,0).
+            layer (str, optional): Defaults to None.
+        """
+        text_polygons = polygonize_text(text, size)
+        text_polygons = affinity.translate(text_polygons, *loc)
+        self.add_polygon(layer, text_polygons)
+
+    def get_skeletone_boundary(self) -> list:
+        """ finds first and last points of the skeletone
+
+        Returns:
+            list: list of two Points
+        """
+        coords = np.asarray(list(self.skeletone.coords))
+        return [coords[0], coords[-1]]
+    
+
+    ##############################
+    #### Exporting operations ####
+    ##############################   
     def save_to_file(self, dirname, name):
         geom_names = self.layer_names()
         geom_values = [getattr(self, k) for k in geom_names]
@@ -471,7 +519,6 @@ class Entity(_Base):
         filename = dirname + f"{name}.pickle"
         save_geometries(geom_dict, filename)
 
-    
     def export_to_gds(self, 
                       devname: str, 
                       filename: str, 
@@ -516,7 +563,10 @@ class Entity(_Base):
         
         D.write_gds(filename+'.gds')
     
-    
+
+    #############################
+    #### Plotting operations ####
+    #############################
     def plot(self, ax=None, layer: list=["all"], show_idx=False, color=None, alpha=1, draw_direction=True, **kwargs):
         if layer==["all"]:
             attr_list = self.layer_names()
@@ -549,10 +599,11 @@ class Structure(Entity):
         inherits internal structure(attributes) of appending Entities
     """
 
-    def __init__(self):
+    def __init__(self, connection_config: dict=None):
         super().__init__()
+        self.connection_config = connection_config
 
-    def append(self, structure: Entity, anchoring: list=None, direction: float=0, connection_type: dict=None) -> None:
+    def append(self, structure: Entity, anchoring: tuple=None, direction_snap: bool=False) -> None:
         """ appends Entity or Structure to Structure
 
         Args:
@@ -578,14 +629,14 @@ class Structure(Entity):
         attr_list = list(set(attr_list_device + attr_list_structure))
         c_point = None
 
-        if direction:
-            s.rotate(direction, origin=(0, 0))
-
         if anchoring:
-            c_point = self.anchors.geoms[anchoring[0]]
+            c_point = self.anchorsmod.geoms[anchoring[0]]
             a_point = s.anchors.geoms[anchoring[1]]
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
             s.move(coord=offset)
+        
+        if direction_snap:
+            s.rotate(direction, origin=(0, 0))
 
         for a in attr_list:
             if not hasattr(self, a):
