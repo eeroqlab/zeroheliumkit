@@ -505,7 +505,6 @@ class Structure(Entity):
         attr_list_device = self.layer_names()
         attr_list_structure = s.layer_names()
         attr_list = list(set(attr_list_device + attr_list_structure))
-        c_point = None
 
         if anchoring:
             c_point = self.get_anchor(anchoring[0])
@@ -516,47 +515,47 @@ class Structure(Entity):
         if direction_snap:
             direction = self.get_anchor(anchoring[0]).direction - self.get_anchor(anchoring[1]).direction
             s.rotate(direction, origin=(0, 0))
+        
+        # appending anchors
+        self.add_anchor(s.anchorsmod.multipoint) 
 
+        # appending lines and polygons
         for a in attr_list:
             if not hasattr(self, a):
-                value = self._combine_objects(None, getattr(s, a), None, None)
+                value = self._combine_objects(None, getattr(s, a), None)
             elif not hasattr(s, a):
-                value = self._combine_objects(getattr(self, a), None, None, None)
+                value = self._combine_objects(getattr(self, a), None, None)
             else:
-                isKeyPresent_or_DictPresent = a in connection_type if connection_type else False
-                connection = connection_type.get(a) if isKeyPresent_or_DictPresent else None
-                value = self._combine_objects(getattr(self, a), getattr(s, a), connection, c_point)
+                connection = self.connection_config.get(a)
+                value = self._combine_objects(getattr(self, a), getattr(s, a), connection)
 
             setattr(self, a, value)
         
     
     def _combine_objects(self, 
-                        obj1: Point | LineString | Polygon| MultiPoint | MultiLineString | MultiPolygon | None, 
-                        obj2: Point | LineString | Polygon| MultiPoint | MultiLineString | MultiPolygon | None,
-                        connection: str,
-                        point: Point
+                        obj1: LineString | Polygon| MultiLineString | MultiPolygon | None, 
+                        obj2: LineString | Polygon| MultiLineString | MultiPolygon | None,
+                        connection: str
                         ):
         """ combines two geometries with given connection type and connection point
 
         Args:
-            obj1 (Point | LineString | Polygon | MultiPoint | MultiLineString | MultiPolygon | None): shapely geometry
-            obj2 (Point | LineString | Polygon | MultiPoint | MultiLineString | MultiPolygon | None): shapely geometry
-            connection (str): connection type ["linemerge", "union", ("gapped", g, l, angle), "p_union"]
-            point (Point): connection Point
+            obj1 (LineString | Polygon | MultiLineString | MultiPolygon | None): shapely geometry
+            obj2 (LineString | Polygon | MultiLineString | MultiPolygon | None): shapely geometry
+            connection (str): connection type [None, "union"]
 
         Raises:
-            TypeError: raise if appending shapely object is not [Point | LineString | Polygon | MultiPoint | MultiLineString | MultiPolygon]
+            TypeError: raise if appending shapely object is not [LineString | Polygon | MultiLineString | MultiPolygon]
             ValueError: something wrong went with combining geometries.
                         call _errors to inspect problematic core_obj
         """
 
         core_objs = self.empty_multiGeometry(obj1, obj2)
-        #print(core_objs)
         if obj1:
             core_objs = self._append_geometry(core_objs, obj1)
         if obj2:
             if connection:
-                core_objs = self._append_geometry(core_objs, obj2, connection, point)
+                core_objs = self._append_geometry(core_objs, obj2, connection)
             else:
                 core_objs = self._append_geometry(core_objs, obj2)
         
@@ -571,19 +570,18 @@ class Structure(Entity):
         Returns:
             empty Multi-Geometry
         """
-        if (type(obj1) in PTS_CLASSES) or (type(obj2) in PTS_CLASSES):
-            return MultiPoint()
-        elif (type(obj1) in LINE_CLASSES) or (type(obj2) in LINE_CLASSES):
+
+        if (type(obj1) in LINE_CLASSES) or (type(obj2) in LINE_CLASSES):
             return MultiLineString()
         elif (type(obj1) in PLG_CLASSES) or (type(obj2) in PLG_CLASSES):
             return MultiPolygon()
         else:
             raise TypeError("incorrect shapely object types")
     
-    def _append_geometry(self, core_objs, appending_objs, connection=None, point=None):
+    def _append_geometry(self, core_objs, appending_objs, connection=None):
         """ appends single or multi shapely geometries
-            works with Point, LineString, Polygon and multi-geometries
-            if connection is provided - performs operation on geometries
+            works with LineString, Polygon and multi-geometries
+            if connection is provided - performs union on all geometries
 
         Returns:
             Multi-Geometry
@@ -593,44 +591,9 @@ class Structure(Entity):
         multi_geom = geom_type(geom_list)
 
         if connection:
-            multi_geom = self._perform_operation(multi_geom, connection, point)
+            multi_geom = unary_union(multi_geom)
         
         return multi_geom 
-    
-    def _perform_operation(self, multi_geom, connection, point):
-        """ performing operation on MultiGeometry by connection type
-
-        Args:
-            o1: shapely geometry
-            o2: shapely geometry
-            connection (str): connection type
-            point (point): connection Point
-
-        Returns:
-            tuple: result of combining objects
-        """
-        if connection=="union":
-            return unary_union(multi_geom)
-        elif connection=="linemerge":
-            return ops.linemerge(multi_geom)
-        elif connection[0]=="gapped":
-            return self._connect_with_gap(multi_geom, connection=connection, point=point)
-        elif connection=="p_union":
-            return unary_union(multi_geom)
-    
-    def _connect_with_gap(self, multi_geom, connection: tuple, point: Point):
-        '''
-            this function cuts MultiPolygon at the intersection point
-            returns MultiPolygons
-            connection: ("gapped", gap, length, angle)
-        '''
-        g = connection[1]      # gap
-        l = connection[2]      # length
-        angle = connection[3]  # angle
-
-        line = LineString([(point.x - l/2, point.y), (point.x + l/2, point.y)])
-        line = affinity.rotate(line, angle, origin=(point.x, point.y))
-        return difference(multi_geom, line.buffer(g/2, cap_style='square'))
     
     def get_skeletone_boundary(self, geometry_index: int=0) -> tuple:
         line = list(self.skeletone.geoms)
