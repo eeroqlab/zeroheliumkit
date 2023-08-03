@@ -1,8 +1,10 @@
 import pickle
 import numpy as np
 
-from shapely import Polygon, MultiPolygon, LineString
-from shapely import unary_union, centroid, ops
+from shapely import Polygon, MultiPolygon, LineString, Point
+from shapely import centroid, ops, affinity
+from math import atan, pi
+
 
 def merge_lines_with_tolerance(line1: LineString, line2: LineString, tol: float=1e-6) -> LineString:
         """Returns LineStrings formed by combining two lines. 
@@ -49,6 +51,90 @@ def attach_line(object: LineString, line: LineString) -> None:
     coords_obj_new[n1:] = coords_obj_2[1:]
 
     return LineString(coords_obj_new)
+
+
+def azimuth(point1, point2):
+    '''azimuth between 2 shapely points (interval 0 - 360)'''
+    if type(point1) is Point:
+        angle = np.arctan2(point2.x - point1.x, point2.y - point1.y)
+    else:
+        angle = np.arctan2(point2[0] - point1[0], point2[1] - point1[1])
+    return np.degrees(angle) if angle >= 0 else np.degrees(angle) + 360
+
+
+def offset_point(point: tuple | Point, offset: float, angle: float) -> Point:
+    rotation_angle = angle - 90
+    
+    if isinstance(point, Point):
+        point_coord = (point.x, point.y)
+    else:
+        point_coord = point
+    p_origin = Point(point_coord)
+    p = affinity.translate(p_origin, xoff=offset, yoff=0)
+    p = affinity.rotate(p, angle=rotation_angle, origin=p_origin)
+    return p
+
+
+def angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
+    if isinstance(p1, Point):
+        p1 = (p1.x, p1.y)
+    if isinstance(p2, Point):
+        p2 = (p2.x, p2.y)
+    if p2[0] - p1[0] == 0:
+        if p2[1] - p1[1] > 0:
+            return 90
+        else:
+            return 270
+    else:    
+        angle = atan((p2[1] - p1[1])/(p2[0] - p1[0])) * 180/pi
+        if p2[1] - p1[1] > 0 and p2[0] - p1[0] < 0:
+            return angle + 180
+        elif p2[1] - p1[1] < 0 and p2[0] - p1[0] < 0:
+            return angle + 180
+        elif p2[1] - p1[1] < 0 and p2[0] - p1[0] > 0:
+            return angle
+        else:
+            return angle 
+
+
+def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
+    if not isinstance(p1, Point):
+        p1 = Point(p1)
+    if not isinstance(p2, Point):
+        p2 = Point(p2)
+    a = p1.y - p2.y
+    b = p2.x - p1.x
+    c = -a * p1.x - b * p1.y
+    return a, b, c
+
+
+def get_intersection_point(abc1: tuple, abc2: tuple) -> Point:
+    a1, b1, c1 = abc1
+    a2, b2, c2 = abc2
+    x = (b1 * c2 - b2 * c1)/(a1 * b2 - a2 * b1)
+    y = (a2 * c1 - a1 * c2)/(a1 * b2 - a2 * b1)
+    return Point(x, y)
+
+
+def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point):
+    if not isinstance(p1, Point):
+        p1 = Point(p1)
+    if not isinstance(p2, Point):
+        p2 = Point(p2)
+    if not isinstance(p3, Point):
+        p3 = Point(p3)
+    if not isinstance(p4, Point):
+        p4 = Point(p4)
+    denominator = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
+    if denominator==0:
+        raise ZeroDivisionError("constructed parallel lines do not intersect, you idiot! :)")
+    px = ((p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))/denominator
+    py = ((p1.x * p2.y - p1.y * p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x))/denominator
+    return Point(px, py)
+
+
+def midpoint(p1, p2):
+    return Point((p1.x + p2.x)/2, (p1.y + p2.y)/2)
 
 
 def save_geometries(geometries_dict, file_path):

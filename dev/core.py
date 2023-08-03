@@ -75,8 +75,8 @@ class Entity(_Base):
 
     def __init__(self):
         self.skeletone = LineString()
-        self.anchorsmod = MultiAnchor()    # [input, output] directions defined by angles in degeres
-    
+        self.anchorsmod = MultiAnchor([])    # [input, output] directions defined by angles in degeres
+
     def layer_names(self, geom_type: str=None) -> list:
         """ gets name of layers, containing geometry objects 
 
@@ -380,7 +380,7 @@ class Entity(_Base):
             list: list of two Points
         """
         coords = np.asarray(list(self.skeletone.coords))
-        return [coords[0], coords[-1]]
+        return (coords[0], coords[-1])
     
 
     ##############################
@@ -477,9 +477,8 @@ class Structure(Entity):
         inherits internal structure(attributes) of appending Entities
     """
 
-    def __init__(self, connection_config: dict=None):
+    def __init__(self):
         super().__init__()
-        self.connection_config = connection_config
 
     def append(self, structure: Entity, anchoring: tuple=None, direction_snap: bool=False) -> None:
         """ appends Entity or Structure to Structure
@@ -489,16 +488,6 @@ class Structure(Entity):
             anchoring (list, optional): snaps appending object given by list of points. 
                                         [StructureObj Point, AppendingObj Point] 
                                         Defaults to None.
-            direction (float, optional): rotates AppendingObj by given direction angle. 
-                                        Defaults to 0.
-            connection_type (dict, optional): describes how geometries are connected. 
-                                            available options:
-                                                - None
-                                                - skeletone: "linemerge"
-                                                - polygons: "union"
-                                                - polygon: ("gapped", gap, length, angle)
-                                                - anchors: "p_union"
-                                            Defaults to None.
         """
 
         s = structure.copy()
@@ -522,27 +511,23 @@ class Structure(Entity):
         # appending lines and polygons
         for a in attr_list:
             if not hasattr(self, a):
-                value = self._combine_objects(None, getattr(s, a), None)
+                value = self._combine_objects(None, getattr(s, a))
             elif not hasattr(s, a):
-                value = self._combine_objects(getattr(self, a), None, None)
+                value = self._combine_objects(getattr(self, a), None)
             else:
-                connection = self.connection_config.get(a)
-                value = self._combine_objects(getattr(self, a), getattr(s, a), connection)
+                value = self._combine_objects(getattr(self, a), getattr(s, a))
 
             setattr(self, a, value)
         
     
     def _combine_objects(self, 
                         obj1: LineString | Polygon| MultiLineString | MultiPolygon | None, 
-                        obj2: LineString | Polygon| MultiLineString | MultiPolygon | None,
-                        connection: str
-                        ):
+                        obj2: LineString | Polygon| MultiLineString | MultiPolygon | None):
         """ combines two geometries with given connection type and connection point
 
         Args:
             obj1 (LineString | Polygon | MultiLineString | MultiPolygon | None): shapely geometry
             obj2 (LineString | Polygon | MultiLineString | MultiPolygon | None): shapely geometry
-            connection (str): connection type [None, "union"]
 
         Raises:
             TypeError: raise if appending shapely object is not [LineString | Polygon | MultiLineString | MultiPolygon]
@@ -554,10 +539,7 @@ class Structure(Entity):
         if obj1:
             core_objs = self._append_geometry(core_objs, obj1)
         if obj2:
-            if connection:
-                core_objs = self._append_geometry(core_objs, obj2, connection)
-            else:
-                core_objs = self._append_geometry(core_objs, obj2)
+            core_objs = self._append_geometry(core_objs, obj2)
         
         return core_objs
     
@@ -578,7 +560,7 @@ class Structure(Entity):
         else:
             raise TypeError("incorrect shapely object types")
     
-    def _append_geometry(self, core_objs, appending_objs, connection=None):
+    def _append_geometry(self, core_objs, appending_objs):
         """ appends single or multi shapely geometries
             works with LineString, Polygon and multi-geometries
             if connection is provided - performs union on all geometries
@@ -587,11 +569,7 @@ class Structure(Entity):
             Multi-Geometry
         """
         geom_list = list(core_objs.geoms) + create_list_geoms(appending_objs)
-        geom_type = getattr(shapely, core_objs.geom_type)
-        multi_geom = geom_type(geom_list)
-
-        if connection:
-            multi_geom = unary_union(multi_geom)
+        multi_geom = unary_union(geom_list)
         
         return multi_geom 
     
