@@ -98,7 +98,7 @@ class StraightLine(Entity):
                          Anchor(point=last, direction=0, label=alabel[1])])
         
 
-class ExtrudedLine(Entity):
+class ArbitraryLine(Entity):
     def __init__(self, points: list, layers: dict, alabel: tuple):
         super().__init__()
         
@@ -144,17 +144,28 @@ class ExtrudedLine(Entity):
         return get_intersection_point_bruteforce(o1, o2, o3, o4)
     
 
-class Taper(Entity):
+class Taper(ArbitraryLine):
     def __init__(self, 
                  length: float, 
-                 width1: float, 
-                 width2: float, 
-                 input_length: float, 
-                 output_length: float, 
-                 anchors: str=None, 
                  layers: dict=None,
                  alabel: tuple=None):
-        super().__init__()
+
+        # preparing dictionary for ArbitraryLine class
+        for k, v in layers.items():
+            w1 = v[0]   # input side width
+            w2 = v[1]   # output side width
+            if w1==w2:
+                # if width are the same -> adding small difference in order to avoid division by zero error
+                # later during "setattr" operation this difference will be eliminated by "set_precision" (default)
+                w2 = w2 + GRID_SIZE/10
+            layers[k] = np.asarray([w1, w1, w2, w2])
+
+        pts = [(-length/2 - w1, 0),
+               (-length/2, 0),
+               (length/2, 0),
+               (length/2 + w2, 0)
+               ]
+        super().__init__(pts, layers, alabel)
 
 
 
@@ -259,9 +270,6 @@ class IDC(Entity):
                          Anchor(point=last, direction=0, label=alabel[1])])
 
 
-
-
-
 class Fillet(Entity):
     def __init__(self, 
                  length1: float, 
@@ -269,7 +277,8 @@ class Fillet(Entity):
                  radius: float, 
                  direction: float, 
                  num_segments: int, 
-                 layers: dict):
+                 layers: dict,
+                 alabel: tuple):
         super().__init__()
         
         pts = [(0, 0), (length1, 0)]
@@ -281,9 +290,12 @@ class Fillet(Entity):
         self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
         self.add_line(LineString([(0, 0), (length2 * np.cos(direction*np.pi/180), length2 * np.sin(direction*np.pi/180))]))
         for k, width in layers.items():
-            self.add_buffer(name=k, offset=width/2, cap_style='square', join_style='mitre')
+            self.buffer_line(name=k, offset=width/2, cap_style='square', join_style='mitre')
         
-        self.add_anchor(self.get_skeletone_boundary())
+        first, last = self.get_skeletone_boundary()
+        self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
+                         Anchor(point=last, direction=direction, label=alabel[1])])
+
 
 class Route(Fillet):
     def __init__(self, 
@@ -293,7 +305,8 @@ class Route(Fillet):
                  direction2: float, 
                  radius: float=10, 
                  num_segments: int=10, 
-                 layers: dict=None):
+                 layers: dict=None,
+                 alabel: tuple=None):
         
         direction = direction2 - direction1
         angle_rad = direction * pi/180
@@ -312,14 +325,17 @@ class Route(Fillet):
         if length1 < 0 or length2 < 0:
             raise ValueError(f"cannot make route, make radius={radius} smaller")
         
-        super().__init__(length1, length2, radius, direction, num_segments, layers)
+        super().__init__(length1, length2, radius, direction, num_segments, layers, alabel)
 
-        lnames = self.layer_names()
-        for a in lnames:
-            setattr(self, a, affinity.rotate(getattr(self, a), direction1, origin=(0,0)))
-            setattr(self, a, affinity.translate(getattr(self, a), xoff=point1.x, yoff=point1.y))
+        self.rotate(direction1)
+        self.moveby((point1.x, point1.y))
+        #lnames = self.layer_names()
+        #for a in lnames:
+        #    setattr(self, a, affinity.rotate(getattr(self, a), direction1, origin=(0,0)))
+        #    setattr(self, a, affinity.translate(getattr(self, a), xoff=point1.x, yoff=point1.y))
 
-
+        #self.anchorsmod.rotate(direction1)
+        #self.anchorsmod.move
 
 class RouteTwoElbows(Entity):
     def __init__(self, 
@@ -330,17 +346,19 @@ class RouteTwoElbows(Entity):
                  mid_direction: float,
                  radius: float=10, 
                  num_segments: int=10, 
-                 layers: dict=None):
+                 layers: dict=None,
+                 alabel: tuple=None):
         
         mid_p = midpoint(point1, point2)
         mid_dir = mid_direction
-        r1 = Route(point1, direction1, mid_p, mid_dir, radius, num_segments, layers)
-        r2 = Route(mid_p, mid_dir, point2, direction2, radius, num_segments, layers)
+        r1 = Route(point1, direction1, mid_p, mid_dir, radius, num_segments, layers, (alabel[0], "mid"))
+        r2 = Route(mid_p, mid_dir, point2, direction2, radius, num_segments, layers, ("mid", alabel[1]))
         for a in r1.layer_names():
             geom_1 = getattr(r1, a)
             geom_2 = getattr(r2, a)
             setattr(self, a, unary_union([geom_1, geom_2]))
-        self.anchors = MultiPoint([point1, point2])
+        self.anchorsmod = MultiAnchor([Anchor(point1, direction1, alabel[0]), 
+                                       Anchor(point2, direction2, alabel[1])])
 
 
 class claws(Entity):
@@ -348,14 +366,16 @@ class claws(Entity):
                  radius: float,
                  offset: float,
                  length: float,
-                 layers: dict):
+                 layers: dict,
+                 alabel: tuple):
         super().__init__()
         r = radius + offset
         self.create_skeletone(offset, radius, length)
         #self.skeletone = MultiLineString([self.skeletone, LineString([(r, 0), (2*r, 0)])])
         for k, width in layers.items():
             self.add_buffer(name=k, offset=width/2, cap_style='round', join_style='round', quad_segs=20)
-        self.add_anchor([(0, 0), (r, 0)])
+        self.anchorsmod = MultiAnchor([Anchor((0,0), 0, alabel[0]), 
+                                       Anchor((r,0), 0, alabel[1])])
 
     def create_skeletone(self, offset, radius, length):
         r = radius + offset     # radius of the claw

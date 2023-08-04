@@ -502,7 +502,7 @@ class Structure(Entity):
             s.moveby(offset)
         
         if direction_snap:
-            direction = self.get_anchor(anchoring[0]).direction - self.get_anchor(anchoring[1]).direction
+            direction = - s.get_anchor(anchoring[1]).direction + self.get_anchor(anchoring[0]).direction
             s.rotate(direction, origin=(0, 0))
         
         # appending anchors
@@ -568,7 +568,7 @@ class Structure(Entity):
         Returns:
             Multi-Geometry
         """
-        geom_list = list(core_objs.geoms) + create_list_geoms(appending_objs)
+        geom_list = create_list_geoms(core_objs) + create_list_geoms(appending_objs)
         multi_geom = unary_union(geom_list)
         
         return multi_geom 
