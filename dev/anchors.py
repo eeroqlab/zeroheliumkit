@@ -162,7 +162,7 @@ class MultiAnchor():
             labels = [labels]
         S1 = set(self.point(labels))
         S2 = set(self.multipoint)
-        self.multipoint = S2.difference(S1)
+        self.multipoint = list(S2.difference(S1))
     
     def modify(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None):
         if new_xy:

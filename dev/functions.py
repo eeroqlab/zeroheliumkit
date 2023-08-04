@@ -96,6 +96,13 @@ def angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
         else:
             return angle 
 
+def length_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
+    if isinstance(p1, Point):
+        p1 = (p1.x, p1.y)
+    if isinstance(p2, Point):
+        p2 = (p2.x, p2.y)
+    return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
 
 def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
     if not isinstance(p1, Point):
