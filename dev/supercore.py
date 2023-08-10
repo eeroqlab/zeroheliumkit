@@ -57,13 +57,13 @@ class Elbow(Route):
 
 class SuperStructure(Structure):
     def __init__(self, route_config: dict):
-        self.route_config = route_config
+        self._route_config = route_config
         super().__init__()
     
     def route_between_two_pts(self, anchors: tuple, layers: dict):
         
-        if type not in route_types.keys():
-            raise TypeError(f"'{type}' is not supported. choose from {route_types.keys()}")
+        #if type not in route_types.keys():
+        #    raise TypeError(f"'{type}' is not supported. choose from {route_types.keys()}")
         
         if len(anchors) != 2:
             raise TypeError("connection can be made only between two points. Provide only two point labels in 'anchors'")
@@ -73,7 +73,8 @@ class SuperStructure(Structure):
 
         if point1.direction == point2.direction:
             a, b, c = get_abc_line(point1.point, point2.point)
-            if np.abs(-a/b - point1.direction) < 1e-4:
+            angle = np.arctan(-a/b)*180/np.pi
+            if np.abs(angle - point1.direction) < 1e-4:
                 connecting_structure = Line(anchor1=point1,
                                             anchor2=point2,
                                             layers=layers)
@@ -83,8 +84,8 @@ class SuperStructure(Structure):
             try:
                 connecting_structure = Elbow(anchor1=point1,
                                              anchor2=point2,
-                                             radius=self.route_config.get("radius"),
-                                             num_segments=self.route_config.get("num_segments"),
+                                             radius=self._route_config.get("radius"),
+                                             num_segments=self._route_config.get("num_segments"),
                                              layers=layers)
             except:
                 raise ValueError("Cannot construct route Elbow. Add extra anchor.")
