@@ -75,7 +75,7 @@ def offset_point(point: tuple | Point, offset: float, angle: float) -> Point:
     return p
 
 
-def angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
+def get_angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
     if isinstance(p1, Point):
         p1 = (p1.x, p1.y)
     if isinstance(p2, Point):
@@ -96,7 +96,7 @@ def angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
         else:
             return angle 
 
-def length_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
+def get_length_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
     if isinstance(p1, Point):
         p1 = (p1.x, p1.y)
     if isinstance(p2, Point):

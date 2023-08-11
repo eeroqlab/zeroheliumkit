@@ -1,3 +1,4 @@
+
 import numpy as np
 
 from math import sqrt, pi, tanh, cos, sin, tan, atan
@@ -76,49 +77,87 @@ def RegularPolygon(edge: float, n: int) -> Polygon:
 
     return Polygon(xy)
 
+def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
+    
+    if isinstance(point_any_type, Anchor):
+    # if Anchor class provided then extract coords
+        return point_any_type.coords
+
+    elif isinstance(point_any_type, Point):
+        # if Point class provided then extract coords
+        return list(point_any_type.coords)[0]
+    
+    elif isinstance(point_any_type, tuple):
+        # if tuple is provided then return the same
+        return point_any_type
+    
+    else:
+        raise TypeError("only tuple, Point and Anchor tupes are supported")
+
+
 
 # Multi-layer Geometry Classes
 # _________________________________________________________________________________
 
 class StraightLine(Entity):
-    def __init__(self, 
-                 length: float, 
-                 layers: dict,
-                 alabel: tuple):
+    def __init__(self,
+                 anchors: tuple=None, 
+                 lendir: tuple=None, 
+                 layers: dict={},
+                 alabel: tuple=None):
         super().__init__()
 
-        pts = [(0, 0), (length, 0)]
-        self.skeletone = LineString(pts)
+        if anchors:
+            p1 = extract_coords_from_point(anchors[0])
+            p2 = extract_coords_from_point(anchors[1])
 
+        elif lendir:
+            length, direction = lendir
+            p1 = (0, 0)
+            p2 = (length * np.cos(direction * np.pi/180), 
+                  length * np.sin(direction * np.pi/180))
+        else:
+            raise AttributeError("provide only one argument: 'anchors' or 'lendir'")
+
+        # create skeletone
+        self.skeletone = LineString([p1, p2])
+
+        # create polygons
         for k, width in layers.items():
             self.buffer_line(name=k, offset=width/2, cap_style='square')
-
-        first, last = self.get_skeletone_boundary()
-        self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
-                         Anchor(point=last, direction=0, label=alabel[1])])
         
+        # create anchors
+        if alabel:
+            angle = get_angle_between_points(p1, p2)
+            self.add_anchor([Anchor(point=p1, direction=angle, label=alabel[0]), 
+                            Anchor(point=p2, direction=angle, label=alabel[1])])
+            
 
 class ArbitraryLine(Entity):
     def __init__(self, points: list, layers: dict, alabel: tuple):
         super().__init__()
         
+        # create skeletone
         self.skeletone = LineString(points)
 
+        # create polygons
         for k, width in layers.items():
             polygon = self.make_base_polygon(points, width)
             setattr(self, k, polygon)
         
-        input_angle = angle_between_points(points[0], points[1])
-        output_angle = angle_between_points(points[-2], points[-1])
-        self.add_anchor([Anchor(point=points[0], direction=input_angle, label=alabel[0]), 
-                         Anchor(point=points[-1], direction=output_angle, label=alabel[1])])
+        # create anchors
+        if alabel:
+            input_angle = get_angle_between_points(points[0], points[1])
+            output_angle = get_angle_between_points(points[-2], points[-1])
+            self.add_anchor([Anchor(point=points[0], direction=input_angle, label=alabel[0]), 
+                            Anchor(point=points[-1], direction=output_angle, label=alabel[1])])
 
     def make_base_polygon(self, points: list, width: list | float):
         num = len(points)
         if isinstance(width, (int, float)):
             width = np.full(shape=num, fill_value=width, dtype=np.float32)
-        p_start_up = offset_point(points[0], width[0]/2, angle_between_points(points[0], points[1]))
-        p_start_down = offset_point(points[0], -width[0]/2, angle_between_points(points[0], points[1]))
+        p_start_up = offset_point(points[0], width[0]/2, get_angle_between_points(points[0], points[1]))
+        p_start_down = offset_point(points[0], -width[0]/2, get_angle_between_points(points[0], points[1]))
         points_up = [p_start_up]
         points_down = [p_start_down]
         for i in range(1, num - 1):
@@ -128,15 +167,15 @@ class ArbitraryLine(Entity):
             points_down.append(self.get_boundary_intersection_point(points[i-1], points[i], points[i+1],
                                                             -width[i-1]/2, -width[i]/2, -width[i+1]/2
                                                             ))
-        points_up.append(offset_point(points[-1], width[-1]/2, angle_between_points(points[-2], points[-1])))
-        points_down.append(offset_point(points[-1], -width[-1]/2, angle_between_points(points[-2], points[-1])))
+        points_up.append(offset_point(points[-1], width[-1]/2, get_angle_between_points(points[-2], points[-1])))
+        points_down.append(offset_point(points[-1], -width[-1]/2, get_angle_between_points(points[-2], points[-1])))
         pts = points_up + points_down[::-1]
         
         return Polygon(pts)
 
     def get_boundary_intersection_point(self, p1 :Point, p2: Point, p3: Point, w1: float, w2: float, w3: float):
-        a1 = angle_between_points(p1, p2)
-        a2 = angle_between_points(p2, p3)
+        a1 = get_angle_between_points(p1, p2)
+        a2 = get_angle_between_points(p2, p3)
         o1 = offset_point(p1, w1, a1)
         o2 = offset_point(p2, w2, a1)
         o3 = offset_point(p2, w2, a2)
@@ -150,12 +189,12 @@ class Taper(ArbitraryLine):
                  layers: dict=None,
                  alabel: tuple=None):
 
-        # preparing dictionary for ArbitraryLine class
+        # preparing dictionary for supplying it into ArbitraryLine class
         for k, v in layers.items():
             w1 = v[0]   # input side width
             w2 = v[1]   # output side width
             if w1==w2:
-                # if width are the same -> adding small difference in order to avoid division by zero error
+                # if width are the same -> adding small difference in order to avoid 'division by zero' error
                 # later during "setattr" operation this difference will be eliminated by "set_precision" (default)
                 w2 = w2 + GRID_SIZE/10
             layers[k] = np.asarray([w1, w1, w2, w2])
@@ -168,6 +207,120 @@ class Taper(ArbitraryLine):
         super().__init__(pts, layers, alabel)
 
 
+class Fillet(Entity):
+    def __init__(self, 
+                 length1: float, 
+                 length2: float, 
+                 radius: float, 
+                 direction: float, 
+                 num_segments: int, 
+                 layers: dict,
+                 alabel: tuple):
+        super().__init__()
+        
+        # create skeletone
+        pts = [(0, 0), (length1, 0)]
+        self.skeletone = LineString(pts)
+        if direction>0:
+            x0, y0, phi0 = (0, radius, 270)
+        else:
+            x0, y0, phi0 = (0, -radius, 90)
+        self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
+        self.add_line(LineString([(0, 0), (length2 * np.cos(direction*np.pi/180), length2 * np.sin(direction*np.pi/180))]))
+        
+        # create polygons
+        for k, width in layers.items():
+            self.buffer_line(name=k, offset=width/2, cap_style='square', join_style='mitre')
+        
+        # create anchors
+        if alabel:
+            first, last = self.get_skeletone_boundary()
+            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
+                            Anchor(point=last, direction=direction, label=alabel[1])])
+
+
+class ElbowLine(Fillet):
+    def __init__(self, 
+                 anchor1: Anchor,
+                 anchor2: Anchor, 
+                 radius: float=10, 
+                 num_segments: int=10, 
+                 layers: dict={},
+                 alabel: tuple=None):
+        
+        direction = anchor2.direction - anchor1.direction
+        angle_rad = direction * pi/180
+        p = affinity.rotate(Point((anchor2.x - anchor1.x, anchor2.y - anchor1.y)), -anchor1.direction, origin=(0,0))
+
+        if np.abs(angle_rad) < np.abs(atan(p.y/p.x)) or np.sign(p.y)!=np.sign(direction):
+            raise ValueError("cannot make a route, choose a different type of routing")
+        
+        if cos(angle_rad)==1:
+            length2 = p.y - radius
+        else:    
+            length2 = np.abs(p.y - np.sign(direction) * radius * (1 - cos(angle_rad)))/sqrt(1 - cos(angle_rad)**2)
+            
+        length1 = p.x - 1 * length2 * cos(angle_rad) - np.sign(direction) * radius * sin(angle_rad)
+        
+        if length1 < 0 or length2 < 0:
+            raise ValueError(f"cannot make route, make radius={radius} smaller")
+        
+        super().__init__(length1, length2, radius, direction, num_segments, layers, alabel)
+
+        self.rotate(anchor1.direction)
+        self.moveby((anchor1.x, anchor1.y))
+
+
+class SigmoidLine(Structure):
+    def __init__(self, 
+                 anchor1: Anchor, 
+                 anchor2: Anchor, 
+                 mid_direction: float,
+                 radius: float=10, 
+                 num_segments: int=10, 
+                 layers: dict={},
+                 alabel: tuple=None):
+        
+        super().__init__()
+        mid_p = Anchor(midpoint(anchor1.point, anchor2.point), mid_direction)
+        r1 = ElbowLine(anchor1, mid_p, radius, num_segments, layers)
+        r2 = ElbowLine(mid_p, anchor2, radius, num_segments, layers)
+        self.append(r1)
+        self.append(r2)
+
+        # create anchors
+        if alabel:
+            anchor1.label = alabel[0]
+            anchor2.label = alabel[1]
+            self.add_anchor([anchor1, anchor2])
+
+
+class claws(Entity):
+    def __init__(self, 
+                 radius: float,
+                 offset: float,
+                 length: float,
+                 layers: dict,
+                 alabel: tuple):
+        super().__init__()
+        r = radius + offset
+        self.create_skeletone(offset, radius, length)
+        
+        for k, width in layers.items():
+            self.add_buffer(name=k, offset=width/2, cap_style='round', join_style='round', quad_segs=20)
+        self.anchorsmod = MultiAnchor([Anchor((0,0), 0, alabel[0]), 
+                                       Anchor((r,0), 0, alabel[1])])
+
+    def create_skeletone(self, offset, radius, length):
+        r = radius + offset     # radius of the claw
+        angle = 180 * (length/2)/(r * pi)
+        if angle > 90:
+            d = (length - pi * r)/2
+            self.add_line(LineString([(-d, -r), (0, -r)]))
+            self.add_line(ArcLine(0, r, r, -90, 90, 50))
+            self.add_line(LineString([(0, 0), (-d, 0)]))
+        else:
+            self.add_line(ArcLine(0, 0, r, -angle, angle, 50))
 
 class uChannelsAngle(Entity):
     def __init__(self, 
@@ -179,6 +332,7 @@ class uChannelsAngle(Entity):
                  alabel: tuple):
         super().__init__()
         
+        # create skeletone
         slope = tan(angle * pi/180)
         l = length - spacing * slope * (num - 1)
         pts = lambda i: [(0, 0), (0, l + slope * spacing * i), (spacing, l + slope * spacing * (i + 1)), (spacing, 0)]
@@ -186,12 +340,15 @@ class uChannelsAngle(Entity):
             self.add_line(LineString(pts(i)))
         self.add_line(LineString([(0, 0), (0, length), (spacing/2, length)]))
         
+        # create polygon
         for k, width in layers.items():
             self.buffer_line(name=k, offset=width/2, cap_style='flat', join_style='round', quad_segs=3)
 
-        first, last = self.get_skeletone_boundary()
-        self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
-                         Anchor(point=last, direction=0, label=alabel[1])])
+        # create anchors
+        if alabel:
+            first, last = self.get_skeletone_boundary()
+            self.add_anchor([Anchor(point=first, direction=90, label=alabel[0]), 
+                            Anchor(point=last, direction=0, label=alabel[1])])
 
 
 class SpiralInductor(Entity):
@@ -205,6 +362,7 @@ class SpiralInductor(Entity):
                  alabel: dict):
         super().__init__()
 
+        # create skeletone
         eps = 0.1 # this removes some artifacts at the corner of the central_pad unary_union process
         radius = width/2
         self._gap = gap
@@ -212,6 +370,7 @@ class SpiralInductor(Entity):
         coord_init = [(0, 0), (0, -size/2 - width/2), (size/2 + width + gap, -size/2 - width/2)]
         self.skeletone = LineString(coord_init)
         
+        # create polygons
         self.construct_spiral(size, radius, num_turns, smallest_section_length)
         for k, width in layers.items():
             self.buffer_line(name=k, offset=width/2, cap_style='round', join_style='mitre', quad_segs=2)
@@ -221,9 +380,11 @@ class SpiralInductor(Entity):
             united = unary_union([getattr(self, k), central_pad])
             setattr(self, k, united)
         
-        first, last = self.get_skeletone_boundary()
-        self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
-                         Anchor(point=last, direction=0, label=alabel[1])])
+        # create anchors
+        if alabel:
+            first, last = self.get_skeletone_boundary()
+            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
+                            Anchor(point=last, direction=0, label=alabel[1])])
 
     def num_segments(self, R: float, smallest_segment: float):
         ''' limits the maximum number of segments in arc '''
@@ -265,125 +426,8 @@ class IDC(Entity):
         for k, width in layers.items():
             self.buffer_line(name=k, offset=width/2, cap_style='square', join_style='round', quad_segs=2)
         
-        first, last = self.get_skeletone_boundary()
-        self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
-                         Anchor(point=last, direction=0, label=alabel[1])])
-
-
-class Fillet(Entity):
-    def __init__(self, 
-                 length1: float, 
-                 length2: float, 
-                 radius: float, 
-                 direction: float, 
-                 num_segments: int, 
-                 layers: dict,
-                 alabel: tuple):
-        super().__init__()
-        
-        pts = [(0, 0), (length1, 0)]
-        self.skeletone = LineString(pts)
-        if direction>0:
-            x0, y0, phi0 = (0, radius, 270)
-        else:
-            x0, y0, phi0 = (0, -radius, 90)
-        self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
-        self.add_line(LineString([(0, 0), (length2 * np.cos(direction*np.pi/180), length2 * np.sin(direction*np.pi/180))]))
-        for k, width in layers.items():
-            self.buffer_line(name=k, offset=width/2, cap_style='square', join_style='mitre')
-        
-        first, last = self.get_skeletone_boundary()
-        self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
-                         Anchor(point=last, direction=direction, label=alabel[1])])
-
-
-class Route(Fillet):
-    def __init__(self, 
-                 point1: Point, 
-                 direction1: float, 
-                 point2: Point,
-                 direction2: float, 
-                 radius: float=10, 
-                 num_segments: int=10, 
-                 layers: dict=None,
-                 alabel: tuple=None):
-        
-        direction = direction2 - direction1
-        angle_rad = direction * pi/180
-        p = affinity.rotate(Point((point2.x - point1.x, point2.y - point1.y)), -direction1, origin=(0,0))
-
-        if np.abs(angle_rad) < np.abs(atan(p.y/p.x)) or np.sign(p.y)!=np.sign(direction):
-            raise ValueError("cannot make a route, choose a different type of routing")
-        
-        if cos(angle_rad)==1:
-            length2 = p.y - radius
-        else:    
-            length2 = np.abs(p.y - np.sign(direction) * radius * (1 - cos(angle_rad)))/sqrt(1 - cos(angle_rad)**2)
-            
-        length1 = p.x - 1 * length2 * cos(angle_rad) - np.sign(direction) * radius * sin(angle_rad)
-        
-        if length1 < 0 or length2 < 0:
-            raise ValueError(f"cannot make route, make radius={radius} smaller")
-        
-        super().__init__(length1, length2, radius, direction, num_segments, layers, alabel)
-
-        self.rotate(direction1)
-        self.moveby((point1.x, point1.y))
-        #lnames = self.layer_names()
-        #for a in lnames:
-        #    setattr(self, a, affinity.rotate(getattr(self, a), direction1, origin=(0,0)))
-        #    setattr(self, a, affinity.translate(getattr(self, a), xoff=point1.x, yoff=point1.y))
-
-        #self.anchorsmod.rotate(direction1)
-        #self.anchorsmod.move
-
-class RouteTwoElbows(Entity):
-    def __init__(self, 
-                 point1: Point, 
-                 direction1: float, 
-                 point2: Point,
-                 direction2: float, 
-                 mid_direction: float,
-                 radius: float=10, 
-                 num_segments: int=10, 
-                 layers: dict=None,
-                 alabel: tuple=None):
-        
-        mid_p = midpoint(point1, point2)
-        mid_dir = mid_direction
-        r1 = Route(point1, direction1, mid_p, mid_dir, radius, num_segments, layers, (alabel[0], "mid"))
-        r2 = Route(mid_p, mid_dir, point2, direction2, radius, num_segments, layers, ("mid", alabel[1]))
-        for a in r1.layer_names():
-            geom_1 = getattr(r1, a)
-            geom_2 = getattr(r2, a)
-            setattr(self, a, unary_union([geom_1, geom_2]))
-        self.anchorsmod = MultiAnchor([Anchor(point1, direction1, alabel[0]), 
-                                       Anchor(point2, direction2, alabel[1])])
-
-
-class claws(Entity):
-    def __init__(self, 
-                 radius: float,
-                 offset: float,
-                 length: float,
-                 layers: dict,
-                 alabel: tuple):
-        super().__init__()
-        r = radius + offset
-        self.create_skeletone(offset, radius, length)
-        #self.skeletone = MultiLineString([self.skeletone, LineString([(r, 0), (2*r, 0)])])
-        for k, width in layers.items():
-            self.add_buffer(name=k, offset=width/2, cap_style='round', join_style='round', quad_segs=20)
-        self.anchorsmod = MultiAnchor([Anchor((0,0), 0, alabel[0]), 
-                                       Anchor((r,0), 0, alabel[1])])
-
-    def create_skeletone(self, offset, radius, length):
-        r = radius + offset     # radius of the claw
-        angle = 180 * (length/2)/(r * pi)
-        if angle > 90:
-            d = (length - pi * r)/2
-            self.add_line(LineString([(-d, -r), (0, -r)]))
-            self.add_line(ArcLine(0, r, r, -90, 90, 50))
-            self.add_line(LineString([(0, 0), (-d, 0)]))
-        else:
-            self.add_line(ArcLine(0, 0, r, -angle, angle, 50))
+        # create anchors
+        if alabel:
+            first, last = self.get_skeletone_boundary()
+            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
+                            Anchor(point=last, direction=0, label=alabel[1])])
