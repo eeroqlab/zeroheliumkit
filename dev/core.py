@@ -495,15 +495,16 @@ class Structure(Entity):
         attr_list_structure = s.layer_names()
         attr_list = list(set(attr_list_device + attr_list_structure))
 
+        if direction_snap:
+            direction = - s.get_anchor(anchoring[1]).direction + self.get_anchor(anchoring[0]).direction
+            s.rotate(direction, origin=(0, 0))
+
         if anchoring:
             c_point = self.get_anchor(anchoring[0])
             a_point = s.get_anchor(anchoring[1])
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
             s.moveby(offset)
-        
-        if direction_snap:
-            direction = - s.get_anchor(anchoring[1]).direction + self.get_anchor(anchoring[0]).direction
-            s.rotate(direction, origin=(0, 0))
+
         
         # appending anchors
         self.add_anchor(s.anchorsmod.multipoint) 

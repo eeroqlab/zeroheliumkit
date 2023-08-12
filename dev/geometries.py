@@ -66,16 +66,20 @@ def Rectangle(a: float, b: float) -> Polygon:
 def Square(s: float) -> Polygon:
     return Rectangle(s, s)
 
-def RegularPolygon(edge: float, n: int) -> Polygon:
+def RegularPolygon(edge: float, radius: float, n: int) -> Polygon:
     xy = []
     angle = 2 * np.pi / n
-    radius = edge/np.sin(angle/2) * 0.5
+    if edge:
+        radius = edge/np.sin(angle/2) * 0.5
     for i in range(n):
         x = radius * np.cos(i * angle)
         y = radius * np.sin(i * angle)
         xy.append((x, y))
 
     return Polygon(xy)
+
+def Circle(radius: float) -> Polygon:
+    return RegularPolygon(radius=radius, n=100)
 
 def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
     
