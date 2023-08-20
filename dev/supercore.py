@@ -1,5 +1,7 @@
 import numpy as np
 
+from shapely import line_locate_point
+
 from ..helpers.plotting import *
 from ..errors import *
 from ..settings import *
@@ -68,3 +70,21 @@ class SuperStructure(Structure):
     def route(self, anchors: tuple, layers: dict):
         for labels in zip(anchors, anchors[1:]):
             self.route_between_two_pts(anchors=labels, layers=layers)
+
+    def add_along_skeletone(self, 
+                            bound_anchors: tuple, 
+                            num: int, 
+                            object: Structure | Entity):
+        
+        if len(bound_anchors) != 2:
+            raise ValueError(f"Provide 2 anchors! Instead {len(bound_anchors)} is given.")
+        p1 = bound_anchors[0].point
+        p2 = bound_anchors[1].point
+
+        self.fix_line()
+        location_1 = line_locate_point(self.skeletone, p1)
+        location_2 = line_locate_point(self.skeletone, p2)
+
+        locs = np.linspace(location_1, location_2, num=num+2, endpoint=True)
+        for loc in locs[1:-1]:
+            
