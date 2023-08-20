@@ -1,22 +1,26 @@
+import copy
 import numpy as np
 
-import copy
-
 import shapely
-from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
-from shapely import (affinity, unary_union, ops, 
-                     difference, set_precision, 
-                     is_empty, crosses, 
-                     intersection, set_coordinates)
+from shapely import (Point, MultiPoint, LineString, MultiLineString,
+                     Polygon, MultiPolygon, GeometryCollection)
+from shapely import (affinity, unary_union,
+                     difference, set_precision,
+                     is_empty, crosses, intersection,
+                     set_coordinates, get_coordinates)
+from shapely.ops import linemerge
 
-from ..helpers.plotting import *
+from phidl import Device
+
+from ..helpers.plotting import plot_geometry
 from ..importing import reader_dxf
-from ..errors import *
-from ..settings import *
+from ..errors import TopologyError
+from ..settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES
 from ..functions import *
 
-from ..dev.anchors import *
-from ..dev.functions import *
+from ..dev.anchors import Anchor, MultiAnchor
+from ..dev.functions import (attach_line, save_geometries, convert_polygon_with_holes_into_muiltipolygon,
+                             create_list_geoms, read_geometries)
 
 #---------------------------------------------
 # core classes
@@ -28,7 +32,7 @@ class _Base:
     def copy(self):
         """ Returns  deepcopy of the class """
         return copy.deepcopy(self)
-    
+
     def __setattr__(self, name, value):
         """ changing the behaviour of the __setattr__:
             geometries are snapped to the grid by set_persicion
@@ -41,7 +45,7 @@ class _Base:
         """
 
         if (name[:1] != '_') and (name != "anchorsmod"):
-            
+
             try:
                 if hasattr(value, "geoms"):
                     geometries = []
@@ -58,8 +62,14 @@ class _Base:
                 print("the error is ", e)
         else:
             self.__dict__[name] = value
-    
-    def rename_layer(self, old_name, new_name):
+
+    def rename_layer(self, old_name: str, new_name: str) -> None:
+        """ Changes the name of layer/attribute class
+
+        Args:
+            old_name (str): old name
+            new_name (str): new name
+        """
         self.__dict__[new_name] = self.__dict__.pop(old_name)
 
 
@@ -75,7 +85,7 @@ class Entity(_Base):
 
     def __init__(self):
         self.skeletone = LineString()
-        self.anchorsmod = MultiAnchor([])    # [input, output] directions defined by angles in degeres
+        self.anchorsmod = MultiAnchor([])
 
     def layer_names(self, geom_type: str=None) -> list:
         """ gets name of layers, containing geometry objects 
@@ -86,14 +96,14 @@ class Entity(_Base):
         Returns:
             list: name of layers with geometries
         """
-        
+
         name_list = []
         for attribute in dir(self):
             if attribute[:1] != '_':
                 value = getattr(self, attribute)
                 if not callable(value) and (value is not None) and (attribute != "anchorsmod"):
                     name_list.append(attribute)
-        
+
         if not geom_type:
             return name_list
         elif geom_type=="polygon":
@@ -101,7 +111,7 @@ class Entity(_Base):
             return polygons_only
         else:
             raise NameError("Currently geom_type support only None or 'polygon'")
-    
+
 
     ################################
     #### Geometrical operations ####
@@ -117,21 +127,21 @@ class Entity(_Base):
         attr_list = self.layer_names()
         for attr in attr_list:
             setattr(self, attr, affinity.rotate(getattr(self, attr), angle, origin))
-        
+
         self.anchorsmod.rotate(angle, origin)
-    
+
     def moveby(self, xy: tuple=(0,0)):
         attr_list = self.layer_names()
         for a in attr_list:
-            translated_geometry = affinity.translate(getattr(self, a), 
-                                                     xoff = xy[0], 
+            translated_geometry = affinity.translate(getattr(self, a),
+                                                     xoff = xy[0],
                                                      yoff = xy[1])
             setattr(self, a, translated_geometry)
         self.anchorsmod.move(xoff=xy[0], yoff=xy[1])
 
     def moveby_snap(self, anchor: str, to_point: tuple | str | Point):
         old_anchor_coord = self.anchorsmod.point(anchor).coords
-        if isinstance(to_point, tuple): 
+        if isinstance(to_point, tuple):
             new_anchor_coord = to_point
         elif isinstance(to_point, str):
             new_anchor_coord = self.anchorsmod.point(to_point).coords
@@ -141,7 +151,7 @@ class Entity(_Base):
             raise ValueError("not supported type for 'to_point'")
         dxdy = (new_anchor_coord[0] - old_anchor_coord[0],
                 new_anchor_coord[1] - old_anchor_coord[1])
-        
+
         self.moveby(dxdy)
 
     def scale(self, xfact=1.0, yfact=1.0, origin=(0,0)):
@@ -171,8 +181,8 @@ class Entity(_Base):
         elif aroundaxis=='x':
             sign = (1,-1)
         else:
-            raise("choose x or y axis for mirroring")
-        
+            raise TypeError("choose x or y axis for mirroring")
+
         attr_list = self.layer_names()
         for attr in attr_list:
             mirrored = affinity.scale(getattr(self, attr), *sign, 1.0, origin=(0,0))
@@ -182,20 +192,22 @@ class Entity(_Base):
             else:
                 setattr(self, attr, mirrored)
 
-        self.anchorsmod.mirror(aroundaxis=aroundaxis, update_labels=update_labels, keep_original=keep_original)
+        self.anchorsmod.mirror(aroundaxis=aroundaxis,
+                               update_labels=update_labels,
+                               keep_original=keep_original)
 
 
     ###############################
     #### Operations on anchors ####
     ###############################
-    def add_anchor(self, points: list[Anchor] | Anchor=[]):
+    def add_anchor(self, points: list[Anchor] | Anchor):
         """ adding points to 'anchors' class attribute
 
         Args:
             points (list[tuple], optional): adds new anchor. Defaults to [].
         """
         self.anchorsmod.add(points)
-    
+
     def get_anchor(self, label: str) -> Anchor:
         """ returns the Anchor class with given label
 
@@ -207,7 +219,11 @@ class Entity(_Base):
         """
         return self.anchorsmod.point(label)
 
-    def modify_anchor(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None):
+    def modify_anchor(self,
+                      label: str,
+                      new_name: str=None,
+                      new_xy: tuple=None,
+                      new_direction: float=None):
         """ Modifies the given anchor properties
 
         Args:
@@ -216,8 +232,11 @@ class Entity(_Base):
             new_xy (tuple, optional): updates coordinates. Defaults to None.
             new_direction (float, optional): updates the direction. Defaults to None.
         """
-        self.anchorsmod.modify(label=label, new_name=new_name, new_xy=new_xy, new_direction=new_direction)
-    
+        self.anchorsmod.modify(label=label,
+                               new_name=new_name,
+                               new_xy=new_xy,
+                               new_direction=new_direction)
+
     def remove_anchor(self, labels: list | str):
         """ Delete anchor from the Entity
 
@@ -230,11 +249,11 @@ class Entity(_Base):
     #############################
     #### Operations on lines ####
     #############################
-    def add_line(self, object: LineString, direction: float=None, ignore_crossing=False) -> None:
+    def add_line(self, line: LineString, direction: float=None, ignore_crossing=False) -> None:
         """ appending to skeletone a LineString """
 
         l1 = self.skeletone
-        l2 = copy.deepcopy(object)
+        l2 = copy.deepcopy(line)
 
         if direction:
             l2 = affinity.rotate(l2, angle=direction, origin=(0,0))
@@ -244,11 +263,12 @@ class Entity(_Base):
             l2 = affinity.translate(l2, xoff = end.x, yoff = end.y)
             if not ignore_crossing:
                 if crosses(l1, l2):
-                    raise TopologyError("Appending line crosses the skeletone. If crossing is intended use 'ignore_crossing=True' argument")
+                    raise TopologyError("""Appending line crosses the skeletone.
+                                        If crossing is intended use 'ignore_crossing=True'""")
             self.skeletone = attach_line(l1, l2)
         else:
             self.skeletone = l2
-        
+
     def buffer_line(self, name: str, offset: float, **kwargs) -> None:
         """ create a class attribute with a Polygon
             Polygon is created by buffering skeletone 
@@ -260,30 +280,33 @@ class Entity(_Base):
 
         setattr(self, name, self.skeletone.buffer(offset, **kwargs))
 
+    def fix_line(self):
+        self.skeletone = linemerge(self.skeletone)
+
 
     ################################
     #### Operations on polygons ####
     ################################
-    def add_polygon(self, lname: str, object: Polygon) -> None:
+    def add_polygon(self, lname: str, polygon: Polygon) -> None:
         """ appending to existing Polygon a new Polygon
 
         Args:
             body_name (str): attribute name with existing polygon
-            object (Polygon): new polygon
+            polygon (Polygon): new polygon
         """
 
-        body_list = [getattr(self, lname), object]
+        body_list = [getattr(self, lname), polygon]
         setattr(self, lname, unary_union(body_list))
-    
-    def cut_polygon(self, lname: str, object: Polygon) -> None:
-        """ cuts the object from main polygon in lname attribute
+
+    def cut_polygon(self, lname: str, polygon: Polygon) -> None:
+        """ cuts the polygon from main polygon in lname attribute
 
         Args:
             lname (str): name of the attribute, where main polygon is located
-            object (Polygon): polygon used for cut
+            polygon (Polygon): polygon used for cut
         """
         core_polygon = getattr(self, lname)
-        setattr(self, lname, difference(core_polygon, object))
+        setattr(self, lname, difference(core_polygon, polygon))
 
     def crop_all(self, bbox: Polygon):
         """ crop polygons in all layers
@@ -294,7 +317,7 @@ class Entity(_Base):
         layer_names = self.layer_names(geom_type="polygon")
         for lname in layer_names:
             self.crop_layer(lname, bbox)
-    
+
     def crop_layer(self, lname: str, bbox: Polygon):
         """ crop polygons in layer by bbox
 
@@ -303,7 +326,7 @@ class Entity(_Base):
             bbox (Polygon): cropping polygon
         """
         geoms = getattr(self, lname)
-        
+
         # crop geoms by bbox
         cropped_geoms = intersection(bbox, geoms)
 
@@ -312,12 +335,12 @@ class Entity(_Base):
         elif isinstance(cropped_geoms, (LineString, MultiLineString)):
             cropped_geoms = MultiPolygon()
         elif isinstance(cropped_geoms, GeometryCollection):
-            # select only polygons 
+            # select only polygons
             polygon_list = [geom for geom in list(cropped_geoms.geoms) if isinstance(geom, Polygon)]
             cropped_geoms = MultiPolygon(polygon_list)
-        
+
         setattr(self, lname, cropped_geoms)
-    
+
     def modify_polygon_points(self, lname: str, obj_idx: int, points: dict):
         """ Update the point coordinates of an object in a layer
 
@@ -328,7 +351,7 @@ class Entity(_Base):
                 Dictionary key corrresponds to the point idx in polygon exterior coord list.
                 Dictionary value - list of new [x,y] coordinates
         """
-        
+
         mpolygon = getattr(self, lname)
         polygon_list = list(mpolygon.geoms)
         polygon = polygon_list[obj_idx]
@@ -342,7 +365,7 @@ class Entity(_Base):
 
         polygon_list[obj_idx] = set_coordinates(polygon, coords)
         setattr(self, lname, polygon_list)
-    
+
 
     ################################
     #### Operations on layers ####
@@ -355,11 +378,11 @@ class Entity(_Base):
             delattr(self, lname)
         else:
             raise TypeError(f"layer '{lname}' doesn't exist")
-    
+
 
     ###############################
     #### Additional operations ####
-    ###############################    
+    ###############################
     def add_text(self, text: str="abcdef", size: float=1000, loc: tuple=(0,0), layer: str=None):
         """ Converts text into polygons and adds them into the Entity "layer"
 
@@ -381,11 +404,11 @@ class Entity(_Base):
         """
         coords = np.asarray(list(self.skeletone.coords))
         return (coords[0], coords[-1])
-    
+
 
     ##############################
     #### Exporting operations ####
-    ##############################   
+    ##############################
     def save_to_file(self, dirname, name):
         geom_names = self.layer_names()
         geom_values = [getattr(self, k) for k in geom_names]
@@ -397,10 +420,10 @@ class Entity(_Base):
         filename = dirname + f"{name}.pickle"
         save_geometries(geom_dict, filename)
 
-    def export_to_gds(self, 
-                      devname: str, 
-                      filename: str, 
-                      export_layers: list=None, 
+    def export_to_gds(self,
+                      devname: str,
+                      filename: str,
+                      export_layers: list=None,
                       layer_order: dict=None):
         """_summary_
 
@@ -408,13 +431,11 @@ class Entity(_Base):
             devname (str): name of the device
             filename (str): name of the exported file
             export_layers (list, optional): defines, which layers to export. Defaults to None.
-            add_text (tuple(text, layer, location, size), optional): adds text to the "layer" at "location" [x,y]. Defaults to None.
+            add_text (tuple(text, layer, location, size), optional): 
+                adds text to the "layer" at "location" [x,y]. Defaults to None.
         """
 
-        from phidl import Device
-        import phidl.geometry as pg
-
-        if export_layers==None:
+        if export_layers is None:
             export_layers = self.layer_names(geom_type="polygon")
 
         D = Device(devname)
@@ -429,33 +450,64 @@ class Entity(_Base):
 
             if isinstance(mp, MultiPolygon):
                 for p in list(mp.geoms):
-                    prepared_polygons = convert_polygon_with_holes_into_muiltipolygon(p)
-                    for pp in list(prepared_polygons.geoms):
-                        xpts, ypts = zip(*list(pp.exterior.coords))
-                        D.add_polygon( [xpts, ypts], layer = gds_layer)
+                    self._add_poly_to_device(device=D, polygon=p, gds_layer=gds_layer)
             else:
-                prepared_polygons = convert_polygon_with_holes_into_muiltipolygon(mp)
-                for pp in list(prepared_polygons.geoms):
-                    xpts, ypts = zip(*list(pp.exterior.coords))
-                    D.add_polygon( [xpts, ypts], layer = gds_layer)
-        
+                self._add_poly_to_device(device=D, polygon=mp, gds_layer=gds_layer)
+
         D.write_gds(filename+'.gds')
-    
+
+    def _add_poly_to_device(self, device: Device, polygon: Polygon, gds_layer: str) -> Device:
+        """ converts polygons with holes into simple polygons,
+         and adds them to phidl.Device
+
+        Args:
+            device (Device): phidl.Device
+            polygon (Polygon): shapely Polygon
+            gds_layer (str): name of the gds_layer
+
+        Returns:
+            Device: phidl.Device
+        """
+        prepared_polygons = convert_polygon_with_holes_into_muiltipolygon(polygon)
+        for pp in list(prepared_polygons.geoms):
+            xpts, ypts = zip(*list(pp.exterior.coords))
+            device.add_polygon( [xpts, ypts], layer = gds_layer)
+
+        return device
+
 
     #############################
     #### Plotting operations ####
     #############################
-    def plot(self, ax=None, layer: list=["all"], show_idx=False, color=None, alpha=1, draw_direction=True, **kwargs):
+    def plot(self,
+             ax=None,
+             layer: list=["all"],
+             show_idx=False,
+             color=None,
+             alpha=1,
+             draw_direction=True,
+             **kwargs):
+        """ plots the Entity
+
+        Args:
+            ax (_type_, optional): axis. Defaults to None.
+            layer (list, optional): defines the layer to plot. Defaults to ["all"].
+            show_idx (bool, optional): shows the id of the polygon. Defaults to False.
+            color (str, optional): color. Defaults to None.
+            alpha (int, optional): defines the transparency. Defaults to 1.
+            draw_direction (bool, optional): draws arrows. Defaults to True.
+        """
+
         if layer==["all"]:
             attr_list = self.layer_names()
             for i, attr in enumerate(attr_list):
                 geometry = getattr(self, attr)
                 if type(geometry) in PLG_CLASSES:
-                    plot_geometry(geometry, 
-                                  ax=ax, 
-                                  show_idx=show_idx, 
+                    plot_geometry(geometry,
+                                  ax=ax,
+                                  show_idx=show_idx,
                                   color=COLORS[i%len(COLORS)],
-                                  alpha=1, 
+                                  alpha=1,
                                   **kwargs)
         else:
             for l, c in zip(layer, color):
@@ -484,7 +536,8 @@ class Structure(Entity):
         """ appends Entity or Structure to Structure
 
         Args:
-            structure (Entity): Entity or Structure with collection of geometries (Points, LineStrings, Polygons etc.)
+            structure (Entity): Entity or Structure with collection of geometries 
+                (Points, LineStrings, Polygons etc.)
             anchoring (list, optional): snaps appending object given by list of points. 
                                         [StructureObj Point, AppendingObj Point] 
                                         Defaults to None.
@@ -593,7 +646,7 @@ class Structure(Entity):
         return class_copy
     
 
-class GeometryCollection(Entity):
+class GeomCollection(Entity):
     """ collection of geometries
         class attributes are created by layers dictionary 
         attr  |  dict

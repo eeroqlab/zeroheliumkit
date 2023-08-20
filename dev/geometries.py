@@ -353,6 +353,9 @@ class uChannelsAngle(Entity):
             first, last = self.get_skeletone_boundary()
             self.add_anchor([Anchor(point=first, direction=90, label=alabel[0]), 
                             Anchor(point=last, direction=0, label=alabel[1])])
+        
+        # delete skeletone
+        self.skeletone = MultiLineString()
 
 
 class SpiralInductor(Entity):
