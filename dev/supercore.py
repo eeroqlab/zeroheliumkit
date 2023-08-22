@@ -5,6 +5,7 @@ from shapely import line_locate_point, line_interpolate_point
 from ..dev.geometries import StraightLine, ElbowLine, SigmoidLine
 from ..dev.functions import get_abc_line, get_angle_between_points
 from ..dev.core import Structure, Entity
+from ..errors import RouteError
 
 
 class SuperStructure(Structure):
@@ -64,7 +65,7 @@ class SuperStructure(Structure):
                                                  radius=radius,
                                                  num_segments=num_segments,
                                                  layers=layers)
-            except:
+            except RouteError:
                 connecting_structure = SigmoidLine(anchor1=point1,
                                                    anchor2=point2,
                                                    mid_direction=mid_dir,
@@ -108,5 +109,5 @@ class SuperStructure(Structure):
 
         return np.asarray(tangent_angles)
 
-    def route_with_intersection(self):
+    def route_with_intersection(self, anchors: tuple, layers: dict) -> None:
         pass

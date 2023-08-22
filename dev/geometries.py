@@ -7,6 +7,7 @@ from shapely import affinity, unary_union, box
 
 from .core import *
 from .functions import *
+from ..errors import RouteError
 
 
 # Collection of different Geometries
@@ -211,7 +212,7 @@ class Taper(ArbitraryLine):
         super().__init__(pts, layers, alabel)
 
 
-class Fillet(Entity):
+class Fillet(Structure):
     def __init__(self, 
                  length1: float, 
                  length2: float, 
@@ -257,7 +258,7 @@ class ElbowLine(Fillet):
         p = affinity.rotate(Point((anchor2.x - anchor1.x, anchor2.y - anchor1.y)), -anchor1.direction, origin=(0,0))
 
         if np.abs(angle_rad) < np.abs(atan(p.y/p.x)) or np.sign(p.y)!=np.sign(direction):
-            raise ValueError("cannot make a route, choose a different type of routing")
+            raise RouteError("cannot make a route, choose a different type of routing")
         
         if cos(angle_rad)==1:
             length2 = p.y - radius
@@ -267,7 +268,7 @@ class ElbowLine(Fillet):
         length1 = p.x - 1 * length2 * cos(angle_rad) - np.sign(direction) * radius * sin(angle_rad)
         
         if length1 < 0 or length2 < 0:
-            raise ValueError(f"cannot make route, make radius={radius} smaller")
+            raise RouteError(f"cannot make route, make radius={radius} smaller")
         
         super().__init__(length1, length2, radius, direction, num_segments, layers, alabel)
 
@@ -284,13 +285,23 @@ class SigmoidLine(Structure):
                  num_segments: int=10, 
                  layers: dict={},
                  alabel: tuple=None):
-        
         super().__init__()
-        mid_p = Anchor(midpoint(anchor1.point, anchor2.point), mid_direction)
-        r1 = ElbowLine(anchor1, mid_p, radius, num_segments, layers)
-        r2 = ElbowLine(mid_p, anchor2, radius, num_segments, layers)
-        self.append(r1)
-        self.append(r2)
+
+        anchormid = Anchor(midpoint(anchor1.point, anchor2.point), mid_direction)
+        r1 = ElbowLine(anchor1, anchormid, radius, num_segments, layers)
+        r2 = ElbowLine(anchormid, anchor2, radius, num_segments, layers)
+        r1.append(r2)
+        r1.fix_line()
+
+        if not hasattr(r1.skeletone, "geoms"):
+            self.append(r1)
+            self.append(r2)
+            self.fix_line()
+        else:
+            arb_line = ArbitraryLine(points=[anchor1.point, anchormid.point, anchor2.point],
+                                     layers=layers,
+                                     alabel=None)
+            self.append(arb_line)
 
         # create anchors
         if alabel:

@@ -140,8 +140,8 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
     return Point(px, py)
 
 
-def midpoint(p1, p2):
-    return Point((p1.x + p2.x)/2, (p1.y + p2.y)/2)
+def midpoint(p1, p2, alpha=0.5):
+    return Point(p1.x + alpha * (p2.x - p1.x), p1.y + alpha * (p2.y - p1.y))
 
 
 def save_geometries(geometries_dict, file_path):

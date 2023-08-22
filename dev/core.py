@@ -281,8 +281,10 @@ class Entity(_Base):
         setattr(self, name, self.skeletone.buffer(offset, **kwargs))
 
     def fix_line(self):
-        self.skeletone = linemerge(self.skeletone)
-
+        try:
+            self.skeletone = linemerge(self.skeletone)
+        except Exception:
+            print("there is nothing to fix in skeletone")
 
     ################################
     #### Operations on polygons ####

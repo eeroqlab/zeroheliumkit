@@ -6,3 +6,6 @@ class TopologyError(Exception):
 
 class FreefemError(Exception):
     pass
+
+class RouteError(Exception):
+    pass
