@@ -630,8 +630,11 @@ class Structure(Entity):
         return multi_geom 
     
     def get_skeletone_boundary(self, geometry_index: int=0) -> tuple:
-        line = list(self.skeletone.geoms)
-        coords = np.asarray(list(line[geometry_index].coords))
+        if hasattr(self.skeletone, "geoms"):
+            line = list(self.skeletone.geoms)
+            coords = list(line[geometry_index].coords)
+        else:
+            coords = self.skeletone.coords
         return [coords[0], coords[-1]]
     
     def return_mirrored(self, aroundaxis: None):

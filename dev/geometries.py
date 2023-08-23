@@ -298,7 +298,16 @@ class SigmoidLine(Structure):
             self.append(r2)
             self.fix_line()
         else:
-            arb_line = ArbitraryLine(points=[anchor1.point, anchormid.point, anchor2.point],
+            dx = np.abs(anchor2.x - anchor1.x)/20
+            followup_startPoint = Point(anchor1.x + dx, 
+                                        anchor1.y + dx * np.tan(anchor1.direction * np.pi/180))
+            before_endPoint = Point(anchor2.x - dx, 
+                                    anchor2.y - dx * np.tan(anchor2.direction * np.pi/180))
+            arb_line = ArbitraryLine(points=[anchor1.point, 
+                                             followup_startPoint, 
+                                             anchormid.point, 
+                                             before_endPoint, 
+                                             anchor2.point],
                                      layers=layers,
                                      alabel=None)
             self.append(arb_line)
