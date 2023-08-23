@@ -1,6 +1,7 @@
 import numpy as np
 
-from shapely import line_locate_point, line_interpolate_point
+from shapely import line_locate_point, line_interpolate_point, intersection_all
+from shapely import LineString
 
 from ..dev.geometries import StraightLine, ElbowLine, SigmoidLine
 from ..dev.functions import get_abc_line, get_angle_between_points
@@ -110,4 +111,17 @@ class SuperStructure(Structure):
         return np.asarray(tangent_angles)
 
     def route_with_intersection(self, anchors: tuple, layers: dict) -> None:
-        pass
+        if len(anchors) != 2:
+            raise TypeError("Provide only two point labels in 'anchors'")
+        
+
+        line = LineString([self.get_anchor(anchors[0]).point,
+                           self.get_anchor(anchors[1]).point])
+        
+        intersections = intersection_all([line, self.skeletone])
+        if intersections.is_empty:
+            pass
+        elif hasattr(intersections, "geoms"):
+            list_intersection_points = list(intersections.geoms)
+        else:
+            list_intersection_points = [intersections]
