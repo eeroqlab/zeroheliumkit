@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 
+from math import fmod
 from tabulate import tabulate
 from shapely import Point
 from shapely import affinity, set_precision
@@ -19,7 +20,7 @@ class Anchor():
             self.point = Point(coords)
         else:
             self.point = point
-        self.direction = direction
+        self.direction = fmod(direction, 360)
         self.label = label
     
     @property
@@ -43,12 +44,17 @@ class Anchor():
         print(tabulate([["label", "coords", "direction"], 
                         [self.label, self.coords, self.direction]]))
     
+    def rename(self, newlabel: str) -> None:
+        self.label = newlabel
+    
     def rotate(self, angle: float, origin: tuple=(0,0)):
         """ Rotates the point by 'angle' around 'origin'"""
         point_upd = affinity.rotate(self.point, angle, origin)
         self.point = set_precision(point_upd, grid_size=GRID_SIZE)
         if self.direction != None:
             self.direction += angle
+        
+        self.direction = fmod(self.direction, 360)
     
     def move(self, xoff: float=0, yoff: float=0):
         point_upd = affinity.translate(self.point, xoff=xoff, yoff=yoff)
