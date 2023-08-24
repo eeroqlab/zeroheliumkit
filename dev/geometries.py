@@ -214,15 +214,29 @@ class Taper(ArbitraryLine):
 
 class Fillet(Structure):
     def __init__(self, 
-                 length1: float, 
-                 length2: float, 
+                 anchor: Anchor, 
                  radius: float, 
-                 direction: float, 
                  num_segments: int, 
                  layers: dict,
                  alabel: tuple):
         super().__init__()
         
+        # pre-check
+        direction = anchor.direction
+        angle_rad = direction * np.pi/180
+
+        # check validity
+        if np.abs(angle_rad) < np.abs(np.arctan(anchor.y/anchor.x)) or np.sign(anchor.y)!=np.sign(direction):
+            raise RouteError("cannot make a route, choose a different type of routing")
+
+        # calculating lengths
+        if cos(angle_rad)==1:
+            length2 = anchor.y - radius
+        else:    
+            length2 = np.abs(anchor.y - np.sign(direction) * radius * (1 - np.cos(angle_rad)))/np.sqrt(1 - np.cos(angle_rad)**2)
+            
+        length1 = anchor.x - 1 * length2 * np.cos(angle_rad) - np.sign(direction) * radius * np.sin(angle_rad)
+
         # create skeletone
         pts = [(0, 0), (length1, 0)]
         self.skeletone = LineString(pts)
@@ -233,6 +247,9 @@ class Fillet(Structure):
         self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
         self.add_line(LineString([(0, 0), (length2 * np.cos(direction*np.pi/180), length2 * np.sin(direction*np.pi/180))]))
         
+        # correction of the last point -> adjusting to anchor point
+        self.skeletone = LineString(list(self.skeletone.coords[:-1]) + [anchor.coords])
+
         # create polygons
         for k, width in layers.items():
             self.buffer_line(name=k, offset=width/2, cap_style='square', join_style='mitre')
@@ -254,23 +271,8 @@ class ElbowLine(Fillet):
                  alabel: tuple=None):
         
         direction = anchor2.direction - anchor1.direction
-        angle_rad = direction * pi/180
         p = affinity.rotate(Point((anchor2.x - anchor1.x, anchor2.y - anchor1.y)), -anchor1.direction, origin=(0,0))
-
-        if np.abs(angle_rad) < np.abs(atan(p.y/p.x)) or np.sign(p.y)!=np.sign(direction):
-            raise RouteError("cannot make a route, choose a different type of routing")
-        
-        if cos(angle_rad)==1:
-            length2 = p.y - radius
-        else:    
-            length2 = np.abs(p.y - np.sign(direction) * radius * (1 - cos(angle_rad)))/sqrt(1 - cos(angle_rad)**2)
-            
-        length1 = p.x - 1 * length2 * cos(angle_rad) - np.sign(direction) * radius * sin(angle_rad)
-        
-        if length1 < 0 or length2 < 0:
-            raise RouteError(f"cannot make route, make radius={radius} smaller")
-        
-        super().__init__(length1, length2, radius, direction, num_segments, layers, alabel)
+        super().__init__(Anchor(p, direction), radius, num_segments, layers, alabel)
 
         self.rotate(anchor1.direction)
         self.moveby((anchor1.x, anchor1.y))
@@ -295,8 +297,6 @@ class SigmoidLine(Structure):
 
         if not hasattr(r1.skeletone, "geoms"):
             self.append(r1)
-            self.append(r2)
-            self.fix_line()
         else:
             dx = np.abs(anchor2.x - anchor1.x)/20
             followup_startPoint = Point(anchor1.x + dx, 

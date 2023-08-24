@@ -1,9 +1,11 @@
 import pickle
 import numpy as np
 
-from shapely import Polygon, MultiPolygon, LineString, Point
-from shapely import centroid, ops, affinity
+from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
+from shapely import centroid, line_interpolate_point, ops, affinity
 from math import atan, pi
+
+from ..settings import GRID_SIZE
 
 
 def merge_lines_with_tolerance(line1: LineString, line2: LineString, tol: float=1e-6) -> LineString:
@@ -138,6 +140,35 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
     px = ((p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))/denominator
     py = ((p1.x * p2.y - p1.y * p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x))/denominator
     return Point(px, py)
+
+
+def get_normals_along_line(line: LineString | MultiLineString,
+                           locs: float | list) -> list:
+
+    """ finds normal angles of the line at given points (locations)
+
+    Args:
+        line (LineString | MultiLineString): given line
+        locs (float | list): point locations along the line, it should be normalized
+
+    Returns:
+        list: normal angles
+    """
+
+    float_indicator = isinstance(locs, (float, int))
+    if isinstance(locs, list):
+        locs = np.asarray(locs)
+    elif isinstance(locs, (float, int)):
+        locs = np.asarray([locs])
+
+    pts_up = line_interpolate_point(line, locs + GRID_SIZE, normalized=True).tolist()
+    pts_down = line_interpolate_point(line, locs - GRID_SIZE, normalized=True).tolist()
+    normal_angles = np.asarray(list(map(get_angle_between_points, pts_down, pts_up))) + 90
+
+    if not float_indicator:
+        return normal_angles
+    else:
+        return normal_angles[0]
 
 
 def midpoint(p1, p2, alpha=0.5):

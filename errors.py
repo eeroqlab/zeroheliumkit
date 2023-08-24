@@ -9,3 +9,6 @@ class FreefemError(Exception):
 
 class RouteError(Exception):
     pass
+
+class GeometryError(Exception):
+    pass

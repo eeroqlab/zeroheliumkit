@@ -1,12 +1,12 @@
 import numpy as np
 
-from shapely import line_locate_point, line_interpolate_point, intersection_all
-from shapely import LineString
+from shapely import line_locate_point, line_interpolate_point, intersection_all, distance
+from shapely import LineString, MultiLineString, Point
 
 from ..dev.geometries import StraightLine, ElbowLine, SigmoidLine
-from ..dev.functions import get_abc_line, get_angle_between_points
+from ..dev.functions import get_abc_line, create_list_geoms, get_normals_along_line
 from ..dev.core import Structure, Entity
-from ..errors import RouteError
+from ..errors import RouteError, GeometryError
 
 
 class SuperStructure(Structure):
@@ -93,7 +93,7 @@ class SuperStructure(Structure):
 
         locs = np.linspace(start_point, end_point, num=num+2, endpoint=True)
         pts = line_interpolate_point(self.skeletone, locs[1:-1], normalized=True).tolist()
-        normal_angles = self._get_normals_along_line(locs[1:-1])
+        normal_angles = get_normals_along_line(self.skeletone, locs[1:-1]) - 90
 
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
@@ -102,26 +102,78 @@ class SuperStructure(Structure):
             self.append(s)
 
 
-    def _get_normals_along_line(self, locs: list) -> list:
-        eps = np.abs(locs[1] - locs[0])/10
-        pts_up = line_interpolate_point(self.skeletone, locs + eps, normalized=True).tolist()
-        pts_down = line_interpolate_point(self.skeletone, locs - eps, normalized=True).tolist()
-        tangent_angles = list(map(get_angle_between_points, pts_down, pts_up))
+    def route_with_intersection(self, anchors: tuple, layers: dict, airbridge: Entity | Structure) -> None:
 
-        return np.asarray(tangent_angles)
-
-    def route_with_intersection(self, anchors: tuple, layers: dict) -> None:
         if len(anchors) != 2:
-            raise TypeError("Provide only two point labels in 'anchors'")
+            raise TypeError("Provide only two point labels in 'anchors'.")
         
+        anchor_labels_airbridge = airbridge.anchorsmod.labels
+        if len(anchor_labels_airbridge) != 2:
+            raise GeometryError("Airbridge can contain only two in/out anchors.")
 
-        line = LineString([self.get_anchor(anchors[0]).point,
-                           self.get_anchor(anchors[1]).point])
+        point_start = self.get_anchor(anchors[0]).point
+        point_end = self.get_anchor(anchors[1]).point
+
+        route_line = LineString([point_start, point_end])
+
+        # get all intersection points with route line and skeletone     
+        intersections = intersection_all([route_line, self.skeletone])
         
-        intersections = intersection_all([line, self.skeletone])
-        if intersections.is_empty:
-            pass
-        elif hasattr(intersections, "geoms"):
-            list_intersection_points = list(intersections.geoms)
+        if not intersections.is_empty:
+            # create a list of points
+            list_intersection_points = create_list_geoms(intersections)
+            
+            # removing start and end points
+            valid_intersections = [p for p in list_intersection_points if p not in [point_start, point_end]]
+        
+        #######################
+        ### creating route ####
+        #######################
+
+        if intersections.is_empty or valid_intersections==[]:
+            # in case of no intersections make a simple route or no valid_intersections 
+            self.route_between_two_pts(anchors, layers)
+
         else:
-            list_intersection_points = [intersections]
+            list_distances = np.asarray(list(map(distance, 
+                                                 valid_intersections, 
+                                                 [point_start]*len(valid_intersections)
+                                                 )
+                                            )
+                                        )
+            sorted_distances_indicies = np.argsort(list_distances)
+
+            intersect_locs_on_skeletone = line_locate_point(self.skeletone, 
+                                                            valid_intersections,
+                                                            normalized=True)
+            intersect_normals = get_normals_along_line(self.skeletone, intersect_locs_on_skeletone)
+            print(intersect_normals)
+            
+            route_anchors = [anchors[0]]
+            temporary_anchors = []
+
+            for i, idx in enumerate(sorted_distances_indicies):
+                airBRDG = airbridge.copy()
+                airBRDG.rotate(angle=intersect_normals[idx] + 90)
+                airBRDG.moveby(xy=(valid_intersections[idx].x, 
+                                     valid_intersections[idx].y))
+                for ab_anchor in anchor_labels_airbridge:
+                    anchor_temp_name = str(i) + ab_anchor
+                    airBRDG.modify_anchor(label=ab_anchor,
+                                          new_name=anchor_temp_name)
+                    route_anchors.append(anchor_temp_name)
+                    temporary_anchors.append(anchor_temp_name)
+                
+                self.append(airBRDG)
+
+            route_anchors.append(anchors[1])
+
+            for labels in zip(route_anchors[::2], route_anchors[1::2]):
+                self.route_between_two_pts(anchors=labels, layers=layers)
+
+            print(valid_intersections)
+            print(sorted_distances_indicies)
+            print(route_anchors)
+            print(temporary_anchors)
+            #for point in list_intersection_points:
+            #return route_anchors
