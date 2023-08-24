@@ -14,7 +14,7 @@ from phidl import Device
 
 from ..helpers.plotting import plot_geometry
 from ..importing import reader_dxf
-from ..errors import TopologyError
+from ..errors import RouteError
 from ..settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES
 from ..functions import *
 
@@ -263,7 +263,7 @@ class Entity(_Base):
             l2 = affinity.translate(l2, xoff = end.x, yoff = end.y)
             if not ignore_crossing:
                 if crosses(l1, l2):
-                    raise TopologyError("""Appending line crosses the skeletone.
+                    raise RouteError("""Appending line crosses the skeletone.
                                         If crossing is intended use 'ignore_crossing=True'""")
             self.skeletone = attach_line(l1, l2)
         else:
