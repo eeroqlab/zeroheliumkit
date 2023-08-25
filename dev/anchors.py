@@ -10,6 +10,12 @@ from shapely import affinity, set_precision
 from ..settings import *
 from ..helpers.plotting import default_ax
 
+def modFMOD(angle):
+    if np.abs(angle) < 180:
+        return fmod(angle, 360)
+    else:
+        return angle % 360
+
 
 class Anchor():
     __slots__ = "point", "direction", "label"
@@ -20,7 +26,7 @@ class Anchor():
             self.point = Point(coords)
         else:
             self.point = point
-        self.direction = fmod(direction, 360)
+        self.direction = modFMOD(direction)
         self.label = label
     
     @property
@@ -54,7 +60,7 @@ class Anchor():
         if self.direction != None:
             self.direction += angle
         
-        self.direction = fmod(self.direction, 360)
+        self.direction = modFMOD(self.direction)
     
     def move(self, xoff: float=0, yoff: float=0):
         point_upd = affinity.translate(self.point, xoff=xoff, yoff=yoff)

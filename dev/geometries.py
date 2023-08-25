@@ -1,7 +1,7 @@
 
 import numpy as np
 
-from math import sqrt, pi, tanh, cos, sin, tan, atan
+from math import sqrt, pi, tanh, cos, sin, tan, atan, fmod
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon
 from shapely import affinity, unary_union, box
 
@@ -98,6 +98,12 @@ def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
     
     else:
         raise TypeError("only tuple, Point and Anchor tupes are supported")
+
+def modFMOD(angle):
+    if np.abs(angle) < 180:
+        return fmod(angle, 360)
+    else:
+        return angle % 360
 
 
 
@@ -260,8 +266,71 @@ class Fillet(Structure):
             self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
                             Anchor(point=last, direction=direction, label=alabel[1])])
 
+class Fillet2(Structure):
+    def __init__(self, 
+                 anchor: Anchor, 
+                 radius: float, 
+                 num_segments: int, 
+                 layers: dict,
+                 alabel: tuple):
+        super().__init__()
+        
+        # pre-check
+        direction = anchor.direction
+        angle_rad = direction * np.pi/180
 
-class ElbowLine(Fillet):
+        # calculating lengths
+        if cos(angle_rad)==1:
+            length2 = anchor.y - radius
+        else:    
+            length2 = np.abs(anchor.y - np.sign(direction) * radius * (1 - np.cos(angle_rad)))/np.sqrt(1 - np.cos(angle_rad)**2)
+            
+        length1 = anchor.x - 1 * length2 * np.cos(angle_rad) - np.sign(direction) * radius * np.sin(angle_rad)
+        print(np.sign(anchor.y), np.sign(np.sin(angle_rad)), direction)
+
+        # create skeletone
+        if (length1 > 0 and length2 > 0) and np.sign(anchor.y)==np.sign(np.sin(angle_rad)):
+            
+            direction = modFMOD(direction)
+            pts = [(0, 0), (length1, 0)]
+            self.skeletone = LineString(pts)
+            if direction>0:
+                x0, y0, phi0 = (0, radius, 270)
+            else:
+                x0, y0, phi0 = (0, -radius, 90)
+            self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
+            self.add_line(LineString([(0, 0), (length2 * np.cos(angle_rad), length2 * np.sin(angle_rad))]))
+            
+            # correction of the last point -> adjusting to anchor point
+            self.skeletone = LineString(list(self.skeletone.coords[:-1]) + [anchor.coords])
+            joinstyle = 'mitre'
+        
+        else:
+            
+            dx = np.abs(anchor.x)/10
+            after_startPoint = Point(dx, 0)
+            before_endPoint = Point(anchor.x - dx, 
+                                    anchor.y - dx * np.tan(anchor.direction * np.pi/180))
+            mid_point = midpoint(Point(0, 0), anchor.point)
+            self.skeletone = LineString([Point(0,0), 
+                                         after_startPoint,
+                                         mid_point,
+                                         before_endPoint, 
+                                         anchor.point])
+            joinstyle = 'round'
+
+        # create polygons
+        for k, width in layers.items():
+            self.buffer_line(name=k, offset=width/2, cap_style='square', join_style=joinstyle)
+        
+        # create anchors
+        if alabel:
+            first, last = self.get_skeletone_boundary()
+            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
+                            Anchor(point=last, direction=direction, label=alabel[1])])
+
+
+class ElbowLine(Fillet2):
     def __init__(self, 
                  anchor1: Anchor,
                  anchor2: Anchor, 
@@ -272,6 +341,7 @@ class ElbowLine(Fillet):
         
         direction = anchor2.direction - anchor1.direction
         p = affinity.rotate(Point((anchor2.x - anchor1.x, anchor2.y - anchor1.y)), -anchor1.direction, origin=(0,0))
+
         super().__init__(Anchor(p, direction), radius, num_segments, layers, alabel)
 
         self.rotate(anchor1.direction)
@@ -298,7 +368,7 @@ class SigmoidLine(Structure):
         if not hasattr(r1.skeletone, "geoms"):
             self.append(r1)
         else:
-            dx = np.abs(anchor2.x - anchor1.x)/20
+            dx = np.abs(anchor2.x - anchor1.x)/10
             followup_startPoint = Point(anchor1.x + dx, 
                                         anchor1.y + dx * np.tan(anchor1.direction * np.pi/180))
             before_endPoint = Point(anchor2.x - dx, 
