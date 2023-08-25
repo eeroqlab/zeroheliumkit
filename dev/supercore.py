@@ -5,15 +5,9 @@ from shapely import line_locate_point, line_interpolate_point, intersection_all,
 from shapely import LineString, MultiLineString, Point
 
 from ..dev.geometries import StraightLine, ElbowLine, SigmoidLine
-from ..dev.functions import get_abc_line, create_list_geoms, get_normals_along_line
+from ..dev.functions import get_abc_line, create_list_geoms, get_normals_along_line, modFMOD
 from ..dev.core import Structure, Entity
 from ..errors import RouteError, GeometryError
-
-def modFMOD(angle):
-    if np.abs(angle) < 180:
-        return fmod(angle, 360)
-    else:
-        return angle % 360
 
 
 class SuperStructure(Structure):
@@ -60,26 +54,15 @@ class SuperStructure(Structure):
             connecting_structure = StraightLine(anchors=(point1,point2),
                                                 layers=layers)
         elif np.abs(point1.direction - point2.direction) < 1e-4:
-            print("here2")
-            print(mid_dir)
+
             connecting_structure = SigmoidLine(anchor1=point1,
-                                                anchor2=point2,
-                                                mid_direction=mid_dir,
-                                                radius=radius,
-                                                num_segments=num_segments,
-                                                layers=layers)
+                                               anchor2=point2,
+                                               mid_direction=mid_dir,
+                                               radius=radius,
+                                               num_segments=num_segments,
+                                               layers=layers)
         else:
-            """
-            p = affinity.rotate(Point((point2.x - point1.x, point2.y - point1.y)), -point1.direction, origin=(0,0))
-            if np.abs(point1.direction -point2.direction) < np.abs(np.arctan(p.y/p.x)):
-                connecting_structure = SigmoidLine(anchor1=point1,
-                                                   anchor2=point2,
-                                                   mid_direction=mid_dir,
-                                                   radius=radius,
-                                                   num_segments=num_segments,
-                                                   layers=layers)
-            else:"""
-            print("here")
+
             connecting_structure = ElbowLine(anchor1=point1,
                                             anchor2=point2,
                                             radius=radius,
@@ -119,9 +102,11 @@ class SuperStructure(Structure):
         if len(anchors) != 2:
             raise TypeError("Provide only two point labels in 'anchors'.")
         
-        anchor_labels_airbridge = airbridge.anchorsmod.labels
-        if len(anchor_labels_airbridge) != 2:
-            raise GeometryError("Airbridge can contain only two in/out anchors.")
+        anchor_labels_airbridge = ['in', 'out']
+        
+        if ((anchor_labels_airbridge[0] not in airbridge.anchorsmod.labels) or
+            (anchor_labels_airbridge[1] not in airbridge.anchorsmod.labels)):
+            raise TypeError("airbridge anchors could be onlu 'in' and 'out'")
 
         point_start = self.get_anchor(anchors[0]).point
         point_end = self.get_anchor(anchors[1]).point
@@ -159,7 +144,8 @@ class SuperStructure(Structure):
                                                             valid_intersections,
                                                             normalized=True)
             intersect_normals = get_normals_along_line(self.skeletone, intersect_locs_on_skeletone)
-            
+            print(intersect_normals)
+            print(anchor_labels_airbridge)
             route_anchors = [anchors[0]]
             temporary_anchors = []
 
@@ -178,10 +164,10 @@ class SuperStructure(Structure):
                 self.append(airBRDG)
 
             route_anchors.append(anchors[1])
-
+            print(route_anchors)
             for labels in zip(route_anchors[::2], route_anchors[1::2]):
+                print(labels)
                 self.route_between_two_pts(anchors=labels, layers=layers)
 
             #self.remove_anchor(temporary_anchors)
-            #for point in list_intersection_points:
-            #return route_anchors
+            

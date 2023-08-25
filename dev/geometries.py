@@ -99,13 +99,6 @@ def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
     else:
         raise TypeError("only tuple, Point and Anchor tupes are supported")
 
-def modFMOD(angle):
-    if np.abs(angle) < 180:
-        return fmod(angle, 360)
-    else:
-        return angle % 360
-
-
 
 # Multi-layer Geometry Classes
 # _________________________________________________________________________________
@@ -275,46 +268,37 @@ class Fillet2(Structure):
                  alabel: tuple):
         super().__init__()
         
-        # pre-check
-        direction = anchor.direction
+        extension_length = max(layers.values())
+        length1, length2, direction = self.__get_fillet_params(anchor, radius)
         angle_rad = direction * np.pi/180
-
-        # calculating lengths
-        if cos(angle_rad)==1:
-            length2 = anchor.y - radius
-        else:    
-            length2 = np.abs(anchor.y - np.sign(direction) * radius * (1 - np.cos(angle_rad)))/np.sqrt(1 - np.cos(angle_rad)**2)
-            
-        length1 = anchor.x - 1 * length2 * np.cos(angle_rad) - np.sign(direction) * radius * np.sin(angle_rad)
-        print(np.sign(anchor.y), np.sign(np.sin(angle_rad)), direction)
 
         # create skeletone
         if (length1 > 0 and length2 > 0) and np.sign(anchor.y)==np.sign(np.sin(angle_rad)):
-            
-            direction = modFMOD(direction)
-            pts = [(0, 0), (length1, 0)]
-            self.skeletone = LineString(pts)
-            if direction>0:
-                x0, y0, phi0 = (0, radius, 270)
-            else:
-                x0, y0, phi0 = (0, -radius, 90)
-            self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
-            self.add_line(LineString([(0, 0), (length2 * np.cos(angle_rad), length2 * np.sin(angle_rad))]))
-            
+            self.__create_skeletone(length1, length2, direction, radius, num_segments) 
+
             # correction of the last point -> adjusting to anchor point
             self.skeletone = LineString(list(self.skeletone.coords[:-1]) + [anchor.coords])
             joinstyle = 'mitre'
         
+        elif np.sign(anchor.y)==np.sign(np.sin(angle_rad)) and length1 > 0:
+            print("using smaller radius for routing")
+            while length2 < extension_length:
+                print("iter")
+                radius = radius * 0.6
+                length1, length2, direction = self.__get_fillet_params(anchor, radius)
+            self.__create_skeletone(length1, length2, direction, radius, num_segments)
+            self.skeletone = LineString(list(self.skeletone.coords[:-1]) + [anchor.coords])
+            joinstyle = 'mitre'
+
         else:
-            
-            dx = np.abs(anchor.x)/10
+
+            dx = np.abs(anchor.x)/5
             after_startPoint = Point(dx, 0)
-            before_endPoint = Point(anchor.x - dx, 
-                                    anchor.y - dx * np.tan(anchor.direction * np.pi/180))
+            before_endPoint = Point(anchor.x - dx * np.cos(anchor.direction * np.pi/180), 
+                                    anchor.y - dx * np.sin(anchor.direction * np.pi/180))
             mid_point = midpoint(Point(0, 0), anchor.point)
             self.skeletone = LineString([Point(0,0), 
                                          after_startPoint,
-                                         mid_point,
                                          before_endPoint, 
                                          anchor.point])
             joinstyle = 'round'
@@ -328,6 +312,34 @@ class Fillet2(Structure):
             first, last = self.get_skeletone_boundary()
             self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]), 
                             Anchor(point=last, direction=direction, label=alabel[1])])
+    
+    def __get_fillet_params(self, anchor: Anchor, radius: float) -> tuple:
+        direction = anchor.direction
+        angle_rad = direction * np.pi/180
+
+        # calculating lengths
+        if cos(angle_rad)==1:
+            length2 = anchor.y - radius
+        else:    
+            length2 = np.sign(direction) * (anchor.y - np.sign(direction) * radius * (1 - np.cos(angle_rad)))/np.sqrt(1 - np.cos(angle_rad)**2)
+
+        length1 = anchor.x - 1 * length2 * np.cos(angle_rad) - np.sign(direction) * radius * np.sin(angle_rad)
+        
+        return length1, length2, direction
+
+    def __create_skeletone(self, length1, length2, direction, radius, num_segments) -> None:
+        self.skeletone = LineString()
+        direction = modFMOD(direction)
+        angle_rad = direction * np.pi/180
+
+        pts = [(0, 0), (length1, 0)]
+        self.skeletone = LineString(pts)
+        if direction > 0:
+            x0, y0, phi0 = (0, radius, 270)
+        else:
+            x0, y0, phi0 = (0, -radius, 90)
+        self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
+        self.add_line(LineString([(0, 0), (length2 * np.cos(angle_rad), length2 * np.sin(angle_rad))]))
 
 
 class ElbowLine(Fillet2):
@@ -361,7 +373,9 @@ class SigmoidLine(Structure):
 
         anchormid = Anchor(midpoint(anchor1.point, anchor2.point), mid_direction)
         r1 = ElbowLine(anchor1, anchormid, radius, num_segments, layers)
-        r2 = ElbowLine(anchormid, anchor2, radius, num_segments, layers)
+        #r2 = ElbowLine(anchormid, anchor2, radius, num_segments, layers)
+        r2 = r1.copy()
+        r2.rotate(angle=180, origin=(anchormid.x, anchormid.y))
         r1.append(r2)
         r1.fix_line()
 

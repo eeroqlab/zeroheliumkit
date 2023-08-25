@@ -9,12 +9,7 @@ from shapely import affinity, set_precision
 
 from ..settings import *
 from ..helpers.plotting import default_ax
-
-def modFMOD(angle):
-    if np.abs(angle) < 180:
-        return fmod(angle, 360)
-    else:
-        return angle % 360
+from .functions import modFMOD
 
 
 class Anchor():

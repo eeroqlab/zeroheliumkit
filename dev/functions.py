@@ -3,9 +3,20 @@ import numpy as np
 
 from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
 from shapely import centroid, line_interpolate_point, ops, affinity
-from math import atan, pi
+from math import atan, pi, fmod
 
 from ..settings import GRID_SIZE
+
+
+def modFMOD(angle):
+    if np.abs(angle) % 360 == 180:
+        return 180
+    elif np.abs(angle) % 360 < 180:
+        return fmod(angle, 360)
+    elif np.sign(angle) > 0:
+        return angle % 360 - 360
+    else:
+        return angle % 360
 
 
 def merge_lines_with_tolerance(line1: LineString, line2: LineString, tol: float=1e-6) -> LineString:
