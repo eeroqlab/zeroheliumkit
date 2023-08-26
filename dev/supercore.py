@@ -1,13 +1,12 @@
 import numpy as np
-from math import fmod
 
-from shapely import line_locate_point, line_interpolate_point, intersection_all, distance, affinity
-from shapely import LineString, MultiLineString, Point
+from shapely import line_locate_point, line_interpolate_point, intersection_all, distance
+from shapely import LineString
 
 from ..dev.geometries import StraightLine, ElbowLine, SigmoidLine
 from ..dev.functions import get_abc_line, create_list_geoms, get_normals_along_line, modFMOD
 from ..dev.core import Structure, Entity
-from ..errors import RouteError, GeometryError
+from ..errors import WrongSizeError
 
 
 class SuperStructure(Structure):
@@ -22,7 +21,9 @@ class SuperStructure(Structure):
         for labels in zip(anchors, anchors[1:]):
             self.route_between_two_pts(anchors=labels, layers=layers)
 
-    def route_between_two_pts(self, anchors: tuple, layers: dict):
+    def route_between_two_pts(self,
+                              anchors: tuple,
+                              layers: dict) -> None:
         """ makes a route between two anchors.
             specify route config in SuperStructure init stage.
 
@@ -42,18 +43,32 @@ class SuperStructure(Structure):
         radius = self._route_config.get("radius")
         num_segments = self._route_config.get("num_segments")
 
-        # calculating check parameters
+        # calculating angle of the line between anchors
         a, b, _ = get_abc_line(point1.point, point2.point)
         angle = np.arctan(-a/b) * 180/np.pi
-        if angle > point1.direction:
-            mid_dir = modFMOD(point1.direction + 45)
-        else:
-            mid_dir = modFMOD(point1.direction - 45)
 
-        if np.abs(point1.direction - point2.direction) < 1e-4 and np.abs(angle - point1.direction) < 1e-4:
+        ##############################
+        #### MAIN routing choices ####
+        ##############################
+
+        if (np.abs(point1.direction - point2.direction) < 1e-4 and
+            np.abs(angle - point1.direction) < 1e-4):
+            # stright line construction
+            # - anchor directions are the same
+            # - direction is the same with anchor-anchor angle
+
             connecting_structure = StraightLine(anchors=(point1,point2),
                                                 layers=layers)
+
         elif np.abs(point1.direction - point2.direction) < 1e-4:
+            # sigmoid line construction
+            # - anchor directions are the same
+
+            # calculating intermediate point direction
+            if angle > point1.direction:
+                mid_dir = modFMOD(point1.direction + 45)
+            else:
+                mid_dir = modFMOD(point1.direction - 45)
 
             connecting_structure = SigmoidLine(anchor1=point1,
                                                anchor2=point2,
@@ -62,12 +77,18 @@ class SuperStructure(Structure):
                                                num_segments=num_segments,
                                                layers=layers)
         else:
+            # elbow line construction
+            # takes care of all othe possibilities
 
             connecting_structure = ElbowLine(anchor1=point1,
-                                            anchor2=point2,
-                                            radius=radius,
-                                            num_segments=num_segments,
-                                            layers=layers)
+                                             anchor2=point2,
+                                             radius=radius,
+                                             num_segments=num_segments,
+                                             layers=layers)
+
+        ###################################
+        #### END of ROUTE construction ####
+        ###################################
 
         self.append(connecting_structure)
 
@@ -75,14 +96,24 @@ class SuperStructure(Structure):
     def add_along_skeletone(self,
                             bound_anchors: tuple,
                             num: int,
-                            structure: Structure | Entity):
+                            structure: Structure | Entity) -> None:
+        """ add Structures alongth the skeletone line
+
+        Args:
+            bound_anchors (tuple): skeletone regoin contained between two anchors
+            num (int): number of structures
+            structure (Structure | Entity): structure to be added
+
+        Raises:
+            ValueError: _description_
+        """
 
         if len(bound_anchors) != 2:
-            raise ValueError(f"Provide 2 anchors! Instead {len(bound_anchors)} is given.")
+            raise WrongSizeError(f"Provide 2 anchors! Instead {len(bound_anchors)} is given.")
+
         p1 = self.get_anchor(bound_anchors[0]).point
         p2 = self.get_anchor(bound_anchors[1]).point
 
-        #self.fix_line()
         start_point = line_locate_point(self.skeletone, p1, normalized=True)
         end_point = line_locate_point(self.skeletone, p2, normalized=True)
 
@@ -97,62 +128,74 @@ class SuperStructure(Structure):
             self.append(s)
 
 
-    def route_with_intersection(self, anchors: tuple, layers: dict, airbridge: Entity | Structure) -> None:
+    def route_with_intersection(self,
+                                anchors: tuple,
+                                layers: dict,
+                                airbridge: Entity | Structure) -> None:
+        """ creates route between two anchors when a crossing with skeletone is expected
 
+        Args:
+            anchors (tuple): routing between two anchors. provide labels
+            layers (dict): layer width information
+            airbridge (Entity | Structure): airbridge structure
+                                            should contain 'in' and 'out' anchors
+        """
         if len(anchors) != 2:
-            raise TypeError("Provide only two point labels in 'anchors'.")
-        
+            raise WrongSizeError("Provide only two point labels in 'anchors'.")
+
         anchor_labels_airbridge = ['in', 'out']
-        
+
         if ((anchor_labels_airbridge[0] not in airbridge.anchorsmod.labels) or
             (anchor_labels_airbridge[1] not in airbridge.anchorsmod.labels)):
-            raise TypeError("airbridge anchors could be onlu 'in' and 'out'")
+            raise TypeError("airbridge anchors could be only 'in' and 'out'")
 
-        point_start = self.get_anchor(anchors[0]).point
-        point_end = self.get_anchor(anchors[1]).point
+        p_start = self.get_anchor(anchors[0]).point
+        p_end = self.get_anchor(anchors[1]).point
 
-        route_line = LineString([point_start, point_end])
+        route_line = LineString([p_start, p_end])
 
-        # get all intersection points with route line and skeletone     
+        # get all intersection points with route line and skeletone
         intersections = intersection_all([route_line, self.skeletone])
-        
+
+        # get valid intesections
         if not intersections.is_empty:
             # create a list of points
             list_intersection_points = create_list_geoms(intersections)
-            
+
             # removing start and end points
-            valid_intersections = [p for p in list_intersection_points if p not in [point_start, point_end]]
-        
+            valid_intersections = [p for p in list_intersection_points if p not in [p_start, p_end]]
+
         #######################
         ### creating route ####
         #######################
 
         if intersections.is_empty or valid_intersections==[]:
-            # in case of no intersections make a simple route or no valid_intersections 
+            # in case of no intersections make a simple route or no valid_intersections
             self.route_between_two_pts(anchors, layers)
 
         else:
-            list_distances = np.asarray(list(map(distance, 
-                                                 valid_intersections, 
-                                                 [point_start]*len(valid_intersections)
+            list_distances = np.asarray(list(map(distance,
+                                                 valid_intersections,
+                                                 [p_start]*len(valid_intersections)
                                                  )
                                             )
                                         )
-            sorted_distances_indicies = np.argsort(list_distances)
+            sorted_distance_indicies = np.argsort(list_distances)
 
-            intersect_locs_on_skeletone = line_locate_point(self.skeletone, 
+            intersect_locs_on_skeletone = line_locate_point(self.skeletone,
                                                             valid_intersections,
                                                             normalized=True)
             intersect_normals = get_normals_along_line(self.skeletone, intersect_locs_on_skeletone)
-            print(intersect_normals)
-            print(anchor_labels_airbridge)
+
             route_anchors = [anchors[0]]
+            # create temporary anchor list, which will be deleted in the end
             temporary_anchors = []
 
-            for i, idx in enumerate(sorted_distances_indicies):
+            # adding airbridges to superstructure
+            for i, idx in enumerate(sorted_distance_indicies):
                 airBRDG = airbridge.copy()
                 airBRDG.rotate(angle=intersect_normals[idx] + 90)
-                airBRDG.moveby(xy=(valid_intersections[idx].x, 
+                airBRDG.moveby(xy=(valid_intersections[idx].x,
                                      valid_intersections[idx].y))
                 for ab_anchor in anchor_labels_airbridge:
                     anchor_temp_name = str(i) + ab_anchor
@@ -160,14 +203,13 @@ class SuperStructure(Structure):
                                           new_name=anchor_temp_name)
                     route_anchors.append(anchor_temp_name)
                     temporary_anchors.append(anchor_temp_name)
-                
+
                 self.append(airBRDG)
 
             route_anchors.append(anchors[1])
-            print(route_anchors)
+
+            # adding all routes between anchors
             for labels in zip(route_anchors[::2], route_anchors[1::2]):
-                print(labels)
                 self.route_between_two_pts(anchors=labels, layers=layers)
 
-            #self.remove_anchor(temporary_anchors)
-            
+            self.remove_anchor(temporary_anchors)
