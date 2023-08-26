@@ -1,61 +1,74 @@
 import pickle
+from math import atan, pi, fmod
 import numpy as np
 
 from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
-from shapely import centroid, line_interpolate_point, ops, affinity
-from math import atan, pi, fmod
+from shapely import centroid, line_interpolate_point, ops, affinity, unary_union
 
+from .anchors import Anchor
 from ..settings import GRID_SIZE
+from ..fonts import _glyph, _indentX, _indentY
 
 
-def modFMOD(angle):
+def modFMOD(angle: float | int) ->float:
+    """ modified modulo calculations for angles in degrees
+        lower branch always has negative sign
+
+    Args:
+        angle (float):
+
+    Returns:
+        angle: angle modulo 360
+    """
+
     if np.abs(angle) % 360 == 180:
         return 180
-    elif np.abs(angle) % 360 < 180:
+    if np.abs(angle) % 360 < 180:
         return fmod(angle, 360)
-    elif np.sign(angle) > 0:
+    if np.sign(angle) > 0:
         return angle % 360 - 360
+    return angle % 360
+
+
+def merge_lines_with_tolerance(line1: LineString,
+                               line2: LineString,
+                               tol: float=1e-6) -> LineString:
+    """Returns LineStrings formed by combining two lines. 
+    
+    Lines are joined together at their endpoints in case two lines are
+    intersecting within a distance defined by tolerance.
+
+    Args:
+        line1 (LineString): first line
+        line2 (LineString): second line
+        tol (float, optional): distance within to merge. Defaults to 1e-6.
+
+    Raises:
+        ValueError: distance between all boundary points are not within tolerance
+
+    Returns:
+        LineString: merged line
+    """
+    a1, a2 = list(line1.boundary.geoms)
+    b1, b2 = list(line2.boundary.geoms)
+    if a1.equals_exact(b1, tolerance=tol):
+        pts = list(line2.coords).reverse() + list(line1.coords)[:1]
+    elif a1.equals_exact(b2, tolerance=tol):
+        pts = list(line2.coords) + list(line1.coords)[:1]
+    elif a2.equals_exact(b1, tolerance=tol):
+        pts = list(line1.coords) + list(line2.coords)[1:]
+    elif a2.equals_exact(b2, tolerance=tol):
+        pts = list(line1.coords)[:-1] + list(reversed(list(line2.coords)))
     else:
-        return angle % 360
+        raise ValueError(f"lines cannot be merged within tolerance {tol}")
+
+    return LineString(pts)
 
 
-def merge_lines_with_tolerance(line1: LineString, line2: LineString, tol: float=1e-6) -> LineString:
-        """Returns LineStrings formed by combining two lines. 
-        
-        Lines are joined together at their endpoints in case two lines are
-        intersecting within a distance defined by tolerance.
-
-        Args:
-            line1 (LineString): first line
-            line2 (LineString): second line
-            tol (float, optional): distance within to merge. Defaults to 1e-6.
-
-        Raises:
-            ValueError: distance between all boundary points are not within tolerance
-
-        Returns:
-            LineString: merged line
-        """
-        a1, a2 = list(line1.boundary.geoms)
-        b1, b2 = list(line2.boundary.geoms)
-        if a1.equals_exact(b1, tolerance=tol):
-            pts = list(line2.coords).reverse() + list(line1.coords)[:1]
-        elif a1.equals_exact(b2, tolerance=tol):
-            pts = list(line2.coords) + list(line1.coords)[:1]
-        elif a2.equals_exact(b1, tolerance=tol):
-            pts = list(line1.coords) + list(line2.coords)[1:]
-        elif a2.equals_exact(b2, tolerance=tol):
-            pts = list(line1.coords)[:-1] + list(reversed(list(line2.coords)))
-        else:
-            raise ValueError(f"lines cannot be merged within tolerance {tol}")
-        
-        return LineString(pts)
-
-
-def attach_line(object: LineString, line: LineString) -> None:
+def attach_line(base_line: LineString, line: LineString) -> None:
     """ appending line to an object """
 
-    coords_obj_1 = np.asarray(list(object.coords))
+    coords_obj_1 = np.asarray(list(base_line.coords))
     coords_obj_2 = np.asarray(list(line.coords))
     n1 = len(coords_obj_1)
     n2 = len(coords_obj_2)
@@ -68,7 +81,7 @@ def attach_line(object: LineString, line: LineString) -> None:
 
 def azimuth(point1, point2):
     '''azimuth between 2 shapely points (interval 0 - 360)'''
-    if type(point1) is Point:
+    if isinstance(point1, Point):
         angle = np.arctan2(point2.x - point1.x, point2.y - point1.y)
     else:
         angle = np.arctan2(point2[0] - point1[0], point2[1] - point1[1])
@@ -77,7 +90,7 @@ def azimuth(point1, point2):
 
 def offset_point(point: tuple | Point, offset: float, angle: float) -> Point:
     rotation_angle = angle - 90
-    
+
     if isinstance(point, Point):
         point_coord = (point.x, point.y)
     else:
@@ -96,18 +109,18 @@ def get_angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
     if p2[0] - p1[0] == 0:
         if p2[1] - p1[1] > 0:
             return 90
-        else:
-            return 270
-    else:    
-        angle = atan((p2[1] - p1[1])/(p2[0] - p1[0])) * 180/pi
-        if p2[1] - p1[1] > 0 and p2[0] - p1[0] < 0:
-            return angle + 180
-        elif p2[1] - p1[1] < 0 and p2[0] - p1[0] < 0:
-            return angle + 180
-        elif p2[1] - p1[1] < 0 and p2[0] - p1[0] > 0:
-            return angle
-        else:
-            return angle 
+        return 270
+
+    angle = atan((p2[1] - p1[1])/(p2[0] - p1[0])) * 180/pi
+
+    if p2[1] - p1[1] > 0 and p2[0] - p1[0] < 0:
+        return angle + 180
+    if p2[1] - p1[1] < 0 and p2[0] - p1[0] < 0:
+        return angle + 180
+    if p2[1] - p1[1] < 0 and p2[0] - p1[0] > 0:
+        return angle
+    return angle
+
 
 def get_length_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
     if isinstance(p1, Point):
@@ -178,8 +191,7 @@ def get_normals_along_line(line: LineString | MultiLineString,
 
     if not float_indicator:
         return normal_angles
-    else:
-        return normal_angles[0]
+    return normal_angles[0]
 
 
 def midpoint(p1, p2, alpha=0.5):
@@ -216,13 +228,12 @@ def create_list_geoms(geometry) -> list:
     if hasattr(geometry, "geoms"):
         # working with multi-geometries
         return list(geometry.geoms)
-    else:
-        # working with single-geometries
-        return [geometry]
+    # working with single-geometries
+    return [geometry]
 
 
 def has_interior(p: Polygon) -> bool:
-    return False if list(p.interiors)==[] else True
+    return False if not list(p.interiors) else True
 
 
 def convert_polygon_with_holes_into_muiltipolygon(p: Polygon) -> list:
@@ -253,7 +264,74 @@ def convert_polygon_with_holes_into_muiltipolygon(p: Polygon) -> list:
                     multipolygonlist += [geom]
             multipolygon = MultiPolygon(multipolygonlist)
             disected_all += list(multipolygon.geoms)
-        
+
         return multipolygon
-    else:
-        return multipolygon
+    return multipolygon
+
+
+def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
+
+    if isinstance(point_any_type, Anchor):
+    # if Anchor class provided then extract coords
+        return point_any_type.coords
+
+    if isinstance(point_any_type, Point):
+        # if Point class provided then extract coords
+        return list(point_any_type.coords)[0]
+
+    if isinstance(point_any_type, tuple):
+        # if tuple is provided then return the same
+        return point_any_type
+
+    raise TypeError("only tuple, Point and Anchor tupes are supported")
+
+
+def polygonize_text(text: str="abcdef", size: float=1000) -> MultiPolygon:
+    """ Converts given text to a MultiPolygon object
+
+    Args:
+        text (str, optional): text in str format. Defaults to "abcdef".
+        size (float, optional): defines the size of the text. Defaults to 1000.
+
+    Returns:
+        MultiPolygon: converted text into MultiPolygon object
+    """
+
+    scaling = size/1000
+    xoffset = 0
+    yoffset = 0
+    MULTIPOLY = []
+
+    for line in text.split("\n"):
+
+        for c in line:
+            ascii_val = ord(c)
+
+            if c==" ":
+                xoffset += 500 * scaling
+
+            elif (33 <= ascii_val <= 126) or (ascii_val == 181):
+                multipolygon = []
+                for poly in _glyph.get(ascii_val):
+                    coords = np.array(poly) * scaling
+                    coords[:, 0] += xoffset
+                    coords[:, 1] += yoffset
+                    multipolygon.append(Polygon(coords))
+
+                mpolygon = unary_union(MultiPolygon(multipolygon))
+                _, _, xmax, _ = mpolygon.bounds
+                xoffset = xmax + _indentX * scaling
+                MULTIPOLY.append(mpolygon)
+            else:
+                valid_chars = "!\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~µ"
+
+                raise ValueError(
+                        'Warning, no geometry for character "%s" with ascii value %s. '
+                        "Valid characters: %s"
+                        % (chr(ascii_val), ascii_val, valid_chars)
+                    )
+
+        yoffset -= _indentY * scaling
+        xoffset = 0
+
+    return unary_union(MULTIPOLY)
