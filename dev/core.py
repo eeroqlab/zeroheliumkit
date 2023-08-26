@@ -1,7 +1,7 @@
+import os
 import copy
 import numpy as np
 
-import shapely
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
 from shapely import (affinity, unary_union,
@@ -16,11 +16,10 @@ from ..helpers.plotting import plot_geometry
 from ..importing import reader_dxf
 from ..errors import RouteError
 from ..settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES
-from ..functions import *
 
-from ..dev.anchors import Anchor, MultiAnchor
-from ..dev.functions import (attach_line, save_geometries, convert_polygon_with_holes_into_muiltipolygon,
-                             create_list_geoms, read_geometries)
+from .anchors import Anchor, MultiAnchor
+from .functions import (attach_line, save_geometries, convert_polygon_with_holes_into_muiltipolygon,
+                        create_list_geoms, read_geometries, polygonize_text)
 
 #---------------------------------------------
 # core classes
@@ -47,14 +46,7 @@ class _Base:
         if (name[:1] != '_') and (name != "anchorsmod"):
 
             try:
-                if hasattr(value, "geoms"):
-                    geometries = []
-                    for v in list(value.geoms):
-                        geometries.append(set_precision(v, grid_size=GRID_SIZE))
-                    geometry_type = getattr(shapely, value.geom_type)
-                    geometry_on_grid = geometry_type(geometries)
-                else:
-                    geometry_on_grid = set_precision(value, grid_size=GRID_SIZE)
+                geometry_on_grid = set_precision(value, grid_size=GRID_SIZE)
                 self.__dict__[name] = geometry_on_grid
             except Exception as e:
                 self._errors = value
@@ -106,11 +98,10 @@ class Entity(_Base):
 
         if not geom_type:
             return name_list
-        elif geom_type=="polygon":
+        if geom_type=="polygon":
             polygons_only = [l for l in name_list if l not in ("skeletone", "anchors")]
             return polygons_only
-        else:
-            raise NameError("Currently geom_type support only None or 'polygon'")
+        raise NameError("Currently geom_type support only None or 'polygon'")
 
 
     ################################
@@ -416,7 +407,6 @@ class Entity(_Base):
         geom_values = [getattr(self, k) for k in geom_names]
         geom_dict = dict(zip(geom_names, geom_values))
 
-        import os
         if not os.path.exists(dirname):
             os.makedirs(dirname)
         filename = dirname + f"{name}.pickle"
@@ -560,9 +550,8 @@ class Structure(Entity):
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
             s.moveby(offset)
 
-        
         # appending anchors
-        self.add_anchor(s.anchorsmod.multipoint) 
+        self.add_anchor(s.anchorsmod.multipoint)
 
         # appending lines and polygons
         for a in attr_list:
@@ -574,10 +563,10 @@ class Structure(Entity):
                 value = self._combine_objects(getattr(self, a), getattr(s, a))
 
             setattr(self, a, value)
-        
-    
-    def _combine_objects(self, 
-                        obj1: LineString | Polygon| MultiLineString | MultiPolygon | None, 
+
+
+    def _combine_objects(self,
+                        obj1: LineString | Polygon| MultiLineString | MultiPolygon | None,
                         obj2: LineString | Polygon| MultiLineString | MultiPolygon | None):
         """ combines two geometries with given connection type and connection point
 
@@ -586,7 +575,8 @@ class Structure(Entity):
             obj2 (LineString | Polygon | MultiLineString | MultiPolygon | None): shapely geometry
 
         Raises:
-            TypeError: raise if appending shapely object is not [LineString | Polygon | MultiLineString | MultiPolygon]
+            TypeError: raise if appending shapely object 
+                       is not [LineString | Polygon | MultiLineString | MultiPolygon]
             ValueError: something wrong went with combining geometries.
                         call _errors to inspect problematic core_obj
         """
@@ -596,14 +586,15 @@ class Structure(Entity):
             core_objs = self._append_geometry(core_objs, obj1)
         if obj2:
             core_objs = self._append_geometry(core_objs, obj2)
-        
+
         return core_objs
-    
+
     def empty_multiGeometry(self, obj1, obj2):
         """ creates an empty multi-geometry object based on the types of input geometries
 
         Raises:
-            TypeError: if geometry types are not from supported list or do not match between each other
+            TypeError: if geometry types are not from supported list or
+                       do not match between each other
 
         Returns:
             empty Multi-Geometry
@@ -611,11 +602,10 @@ class Structure(Entity):
 
         if (type(obj1) in LINE_CLASSES) or (type(obj2) in LINE_CLASSES):
             return MultiLineString()
-        elif (type(obj1) in PLG_CLASSES) or (type(obj2) in PLG_CLASSES):
+        if (type(obj1) in PLG_CLASSES) or (type(obj2) in PLG_CLASSES):
             return MultiPolygon()
-        else:
-            raise TypeError("incorrect shapely object types")
-    
+        raise TypeError("incorrect shapely object types")
+
     def _append_geometry(self, core_objs, appending_objs):
         """ appends single or multi shapely geometries
             works with LineString, Polygon and multi-geometries
@@ -626,9 +616,9 @@ class Structure(Entity):
         """
         geom_list = create_list_geoms(core_objs) + create_list_geoms(appending_objs)
         multi_geom = unary_union(geom_list)
-        
-        return multi_geom 
-    
+
+        return multi_geom
+
     def get_skeletone_boundary(self, geometry_index: int=0) -> tuple:
         if hasattr(self.skeletone, "geoms"):
             line = list(self.skeletone.geoms)
@@ -636,7 +626,7 @@ class Structure(Entity):
         else:
             coords = self.skeletone.coords
         return [coords[0], coords[-1]]
-    
+
     def return_mirrored(self, aroundaxis: None):
         """ Returns a mirrored aroundaxis copy of the Class
 
@@ -649,7 +639,7 @@ class Structure(Entity):
         class_copy = self.copy()
         class_copy.mirror(aroundaxis)
         return class_copy
-    
+
 
 class GeomCollection(Entity):
     """ collection of geometries
@@ -673,7 +663,7 @@ class GeomCollection(Entity):
                 print(import_file + f": {keys}")
             else:
                 raise ValueError("importing not supported format")
-            
+
             for k, item in geoms.items():
                 if not isinstance(k, str):
                     k = str(k)
