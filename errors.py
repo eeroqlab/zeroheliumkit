@@ -12,3 +12,6 @@ class RouteError(Exception):
 
 class GeometryError(Exception):
     pass
+
+class WrongSizeError(Exception):
+    pass
