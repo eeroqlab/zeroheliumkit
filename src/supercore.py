@@ -63,12 +63,14 @@ class SuperStructure(Structure):
         elif np.abs(point1.direction - point2.direction) < 1e-4:
             # sigmoid line construction
             # - anchor directions are the same
-
+            
+            print(angle)
             # calculating intermediate point direction
-            if angle > point1.direction:
+            if (0 < modFMOD(angle - point1.direction) <= 90) or (-180 < modFMOD(angle - point1.direction) <= -90):
                 mid_dir = modFMOD(point1.direction + 45)
             else:
                 mid_dir = modFMOD(point1.direction - 45)
+            print(mid_dir)
 
             connecting_structure = SigmoidLine(anchor1=point1,
                                                anchor2=point2,
