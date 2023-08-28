@@ -5,8 +5,8 @@ import numpy as np
 from tabulate import tabulate
 from shapely import Point, affinity, set_precision
 
-from ..settings import GRID_SIZE, BLACK, RED
-from ..helpers.plotting import default_ax
+from .settings import GRID_SIZE, BLACK, RED
+from .plotting import default_ax
 
 
 def modFMOD(angle: float | int) ->float:

@@ -3,10 +3,10 @@ import numpy as np
 from shapely import line_locate_point, line_interpolate_point, intersection_all, distance
 from shapely import LineString
 
-from ..dev.geometries import StraightLine, ElbowLine, SigmoidLine
-from ..dev.functions import get_abc_line, create_list_geoms, get_normals_along_line, modFMOD
-from ..dev.core import Structure, Entity
-from ..errors import WrongSizeError
+from .core import Structure, Entity
+from .geometries import StraightLine, ElbowLine, SigmoidLine
+from .functions import get_abc_line, create_list_geoms, get_normals_along_line, modFMOD
+from .errors import WrongSizeError
 
 
 class SuperStructure(Structure):

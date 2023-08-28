@@ -60,8 +60,6 @@ class reader_dxf():
         plt.show()
 
 
-
-
 if __name__=="__main__":
     chip = reader_dxf('test.dxf')
     chip.plot_dxf()

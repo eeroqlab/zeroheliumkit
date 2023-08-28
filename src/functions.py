@@ -6,8 +6,8 @@ from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
 from shapely import centroid, line_interpolate_point, ops, affinity, unary_union
 
 from .anchors import Anchor
-from ..settings import GRID_SIZE
-from ..fonts import _glyph, _indentX, _indentY
+from .settings import GRID_SIZE
+from .fonts import _glyph, _indentX, _indentY
 
 
 def modFMOD(angle: float | int) ->float:

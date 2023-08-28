@@ -12,10 +12,10 @@ from shapely.ops import linemerge
 
 from phidl import Device
 
-from ..helpers.plotting import plot_geometry
-from ..importing import reader_dxf
-from ..errors import RouteError
-from ..settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES
+from .plotting import plot_geometry
+from .importing import reader_dxf
+from .errors import RouteError
+from .settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES
 
 from .anchors import Anchor, MultiAnchor
 from .functions import (attach_line, save_geometries, convert_polygon_with_holes_into_muiltipolygon,

@@ -9,7 +9,7 @@ from .anchors import Anchor, MultiAnchor
 from .basics import ArcLine
 from .functions import (get_angle_between_points, offset_point, get_intersection_point_bruteforce,
                         modFMOD, midpoint, extract_coords_from_point)
-from ..settings import GRID_SIZE
+from .settings import GRID_SIZE
 
 
 # Multi-layer Geometry Classes

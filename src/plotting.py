@@ -3,9 +3,9 @@ import matplotlib.colors as mc
 import colorsys
 
 from shapely import get_coordinates
-from shapely.plotting import plot_points, plot_line, plot_polygon
+from shapely.plotting import plot_line, plot_polygon
 
-from ..settings import *
+from .settings import *
 
 def default_ax():
     ax = plt.gca()
@@ -88,7 +88,3 @@ def set_limits(ax, coor: list | Point, dxdy: list):
     ax.set_ylim(y0 - dy/2, y0 + dy/2)
     #ax.set_yticks(range(y0, yN+1))
     ax.set_aspect("equal")
-
-
-
-

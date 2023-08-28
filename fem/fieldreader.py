@@ -3,7 +3,7 @@ import yaml
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-from ..settings import *
+from ..src.settings import *
 
 
 ff_types = ['2Dmap', '2Dslices']

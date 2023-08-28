@@ -7,7 +7,7 @@ import subprocess
 from alive_progress import alive_it
 import os
 
-from ..errors import *
+from ..src.errors import *
 
 config_planes_2D = ['xy', 'yz', 'xz']
 config_planes_3D = ['xy_z']
