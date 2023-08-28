@@ -15,7 +15,7 @@ from shapely import Polygon, MultiPolygon, get_coordinates
 from tabulate import tabulate
 from alive_progress import alive_it
 
-from ..core import Structure, Entity
+from ..src.core import Structure, Entity
 
 
 #---------------------------------------------
