@@ -4,12 +4,15 @@ Collection of different simple 1D/2D Geometries
 
 import numpy as np
 
-from shapely import LineString, Polygon
+from shapely import Point, LineString, Polygon, affinity
 
 from .core import Entity
 
 
-def Rectangle(width: float, height: float) -> Polygon:
+def Rectangle(width: float,
+              height: float,
+              location: tuple | Point=None,
+              direction: float=None) -> Polygon:
     """ creates a Rectangle polygon
 
     Args:
@@ -19,13 +22,23 @@ def Rectangle(width: float, height: float) -> Polygon:
     Returns:
         Polygon
     """
-    return Polygon([(-width/2, -height/2),
+    poly = Polygon([(-width/2, -height/2),
                     (-width/2, height/2),
                     (width/2, height/2),
                     (width/2, -height/2)])
 
+    if direction:
+        return affinity.rotate(poly, direction, origin=(0,0))
 
-def Square(size: float) -> Polygon:
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(poly, *location)
+
+    return  poly
+
+
+def Square(size: float, location: tuple | Point=None, direction: float=None) -> Polygon:
     """ creates a Square polygon
 
     Args:
@@ -34,7 +47,7 @@ def Square(size: float) -> Polygon:
     Returns:
         Polygon
     """
-    return Rectangle(size, size)
+    return Rectangle(size, size, location, direction)
 
 
 def RegularPolygon(edge: float=None,

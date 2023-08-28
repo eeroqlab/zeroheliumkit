@@ -43,7 +43,7 @@ class _Base:
             class attribute names with shapely geometries should not start with '_'
         """
 
-        if (name[:1] != '_') and (name != "anchorsmod"):
+        if (name[:1] != '_') and (name != "anchors"):
 
             try:
                 geometry_on_grid = set_precision(value, grid_size=GRID_SIZE)
@@ -77,7 +77,7 @@ class Entity(_Base):
 
     def __init__(self):
         self.skeletone = LineString()
-        self.anchorsmod = MultiAnchor([])
+        self.anchors = MultiAnchor([])
 
     def layer_names(self, geom_type: str=None) -> list:
         """ gets name of layers, containing geometry objects 
@@ -93,7 +93,7 @@ class Entity(_Base):
         for attribute in dir(self):
             if attribute[:1] != '_':
                 value = getattr(self, attribute)
-                if not callable(value) and (value is not None) and (attribute != "anchorsmod"):
+                if not callable(value) and (value is not None) and (attribute != "anchors"):
                     name_list.append(attribute)
 
         if not geom_type:
@@ -119,7 +119,7 @@ class Entity(_Base):
         for attr in attr_list:
             setattr(self, attr, affinity.rotate(getattr(self, attr), angle, origin))
 
-        self.anchorsmod.rotate(angle, origin)
+        self.anchors.rotate(angle, origin)
 
     def moveby(self, xy: tuple=(0,0)):
         attr_list = self.layer_names()
@@ -128,14 +128,14 @@ class Entity(_Base):
                                                      xoff = xy[0],
                                                      yoff = xy[1])
             setattr(self, a, translated_geometry)
-        self.anchorsmod.move(xoff=xy[0], yoff=xy[1])
+        self.anchors.move(xoff=xy[0], yoff=xy[1])
 
     def moveby_snap(self, anchor: str, to_point: tuple | str | Point):
-        old_anchor_coord = self.anchorsmod.point(anchor).coords
+        old_anchor_coord = self.anchors.point(anchor).coords
         if isinstance(to_point, tuple):
             new_anchor_coord = to_point
         elif isinstance(to_point, str):
-            new_anchor_coord = self.anchorsmod.point(to_point).coords
+            new_anchor_coord = self.anchors.point(to_point).coords
         elif isinstance(to_point, Point):
             new_anchor_coord = to_point.xy
         else:
@@ -158,7 +158,7 @@ class Entity(_Base):
         for attr in attr_list:
             setattr(self, attr, affinity.scale(getattr(self, attr), xfact, yfact, 1.0, origin))
 
-        self.anchorsmod.scale(xfact=xfact, yfact=yfact, origin=origin)
+        self.anchors.scale(xfact=xfact, yfact=yfact, origin=origin)
 
     def mirror(self, aroundaxis: str, update_labels: bool=False, keep_original: bool=False):
         """ mirrors all objects in the class
@@ -183,7 +183,7 @@ class Entity(_Base):
             else:
                 setattr(self, attr, mirrored)
 
-        self.anchorsmod.mirror(aroundaxis=aroundaxis,
+        self.anchors.mirror(aroundaxis=aroundaxis,
                                update_labels=update_labels,
                                keep_original=keep_original)
 
@@ -197,7 +197,7 @@ class Entity(_Base):
         Args:
             points (list[tuple], optional): adds new anchor. Defaults to [].
         """
-        self.anchorsmod.add(points)
+        self.anchors.add(points)
 
     def get_anchor(self, label: str) -> Anchor:
         """ returns the Anchor class with given label
@@ -208,7 +208,7 @@ class Entity(_Base):
         Returns:
             Anchor: class, contains label, direction and coordinates
         """
-        return self.anchorsmod.point(label)
+        return self.anchors.point(label)
 
     def modify_anchor(self,
                       label: str,
@@ -223,7 +223,7 @@ class Entity(_Base):
             new_xy (tuple, optional): updates coordinates. Defaults to None.
             new_direction (float, optional): updates the direction. Defaults to None.
         """
-        self.anchorsmod.modify(label=label,
+        self.anchors.modify(label=label,
                                new_name=new_name,
                                new_xy=new_xy,
                                new_direction=new_direction)
@@ -234,7 +234,7 @@ class Entity(_Base):
         Args:
             labels (list | str): provide list of labels or a label name
         """
-        self.anchorsmod.remove(labels=labels)
+        self.anchors.remove(labels=labels)
 
 
     #############################
@@ -503,7 +503,7 @@ class Entity(_Base):
                                   **kwargs)
         else:
             for l, c in zip(layer, color):
-                if hasattr(self, l) and l != "anchorsmod":
+                if hasattr(self, l) and l != "anchors":
                     geometry = getattr(self, l)
                     plot_geometry(geometry,
                                   ax=ax,
@@ -511,8 +511,8 @@ class Entity(_Base):
                                   color=c,
                                   alpha=alpha,
                                   **kwargs)
-                elif l == "anchorsmod":
-                    self.anchorsmod.plot(ax=ax, color=c, draw_direction=draw_direction)
+                elif l == "anchors":
+                    self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
 
 
 
@@ -551,7 +551,7 @@ class Structure(Entity):
             s.moveby(offset)
 
         # appending anchors
-        self.add_anchor(s.anchorsmod.multipoint)
+        self.add_anchor(s.anchors.multipoint)
 
         # appending lines and polygons
         for a in attr_list:

@@ -407,7 +407,7 @@ class claws(Entity):
         for k, width in layers.items():
             self.add_buffer(name=k, offset=width/2, cap_style='round',
                             join_style='round', quad_segs=20)
-        self.anchorsmod = MultiAnchor([Anchor((0,0), 0, alabel[0]),
+        self.anchors = MultiAnchor([Anchor((0,0), 0, alabel[0]),
                                        Anchor((r,0), 0, alabel[1])])
 
     def create_skeletone(self, offset, radius, length):

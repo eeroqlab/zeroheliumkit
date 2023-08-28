@@ -145,8 +145,8 @@ class SuperStructure(Structure):
 
         anchor_labels_airbridge = ['in', 'out']
 
-        if ((anchor_labels_airbridge[0] not in airbridge.anchorsmod.labels) or
-            (anchor_labels_airbridge[1] not in airbridge.anchorsmod.labels)):
+        if ((anchor_labels_airbridge[0] not in airbridge.anchors.labels) or
+            (anchor_labels_airbridge[1] not in airbridge.anchors.labels)):
             raise TypeError("airbridge anchors could be only 'in' and 'out'")
 
         p_start = self.get_anchor(anchors[0]).point

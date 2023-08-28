@@ -25,7 +25,7 @@ RED         = '#ff3333'
 BLACK       = '#000000'
 WHITE       = '#ffffff'
 
-COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY]
+COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY, RED, BLACK]
 
 # grouped geometry types
 PTS_CLASSES   = [Point, MultiPoint]
