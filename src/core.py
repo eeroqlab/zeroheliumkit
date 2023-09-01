@@ -403,7 +403,7 @@ class Entity(_Base):
     #### Exporting operations ####
     ##############################
     def save_to_file(self, dirname, name):
-        geom_names = self.layer_names()
+        geom_names = self.layer_names() + ["anchors"]
         geom_values = [getattr(self, k) for k in geom_names]
         geom_dict = dict(zip(geom_names, geom_values))
 
@@ -641,7 +641,7 @@ class Structure(Entity):
         return class_copy
 
 
-class GeomCollection(Entity):
+class GeomCollection(Structure):
     """ collection of geometries
         class attributes are created by layers dictionary 
         attr  |  dict

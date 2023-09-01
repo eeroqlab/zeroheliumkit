@@ -335,3 +335,7 @@ def polygonize_text(text: str="abcdef", size: float=1000) -> MultiPolygon:
         xoffset = 0
 
     return unary_union(MULTIPOLY)
+
+
+def round_polygon(polygon: Polygon, round_radius: float) -> Polygon:
+    return polygon.buffer(round_radius).buffer(-2*round_radius).buffer(round_radius)

@@ -58,7 +58,7 @@ class StraightLine(Entity):
                             Anchor(point=p2, direction=angle, label=alabel[1])])
 
 
-class ArbitraryLine(Entity):
+class ArbitraryLine(Structure):
     """ create an arbitrary line geometry based on list of point
         and list of widths which defines the polygon
 

@@ -45,7 +45,10 @@ class SuperStructure(Structure):
 
         # calculating angle of the line between anchors
         a, b, _ = get_abc_line(point1.point, point2.point)
-        angle = np.arctan(-a/b) * 180/np.pi
+        if b != 0:
+            angle = np.arctan(-a/b) * 180/np.pi
+        else:
+            angle = 90 * np.sign(point2.point.y - point1.point.y)
 
         ##############################
         #### MAIN routing choices ####
@@ -64,13 +67,11 @@ class SuperStructure(Structure):
             # sigmoid line construction
             # - anchor directions are the same
             
-            print(angle)
             # calculating intermediate point direction
             if (0 < modFMOD(angle - point1.direction) <= 90) or (-180 < modFMOD(angle - point1.direction) <= -90):
                 mid_dir = modFMOD(point1.direction + 45)
             else:
                 mid_dir = modFMOD(point1.direction - 45)
-            print(mid_dir)
 
             connecting_structure = SigmoidLine(anchor1=point1,
                                                anchor2=point2,
@@ -133,7 +134,8 @@ class SuperStructure(Structure):
     def route_with_intersection(self,
                                 anchors: tuple,
                                 layers: dict,
-                                airbridge: Entity | Structure) -> None:
+                                airbridge: Entity | Structure,
+                                extra_rotation: float=0) -> None:
         """ creates route between two anchors when a crossing with skeletone is expected
 
         Args:
@@ -196,7 +198,7 @@ class SuperStructure(Structure):
             # adding airbridges to superstructure
             for i, idx in enumerate(sorted_distance_indicies):
                 airBRDG = airbridge.copy()
-                airBRDG.rotate(angle=intersect_normals[idx] + 90)
+                airBRDG.rotate(angle=intersect_normals[idx] + 90 + extra_rotation)
                 airBRDG.moveby(xy=(valid_intersections[idx].x,
                                      valid_intersections[idx].y))
                 for ab_anchor in anchor_labels_airbridge:
