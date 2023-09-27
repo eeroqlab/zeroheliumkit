@@ -45,10 +45,15 @@ class SuperStructure(Structure):
 
         # calculating angle of the line between anchors
         a, b, _ = get_abc_line(point1.point, point2.point)
+        direction_sign = np.sign(point2.point.y - point1.point.y)
         if b != 0:
             angle = np.arctan(-a/b) * 180/np.pi
+            if direction_sign * np.sign(angle) < 0:
+                angle = -180 * np.sign(angle) + angle
         else:
-            angle = 90 * np.sign(point2.point.y - point1.point.y)
+            angle = 90 * direction_sign
+
+        print(angle)
 
         ##############################
         #### MAIN routing choices ####
@@ -68,10 +73,13 @@ class SuperStructure(Structure):
             # - anchor directions are the same
             
             # calculating intermediate point direction
-            if (0 < modFMOD(angle - point1.direction) <= 90) or (-180 < modFMOD(angle - point1.direction) <= -90):
-                mid_dir = modFMOD(point1.direction + 45)
+            angle_point1reference = modFMOD(angle - point1.direction)
+            if (0 < angle_point1reference <= 90) or (-180 < angle_point1reference <= -90):
+                #mid_dir = modFMOD(point1.direction + np.abs(angle))
+                mid_dir = modFMOD(angle + 20)
             else:
-                mid_dir = modFMOD(point1.direction - 45)
+                #mid_dir = modFMOD(point1.direction - np.abs(angle))
+                mid_dir = modFMOD(angle - 20)
 
             connecting_structure = SigmoidLine(anchor1=point1,
                                                anchor2=point2,
