@@ -1,6 +1,8 @@
 import os
 import copy
+from typing import Any
 import numpy as np
+import matplotlib.pyplot as plt
 
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
@@ -15,7 +17,7 @@ from phidl import Device
 from .plotting import plot_geometry
 from .importing import reader_dxf
 from .errors import RouteError
-from .settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES
+from .settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES, SIZE_L
 
 from .anchors import Anchor, MultiAnchor
 from .functions import (attach_line, save_geometries, convert_polygon_with_holes_into_muiltipolygon,
@@ -224,9 +226,9 @@ class Entity(_Base):
             new_direction (float, optional): updates the direction. Defaults to None.
         """
         self.anchors.modify(label=label,
-                               new_name=new_name,
-                               new_xy=new_xy,
-                               new_direction=new_direction)
+                            new_name=new_name,
+                            new_xy=new_xy,
+                            new_direction=new_direction)
 
     def remove_anchor(self, labels: list | str):
         """ Delete anchor from the Entity
@@ -276,6 +278,9 @@ class Entity(_Base):
             self.skeletone = linemerge(self.skeletone)
         except Exception:
             print("there is nothing to fix in skeletone")
+    
+    def remove_skeletone(self):
+        self.skeletone = LineString()
 
     ################################
     #### Operations on polygons ####
@@ -473,7 +478,7 @@ class Entity(_Base):
     #############################
     def plot(self,
              ax=None,
-             layer: list=["all"],
+             layer: list=None,
              show_idx=False,
              color=None,
              alpha=1,
@@ -489,30 +494,53 @@ class Entity(_Base):
             alpha (int, optional): defines the transparency. Defaults to 1.
             draw_direction (bool, optional): draws arrows. Defaults to True.
         """
+        if ax is None:
+            fig = plt.figure(1, figsize=SIZE_L, dpi=90)
+            ax = fig.add_subplot(111)
 
-        if layer==["all"]:
-            attr_list = self.layer_names()
-            for i, attr in enumerate(attr_list):
-                geometry = getattr(self, attr)
-                if type(geometry) in PLG_CLASSES:
-                    plot_geometry(geometry,
-                                  ax=ax,
-                                  show_idx=show_idx,
-                                  color=COLORS[i%len(COLORS)],
-                                  alpha=1,
-                                  **kwargs)
-        else:
-            for l, c in zip(layer, color):
-                if hasattr(self, l) and l != "anchors":
-                    geometry = getattr(self, l)
-                    plot_geometry(geometry,
-                                  ax=ax,
-                                  show_idx=show_idx,
-                                  color=c,
-                                  alpha=alpha,
-                                  **kwargs)
-                elif l == "anchors":
-                    self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
+        for l, c in zip(layer, color):
+            if hasattr(self, l) and l != "anchors":
+                geometry = getattr(self, l)
+                plot_geometry(geometry,
+                                ax=ax,
+                                show_idx=show_idx,
+                                color=c,
+                                alpha=alpha,
+                                **kwargs)
+            elif l == "anchors":
+                self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
+
+    def quickplot(self, plot_config: dict, zoom: tuple=None) -> None:
+        """ provides a quick plot of the whole Entity
+
+        Args:
+            plot_config (dict): dictionary of ordered layers (keys) with predefined colors as dict values
+            zoom (tuple, optional): ((x0, y0), zoom_scale, aspect_ratio). Defaults to None.
+        """
+
+        plot_layers = [k for k in plot_config.keys() if k in self.layer_names()] + ["anchors"]
+        plot_colors = [plot_config[k] for k in plot_layers]
+        
+        fig = plt.figure(1, figsize=SIZE_L, dpi=90)
+        ax = fig.add_subplot(111)
+        self.plot(ax=ax, layer=plot_layers, color=plot_colors)
+
+        if zoom is not None:
+
+            xmin, xmax = plt.gca().get_xlim() 
+            ymin, ymax = plt.gca().get_ylim()
+
+            x0, y0 = zoom[0]
+            dx = round((xmax - xmin)/zoom[1]/2)
+            dy = round((ymax - ymin)/zoom[1]/2)
+            if len(zoom) > 2:
+                dy = dy/zoom[2]
+
+            ax.set_xlim(x0 - dx, x0 + dx)
+            ax.set_ylim(y0 - dy, y0 + dy)
+
+        plt.gca().set_aspect('equal')
+        plt.show()
 
 
 
