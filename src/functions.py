@@ -333,8 +333,13 @@ def polygonize_text(text: str="abcdef", size: float=1000) -> MultiPolygon:
 
         yoffset -= _indentY * scaling
         xoffset = 0
+    
+    poly = unary_union(MULTIPOLY)
+    xmin, ymin, xmax, ymax = poly.bounds
+    center_loc_x = xmax/2 + xmin/2
+    center_loc_y = ymax/2 + ymin/2
 
-    return unary_union(MULTIPOLY)
+    return affinity.translate(poly, -center_loc_x, -center_loc_y)
 
 
 def round_polygon(polygon: Polygon, round_radius: float) -> Polygon:
