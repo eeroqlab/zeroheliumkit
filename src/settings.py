@@ -24,6 +24,11 @@ GREEN       = '#339933'
 RED         = '#ff3333'
 BLACK       = '#000000'
 WHITE       = '#ffffff'
+VIOLET      = '#7671D3'
+CYAN        = '#5FCFA7'
+ORANGE      = '#FFA275'
+
+
 
 COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY, RED, BLACK]
 

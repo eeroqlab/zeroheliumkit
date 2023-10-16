@@ -17,13 +17,13 @@ class SuperStructure(Structure):
         self._route_config = route_config
         super().__init__()
 
-    def route(self, anchors: tuple, layers: dict):
+    def route(self, anchors: tuple, layers: dict=None):
         for labels in zip(anchors, anchors[1:]):
             self.route_between_two_pts(anchors=labels, layers=layers)
 
     def route_between_two_pts(self,
                               anchors: tuple,
-                              layers: dict) -> None:
+                              layers: dict=None) -> None:
         """ makes a route between two anchors.
             specify route config in SuperStructure init stage.
 
@@ -45,15 +45,18 @@ class SuperStructure(Structure):
 
         # calculating angle of the line between anchors
         a, b, _ = get_abc_line(point1.point, point2.point)
-        direction_sign = np.sign(point2.point.y - point1.point.y)
+        direction_sign_y = np.sign(point2.point.y - point1.point.y)
+        direction_sign_x = -np.sign(point2.point.x - point1.point.x)/2 + 0.5
         if b != 0:
-            angle = np.arctan(-a/b) * 180/np.pi
-            if direction_sign * np.sign(angle) < 0:
-                angle = -180 * np.sign(angle) + angle
+            if a == 0:
+                angle = 180 * direction_sign_x
+            else:
+                angle = np.arctan(-a/b) * 180/np.pi
+                if direction_sign_y * np.sign(angle) < 0:
+                    angle = -180 * np.sign(angle) + angle
         else:
-            angle = 90 * direction_sign
+            angle = 90 * direction_sign_y
 
-        print(angle)
 
         ##############################
         #### MAIN routing choices ####

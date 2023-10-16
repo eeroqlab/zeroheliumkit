@@ -82,6 +82,9 @@ class Anchor():
             self.direction += angle
 
         self.direction = modFMOD(self.direction)
+    
+    def rotate_dir(self, angle: float):
+        self.direction = modFMOD(self.direction + angle)
 
     def move(self, xoff: float=0, yoff: float=0):
         point_upd = affinity.translate(self.point, xoff=xoff, yoff=yoff)
