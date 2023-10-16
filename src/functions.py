@@ -3,11 +3,13 @@ from math import atan, pi, fmod
 import numpy as np
 
 from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
-from shapely import centroid, line_interpolate_point, ops, affinity, unary_union
+from shapely import centroid, line_interpolate_point, line_locate_point, intersection
+from shapely import ops, affinity, unary_union
 
 from .anchors import Anchor
 from .settings import GRID_SIZE
 from .fonts import _glyph, _indentX, _indentY
+from .errors import TopologyError
 
 
 def modFMOD(angle: float | int) ->float:
@@ -89,7 +91,8 @@ def azimuth(point1, point2):
 
 
 def offset_point(point: tuple | Point, offset: float, angle: float) -> Point:
-    rotation_angle = angle - 90
+    # fix this
+    rotation_angle = modFMOD(angle - 90)
 
     if isinstance(point, Point):
         point_coord = (point.x, point.y)
@@ -144,6 +147,9 @@ def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
 def get_intersection_point(abc1: tuple, abc2: tuple) -> Point:
     a1, b1, c1 = abc1
     a2, b2, c2 = abc2
+    denominator = (a1 * b2 - a2 * b1)
+    if denominator==0:
+        raise ZeroDivisionError("constructed parallel lines do not intersect, you idiot! :)")
     x = (b1 * c2 - b2 * c1)/(a1 * b2 - a2 * b1)
     y = (a2 * c1 - a1 * c2)/(a1 * b2 - a2 * b1)
     return Point(x, y)
@@ -158,12 +164,19 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
         p3 = Point(p3)
     if not isinstance(p4, Point):
         p4 = Point(p4)
-    denominator = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
-    if denominator==0:
-        raise ZeroDivisionError("constructed parallel lines do not intersect, you idiot! :)")
-    px = ((p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))/denominator
-    py = ((p1.x * p2.y - p1.y * p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x))/denominator
-    return Point(px, py)
+    intersec = intersection(LineString([p1, p2]), LineString([p3, p4]))
+    #print(intersec)
+    if intersec.is_empty:
+        raise TopologyError("constructed lines (p1,p2) and (p3,p4) do not intersect")
+    else:
+        return intersec.centroid
+
+    #denominator = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
+    #if denominator==0:
+    #    raise ZeroDivisionError("constructed parallel lines do not intersect, you idiot! :)")
+    #px = ((p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))/denominator
+    #py = ((p1.x * p2.y - p1.y * p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x * p4.y - p3.y * p4.x))/denominator
+    #return Point(px, py)
 
 
 def get_normals_along_line(line: LineString | MultiLineString,
@@ -185,8 +198,15 @@ def get_normals_along_line(line: LineString | MultiLineString,
     elif isinstance(locs, (float, int)):
         locs = np.asarray([locs])
 
-    pts_up = line_interpolate_point(line, locs + GRID_SIZE, normalized=True).tolist()
-    pts_down = line_interpolate_point(line, locs - GRID_SIZE, normalized=True).tolist()
+    epsilon_up = np.full(shape=len(locs), fill_value=GRID_SIZE)
+    epsilon_down = np.full(shape=len(locs), fill_value=GRID_SIZE)
+    if locs[0]==0:
+        epsilon_down[0] = 0.0
+    elif locs[-1]==1:
+        epsilon_up[-1] = 0.0
+
+    pts_up = line_interpolate_point(line, locs + epsilon_up, normalized=True).tolist()
+    pts_down = line_interpolate_point(line, locs - epsilon_down, normalized=True).tolist()
     normal_angles = np.asarray(list(map(get_angle_between_points, pts_down, pts_up))) + 90
 
     if not float_indicator:
@@ -344,3 +364,53 @@ def polygonize_text(text: str="abcdef", size: float=1000) -> MultiPolygon:
 
 def round_polygon(polygon: Polygon, round_radius: float) -> Polygon:
     return polygon.buffer(round_radius).buffer(-2*round_radius).buffer(round_radius)
+
+
+def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
+    """ creates anchors on the boundary of the polygon with normal to the surface
+        orientation and given offset
+
+    Args:
+        polygon (Polygon): anchors will be located on the boundary of this polygon
+        locs_cfg (list): item - (label, xy coordinate, direction, offset)
+            label - anchor label
+            xy - depending on the direction this will create a vertical/horizontal line
+                which will intersect with boundary line, and intersection point is anchor location
+            direction - 'top', 'bottom', 'left', 'right'
+            offset - how far from the boundary the anchor will be located
+
+    Returns:
+        list: list of anchors
+    """
+
+    allowed_dirs = ["top", "bottom", "right", "left"] # allowed locs_cfg
+
+    # properties
+    line = polygon.boundary
+    xmin, ymin, xmax, ymax = line.bounds
+    cm = line.centroid
+    x0, y0 = (cm.x, cm.y)
+
+    anchors = []
+
+    for label, loc, dir, offset in locs_cfg:
+        if dir == "bottom":
+            baseline = LineString([(loc, ymin - 10), (loc, y0)])
+        elif dir == "top":
+            baseline = LineString([(loc, y0), (loc, ymax + 10)])
+        elif dir == "left":
+            baseline = LineString([(xmin - 10, loc), (x0, loc)])
+        elif dir == "right":
+            baseline = LineString([(x0, loc), (xmax + 10, loc)])
+        else:
+            raise TypeError(f"incorrect {dir} / allowed directions are: {allowed_dirs}")
+
+        pt = line.intersection(baseline)
+        pt_loc = line_locate_point(line, pt, normalized=True)
+        norm_angle = get_normals_along_line(line, pt_loc)
+        pt = Point(pt.x + offset * np.cos(norm_angle * np.pi/180),
+                   pt.y + offset * np.sin(norm_angle * np.pi/180))
+
+        anchors.append(Anchor(pt, norm_angle, label))
+
+    return anchors

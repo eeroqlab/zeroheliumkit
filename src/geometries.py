@@ -2,14 +2,16 @@ from math import pi, tanh, cos, tan
 import numpy as np
 
 from shapely import Point, LineString, MultiLineString, Polygon
-from shapely import affinity, unary_union, box
+from shapely import affinity, unary_union, box, intersection
 
 from .core import Entity, Structure
 from .anchors import Anchor, MultiAnchor
 from .basics import ArcLine
 from .functions import (get_angle_between_points, offset_point, get_intersection_point_bruteforce,
-                        modFMOD, midpoint, extract_coords_from_point)
+                        modFMOD, midpoint, extract_coords_from_point,
+                        get_intersection_point, get_abc_line)
 from .settings import GRID_SIZE
+from .errors import TopologyError
 
 
 # Multi-layer Geometry Classes
@@ -27,7 +29,7 @@ class StraightLine(Entity):
     def __init__(self,
                  anchors: tuple=None,
                  lendir: tuple=None,
-                 layers: dict={"one": 1},
+                 layers: dict=None,
                  alabel: tuple=None):
 
         super().__init__()
@@ -48,8 +50,9 @@ class StraightLine(Entity):
         self.skeletone = LineString([p1, p2])
 
         # create polygons
-        for k, width in layers.items():
-            self.buffer_line(name=k, offset=width/2, cap_style='square')
+        if layers:
+            for k, width in layers.items():
+                self.buffer_line(name=k, offset=width/2, cap_style='square')
 
         # create anchors
         if alabel:
@@ -67,7 +70,10 @@ class ArbitraryLine(Structure):
         layers (dict): layers info
         alabel (tuple): labels of the start and end-points.
     """
-    def __init__(self, points: list, layers: dict, alabel: tuple):
+    def __init__(self,
+                 points: list,
+                 layers: dict=None,
+                 alabel: tuple=None):
 
         super().__init__()
 
@@ -75,9 +81,10 @@ class ArbitraryLine(Structure):
         self.skeletone = LineString(points)
 
         # create polygons
-        for k, width in layers.items():
-            polygon = self.make_base_polygon(points, width)
-            setattr(self, k, polygon)
+        if layers:
+            for k, width in layers.items():
+                polygon = self.make_base_polygon(points, width)
+                setattr(self, k, polygon)
 
         # create anchors
         if alabel:
@@ -149,7 +156,12 @@ class ArbitraryLine(Structure):
         offset_p3 = offset_point(point2, distance2, angle2)
         offset_p4 = offset_point(point3, distance3, angle2)
 
-        return get_intersection_point_bruteforce(offset_p1, offset_p2, offset_p3, offset_p4)
+        try:
+            p5 = get_intersection_point_bruteforce(offset_p1, offset_p2, offset_p3, offset_p4)
+        except TopologyError:
+            p5 = get_intersection_point(get_abc_line(offset_p1, offset_p2),
+                                        get_abc_line(offset_p3, offset_p4))
+        return p5
 
 
 class Taper(ArbitraryLine):
@@ -200,8 +212,8 @@ class Fillet(Structure):
                  anchor: Anchor,
                  radius: float,
                  num_segments: int,
-                 layers: dict,
-                 alabel: tuple):
+                 layers: dict=None,
+                 alabel: tuple=None):
 
         super().__init__()
 
@@ -209,9 +221,10 @@ class Fillet(Structure):
         self.__create_skeletone(anchor, radius, num_segments, layers)
 
         # create polygons
-        for k, width in layers.items():
-            self.buffer_line(name=k, offset=width/2,
-                             cap_style='square', join_style=self.__joinstyle)
+        if layers:
+            for k, width in layers.items():
+                self.buffer_line(name=k, offset=width/2,
+                                cap_style='square', join_style=self.__joinstyle)
 
         # create anchors
         if alabel:
@@ -294,7 +307,10 @@ class Fillet(Structure):
         """
 
         # calculate fillet params
-        extension_length = max(layers.values())     # determines min length of section 2
+        if layers is None:
+            extension_length = 0
+        else:
+            extension_length = max(layers.values())     # determines min length of section 2
         length1, length2, direction = self.__get_fillet_params(anchor, radius)
         dir_rad = direction * np.pi/180
 
@@ -338,7 +354,7 @@ class ElbowLine(Fillet):
                  anchor2: Anchor,
                  radius: float=10,
                  num_segments: int=10,
-                 layers: dict={},
+                 layers: dict=None,
                  alabel: tuple=None):
 
         direction = anchor2.direction - anchor1.direction
@@ -359,7 +375,7 @@ class SigmoidLine(Structure):
                  mid_direction: float,
                  radius: float=10,
                  num_segments: int=10,
-                 layers: dict={},
+                 layers: dict=None,
                  alabel: tuple=None):
         super().__init__()
 
