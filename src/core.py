@@ -305,6 +305,17 @@ class Entity(_Base):
         """
         core_polygon = getattr(self, lname)
         setattr(self, lname, difference(core_polygon, polygon))
+    
+    def cut_all(self, polygon: Polygon) -> None:
+        """ cuts the polygon from polygons in all layers
+
+        Args:
+            lname (str): name of the attribute, where main polygon is located
+            polygon (Polygon): polygon used for cut
+        """
+        layer_names = self.layer_names(geom_type="polygon")
+        for lname in layer_names:
+            self.cut_polygon(lname, polygon)
 
     def crop_all(self, bbox: Polygon):
         """ crop polygons in all layers
@@ -510,7 +521,7 @@ class Entity(_Base):
             elif l == "anchors":
                 self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
 
-    def quickplot(self, plot_config: dict, zoom: tuple=None) -> None:
+    def quickplot(self, plot_config: dict, zoom: tuple=None, ax=None) -> None:
         """ provides a quick plot of the whole Entity
 
         Args:
@@ -521,8 +532,9 @@ class Entity(_Base):
         plot_layers = [k for k in plot_config.keys() if k in self.layer_names()] + ["anchors"]
         plot_colors = [plot_config[k] for k in plot_layers]
         
-        fig = plt.figure(1, figsize=SIZE_L, dpi=90)
-        ax = fig.add_subplot(111)
+        if ax is None:
+            fig = plt.figure(1, figsize=SIZE_L, dpi=90)
+            ax = fig.add_subplot(111)
         self.plot(ax=ax, layer=plot_layers, color=plot_colors)
 
         if zoom is not None:
@@ -539,9 +551,11 @@ class Entity(_Base):
             ax.set_xlim(x0 - dx, x0 + dx)
             ax.set_ylim(y0 - dy, y0 + dy)
 
-        plt.gca().set_aspect('equal')
-        plt.show()
+        #plt.gca().set_aspect('equal')
+        ax.set_aspect('equal')
+        #plt.show()
 
+        return ax
 
 
 class Structure(Entity):
