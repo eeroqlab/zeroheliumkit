@@ -521,7 +521,7 @@ class Entity(_Base):
             elif l == "anchors":
                 self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
 
-    def quickplot(self, plot_config: dict, zoom: tuple=None, ax=None) -> None:
+    def quickplot(self, plot_config: dict, zoom: tuple=None, ax=None, show_idx: bool=False) -> None:
         """ provides a quick plot of the whole Entity
 
         Args:
@@ -535,7 +535,7 @@ class Entity(_Base):
         if ax is None:
             fig = plt.figure(1, figsize=SIZE_L, dpi=90)
             ax = fig.add_subplot(111)
-        self.plot(ax=ax, layer=plot_layers, color=plot_colors)
+        self.plot(ax=ax, layer=plot_layers, color=plot_colors, show_idx=show_idx)
 
         if zoom is not None:
 
@@ -623,7 +623,7 @@ class Structure(Entity):
                         call _errors to inspect problematic core_obj
         """
 
-        core_objs = self.empty_multiGeometry(obj1, obj2)
+        core_objs = self._empty_multiGeometry(obj1, obj2)
         if obj1:
             core_objs = self._append_geometry(core_objs, obj1)
         if obj2:
@@ -631,7 +631,7 @@ class Structure(Entity):
 
         return core_objs
 
-    def empty_multiGeometry(self, obj1, obj2):
+    def _empty_multiGeometry(self, obj1, obj2):
         """ creates an empty multi-geometry object based on the types of input geometries
 
         Raises:

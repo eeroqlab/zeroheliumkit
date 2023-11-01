@@ -437,14 +437,14 @@ class claws(Entity):
         else:
             self.add_line(ArcLine(0, 0, r, -angle, angle, 50))
 
-class uChannelsAngle(Entity):
+class uChannelsAngle(Structure):
     def __init__(self,
                  length: float,
                  spacing: float,
                  num: int,
                  angle: float,
                  layers: dict,
-                 alabel: tuple):
+                 alabel: tuple=None):
         super().__init__()
 
         # create skeletone
