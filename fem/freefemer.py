@@ -10,39 +10,37 @@ import os
 from ..src.errors import *
 
 config_planes_2D = ['xy', 'yz', 'xz']
-config_planes_3D = ['xy_z']
+config_planes_3D = ['xyZ']
 config_quantity = {'phi': 'u',
                    'Ex': 'dx(u)',
                    'Ey': 'dy(u)',
-                   'Ez': 'dz(u)'}
+                   'Ez': 'dz(u)',
+                   'Cm': None}
 
-def extract_results(name: str, quantity:str, plane: str, axis1_params: tuple, axis2_params: tuple, axis3_value: float or tuple) -> dict:
+def extract_results(quantity: str,
+                    plane: str=None,
+                    axis1_params: tuple=None,
+                    axis2_params: tuple=None,
+                    axis3_params: float or tuple=None,
+                    additional_name: str=None) -> dict:
     return {
-        'name': name,
         'quantity': quantity, 
         'plane': plane,
-        'n1': axis1_params[2],
-        'n2': axis2_params[2],
-        'xmin': axis1_params[0],
-        'xmax': axis1_params[1],
-        'ymin': axis2_params[0],
-        'ymax': axis2_params[1],
-        'planeLoc': axis3_value
+        'coordinate1': axis1_params,
+        'coordinate2': axis2_params,
+        'coordinate3': axis3_params,
+        'additional_name': additional_name
     }
+
 
 class FreeFEM():
     
-    def __init__(self, 
-                edp_name: str, 
-                mesh_name: str, 
+    def __init__(self,
                 config: dict,
                 dirname: str):
 
-        self.edp_name = edp_name
-        self.mesh_name = mesh_name
         self.config = config
         self.dirname = dirname
-        self.filename = edp_name
 
         self.physicalVols = config.get('physicalVolumes')
         self.physicalSurfs = config.get('physicalSurfaces')
@@ -51,77 +49,105 @@ class FreeFEM():
 
     def write_edpScript(self):
         script = self.create_edpScript()
-        with open(self.dirname + self.filename + '.edp', 'w') as file:
+        with open(self.dirname + self.config["meshfile"] + '.edp', 'w') as file:
             file.write(script)
+    
+    def add_spaces(self, num: int) -> str:
+        return ' ' * num
 
     def create_edpScript(self):
         code  = self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
-        code += self.script_create_coupling_const_matrix(self.num_electrodes)
+        code += self.script_create_coupling_const_matrix()
         code += self.script_create_savefiles()
-        code += self.script_problem_definition(self.config.get('ff_polynomial'))
-        for extract_config in self.config.get('extract_opt'):
+        code += self.script_problem_definition()
 
+        for extract_config in self.config.get('extract_opt'):
+            # check supported parameters for extraction
             if extract_config.get("quantity") not in config_quantity.keys():
                 raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
-            
-            config_plane = extract_config.get('plane')
-            if config_plane in config_planes_2D:
-                code += self.script_save_data_2D(extract_config)
-            elif config_plane in config_planes_3D:
-                code += self.script_save_data_3D(extract_config)
+
+            if extract_config.get("quantity") == 'Cm':
+                # extract capacitance matrix
+                code += self.script_save_cmatrix(extract_config)
             else:
-                raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
-        code += "\n        }"
+                # extract electrostatic field solutions
+                plane = extract_config.get('plane')
+                if plane in config_planes_2D:
+                    code += self.script_save_data_2D(extract_config)
+                elif plane in config_planes_3D:
+                    code += self.script_save_data_3D(extract_config)
+                else:
+                    raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+
+        code += "}\n"
         return code
+
 
     def script_load_packages_and_mesh(self):
-        code = f"""
-        load "msh3"
-        load "gmsh"
-        load "medit"
-        //system("mkdir -p {self.dirname}");
-        mesh3 Th = gmshload3("{self.dirname}{self.mesh_name}.msh2");
-        """
+        code = """load "msh3"\n"""
+        code += """load "gmsh"\n"""
+        code += """load "medit"\n"""
+        #code += f"""system("mkdir -p {self.dirname}");\n"""
+        code += "\n"
+        code += f"""mesh3 Th = gmshload3("{self.config["meshfile"]}.msh2");\n"""
         return code
-    
-    def script_declare_variables(self) -> str:
-               
-        electrode_names = list(self.physicalSurfs.keys())
-        code = f"""
-        int n1, n2, n3;
-        real xmin, xmax, ymin, ymax, ax3, zmin, zmax;
-        """
-        electrodestring = '"'+'","'.join(electrode_names)+'"'
-        code += f'string[int] electrodenames = [{electrodestring}];'
-        
-        return code
-    
-    def script_create_coupling_const_matrix(self, number_of_electrodes: int) -> str:
-        code = f"""
-        int numV = {number_of_electrodes};
-        """
 
-        code += """
-        real[int, int] V(numV, numV);
-        for (int i = 0; i < numV; i+= 1){
-            for (int j = 0; j < numV; j+= 1){
-                if (i == j) {V(i, j) = 1.0;}
-                else {V(i, j) = 1e-5;}
-            }
-        }
-        """
+
+    def script_declare_variables(self) -> str:
+        electrode_names = list(self.physicalSurfs.keys())
+        electrode_id = list(self.physicalSurfs.values())
+
+        code = "\n"
+        code += "int n1, n2, n3;\n"
+        code += "real xmin, xmax, ymin, ymax, ax3, zmin, zmax;\n"
+
+        electrodestring_name = '"' + '","'.join(electrode_names) + '"'
+        code += f"string[int] electrodenames = [{electrodestring_name}];\n"
+
+        code += f"int[int] electrodeid = {electrode_id};\n"
         return code
+
+
+    def script_create_coupling_const_matrix(self) -> str:
+        number_of_electrodes = len(list(self.physicalSurfs.keys()))
+
+        code = "\n"
+        code += f"int numV = {number_of_electrodes};\n"
+        code += "real[int, int] V(numV, numV);\n"
+        code += "for (int i = 0; i < numV; i+= 1){\n"
+        code += self.add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
+        code += self.add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
+        code += self.add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
+
+        code += "\n"
+        code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
+        code += "for (int i = 0; i < numV; i+= 1){\n"
+        code += self.add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
+        code += self.add_spaces(8) + "CapacitanceMatrix(i, j) = 0.0;}}\n"
+
+        return code
+
 
     def script_create_savefiles(self):
-        code = ""
-        for extract_config in self.config.get('extract_opt'):
-            name = extract_config.get('name')
-            code += f"""
-        ofstream {name}("{self.dirname}{self.filename}_{name}.txt");"""
+        code = "\n"
+        for extract_cfg in self.config.get('extract_opt'):
+            addname = extract_cfg['additional_name']
+            qty = extract_cfg['quantity']
+            pln = extract_cfg['plane']
+            name = qty + ("_" + pln if pln else "") + ("_" + addname if addname else "")
+            
+            code += f"""ofstream {qty}("{name}.txt");\n"""
+
         return code
-    
-    def script_problem_definition(self, polynomial=1) -> str:
+
+
+    def script_problem_definition(self) -> str:
+        polynomial = self.config["ff_polynomial"]
+        epsilon = self.config["dielectric_constants"]
+
+        code = "\n"
+
         if polynomial == 1:
             femSpace = 'P13d'
         elif polynomial == 2:
@@ -129,59 +155,40 @@ class FreeFEM():
         else:
             raise Exception("Wrong polynomial order! Choose between 1 or 2")
         
-        code = """
-
-        for(int k = 0; k < numV; k++){"""
-        
         if 'periodic_BC' in self.config:
-            code += f"""
-        fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);
-            """
+            code += f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
         else:
-            code += f"""
-        fespace Vh(Th,{femSpace});
-            """
-        
-        code += """
-        Vh u,v;
-        macro Grad(u) [dx(u),dy(u),dz(u)] //
-        problem Electro(u,v,solver=CG) =
-        """
+            code += f"""fespace Vh(Th,{femSpace});\n"""
 
-        eps_consts = self.config.get('dielectric_constants')
-        
-        code += ""
-        for i, (k,v) in enumerate(self.physicalVols.items()):
-            if i==0:
-                code += self.script_varf(eps_consts[k], v, first=True)
-            else:
-                code += "      " + self.script_varf(eps_consts[k], v)
-        
-        code += ""
-        for i, (k,v) in enumerate(self.physicalSurfs.items()):
-            code += self.script_boundary(v, i)
-        code += "              ;\n"
+        code += "fespace FunctionRegion(Th,P03d);\n"
+        code += "real eps = 1e-6;\n"
+        code += "macro norm [N.x,N.y,N.z] //\n"
+        code += "macro Grad(u) [dx(u),dy(u),dz(u)] //\n"
+        code += "macro field(u,x,y,z) [dx(u)(x,y,z),dy(u)(x,y,z),dz(u)(x,y,z)] //\n \n"
+        code += "Vh u,v;\n"
+        code += "FunctionRegion dielectric =\n"
 
-        code += """
-        cout << "I'm on iteration " << k << "/" << numV << endl;
-        Electro;
-        func real phi(real X, real Y, real Z){
-        if (abs(u(X, Y, Z)) < 1e-6) {return 0.0;} 
-        else {return u(X, Y, Z);}}
-        """
+        for k, v in self.physicalVols.items():
+            code += self.add_spaces(26) + f"""+ {epsilon[k]} * (region == {v})\n"""
+        code += self.add_spaces(26) + ";\n"
+
+        code += "for(int k = 0; k < numV; k++){\n"
+        code += self.add_spaces(4) + "problem Electro(u,v,solver=CG) =\n"
+        code += self.add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
+
+
+        for i, v in enumerate(self.physicalSurfs.values()):
+            code += self.add_spaces(20) + f"+ on({v},u = V(k,{i}))\n"
+        code += self.add_spaces(20) + ";\n"
+
+        code += self.add_spaces(4) + """cout << "I'm on iteration " << k + 1 << "/" << numV << endl;\n"""
+        code += self.add_spaces(4) + "Electro;\n"
+        code += self.add_spaces(4) + """cout << "calculations are finished, saving data" << endl;\n \n"""
+
         return code
-    
-    def script_varf(self, eD: float, physVol: int, first=False) -> str:
-        plus_symbol = "" if first else "+ "
-        code = "        " + plus_symbol + f"int3d(Th,{physVol})({eD}*Grad(u)' * Grad(v))\n"
-        return code
-    
-    def script_boundary(self, physSurf: int, index: int) -> str:
-        code = f"              + on({physSurf},u = V(k,{index}))\n"
-        return code
+
 
     def script_save_data_2D(self, params: dict) -> str:
-        
         if params.get('plane')=='xy':
             xyz = "ax1,ax2,ax3"
         elif params.get('plane')=='yz':
@@ -190,132 +197,124 @@ class FreeFEM():
             xyz = "ax1,ax3,ax2"
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_2D}')
+        
+        name = params['quantity']
  
-        code = """
-        {"""
-        code += f"""
-        n1 = {params['n1']};
-        n2 = {params['n2']};
-        xmin = {params['xmin']};
-        xmax = {params['xmax']};
-        ymin = {params['ymin']};
-        ymax = {params['ymax']};
-        ax3  = {params['planeLoc']};
-        real[int,int] quantity(n1,n2);
-        real[int] xList(n1), yList(n2);
-        """
+        code = self.add_spaces(4) + "{\n"
+        code += self.add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
+        code += self.add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
+        code += self.add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
+        code += self.add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
+        code += self.add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
+        code += self.add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
+        code += self.add_spaces(4) + f"ax3  = {params['coordinate3']};\n"
+        code += self.add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
+        code += self.add_spaces(4) + "real[int] xList(n1), yList(n2);\n \n"
 
-        code += """
-        for(int i = 0; i < n1; i++){
-        """
-        code += f"""    real ax1 = xmin + i*(xmax-xmin)/(n1-1);
-            xList[i] = ax1;
-        """
-        code += """    for(int j = 0; j < n2; j++){
-        """
+        code += self.add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
+        code += self.add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += self.add_spaces(8) + "xList[i] = ax1;\n"
+        code += self.add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
+        
         quantity = config_quantity.get(params['quantity'])
-        code += f"""        real ax2 = ymin + j*(ymax-ymin)/(n2-1);
-                yList[j] = ax2;
-                quantity(i,j) = {quantity}({xyz});"""+"}}\n"
-        
-        name = params['name']
-        code += f"""
-        {name} << "startDATA " + electrodenames[k] + " ";
-        {name} << quantity << endl;
-        {name} << "END" << endl;
-        """
+        code += self.add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += self.add_spaces(12) + "yList[j] = ax2;\n"
+        code += self.add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
 
-        code += """
-        if (k == numV - 1){"""
-        code += f"""
-            {name} << "startXY xlist ";
-            {name} << xList << endl;
-            {name} << "END" << endl;
-            {name} << "startXY ylist ";
-            {name} << yList << endl;
-            {name} << "END" << endl;""" + "}"
+        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[k] + " ";\n"""
+        code += self.add_spaces(4) + f"""{name} << quantity << endl;\n"""
+        code += self.add_spaces(4) + f"""{name} << "END" << endl;\n"""
 
-        code += """
-        }\n"""
+
+        code += self.add_spaces(4) + "if (k == numV - 1){\n"
+        code += self.add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
+        code += self.add_spaces(8) + f"""{name} << xList << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "END" << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
+        code += self.add_spaces(8) + f"""{name} << yList << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
+        code += self.add_spaces(4) + "}\n"
+
         return code  
-    
+
+
     def script_save_data_3D(self, params: dict) -> str:
-        
-        if params.get('plane')=='xy_z':
+        if params.get('plane')=='xyZ':
             xyz = "ax1,ax2,ax3"
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
-        
-        name = params['name']
 
-        code = """
-        {"""
-        code += f"""
-        n1 = {params['n1']};
-        n2 = {params['n2']};
-        n3  = {params['planeLoc'][2]};
-        xmin = {params['xmin']};
-        xmax = {params['xmax']};
-        ymin = {params['ymin']};
-        ymax = {params['ymax']};
-        zmin  = {params['planeLoc'][0]};
-        zmax  = {params['planeLoc'][1]};
-        real[int,int] quantity(n1,n2);
-        real[int] xList(n1), yList(n2), zList(n3);
-        {name} << "startDATA " + electrodenames[k] << endl;
-        """
+        name = params['quantity']
 
-        code += """
-        for(int m = 0; m < n3; m++){
-            real ax3 = zmin + m*(zmax-zmin)/(n3-1);
-            zList[m] = ax3;
-        """
-        code += f"""
-            {name} << "start2DSLICE " << ax3 + " ";
-        """
-        code += """
-            for(int i = 0; i < n1; i++){
-                real ax1 = xmin + i*(xmax-xmin)/(n1-1);
-                xList[i] = ax1;
-        """
-        code += """     
-                for(int j = 0; j < n2; j++){
-                    real ax2 = ymin + j*(ymax-ymin)/(n2-1);
-                    yList[j] = ax2;
-        """
+        code = self.add_spaces(4) + "{\n"
+
+        code += self.add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
+        code += self.add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
+        code += self.add_spaces(4) + f"n3  = {params['coordinate3'][2]};\n"
+        code += self.add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
+        code += self.add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
+        code += self.add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
+        code += self.add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
+        code += self.add_spaces(4) + f"zmin  = {params['coordinate3'][0]};\n"
+        code += self.add_spaces(4) + f"zmax  = {params['coordinate3'][1]};\n"
+        code += self.add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
+        code += self.add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
+        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[k] << endl;\n"""
+
+        code += self.add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
+        code += self.add_spaces(8) + "real ax3 = zmin + m*(zmax-zmin)/(n3-1);\n"
+        code += self.add_spaces(8) + "zList[m] = ax3;\n"
+
+        code += self.add_spaces(8) + f"""{name} << "start2DSLICE " << ax3 + " ";\n"""
+        code += self.add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
+        code += self.add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += self.add_spaces(12) + "xList[i] = ax1;\n"
+        code += self.add_spaces(12) + "for(int j = 0; j < n2; j++){\n"
+        code += self.add_spaces(16) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += self.add_spaces(16) + "yList[j] = ax2;\n"
 
         quantity = config_quantity.get(params['quantity'])
-        code += f"""            
-                    quantity(i,j) = {quantity}({xyz});"""+"}}\n"
-        
-        
-        code += f"""
-            {name} << quantity << endl;
-            {name} << "end" << endl;
-        """
-        code += """}\n"""
-        code += f"""        {name} << "END" << endl;
-        """
+        code += self.add_spaces(16) + f"""quantity(i,j) = {quantity}({xyz});""" + "}}\n"
 
-        code += """
-        if (k == numV - 1){"""
-        code += f"""
-            {name} << "startXY xlist ";
-            {name} << xList << endl;
-            {name} << "END" << endl;
-            {name} << "startXY ylist ";
-            {name} << yList << endl;
-            {name} << "END" << endl;""" + "}"
+        code += self.add_spaces(8) + f"""{name} << quantity << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "end" << endl;""" + "}\n"
+        code += self.add_spaces(4) + f"""{name} << "END" << endl;\n \n"""
 
-        code += """
-        }\n"""
+        code += self.add_spaces(4) + """if (k == numV - 1){\n"""
+        code += self.add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
+        code += self.add_spaces(8) + f"""{name} << xList << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "END" << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
+        code += self.add_spaces(8) + f"""{name} << yList << endl;\n"""
+        code += self.add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
+        code += self.add_spaces(4) + "}\n"
+
         return code
-        
+
+
+    def script_save_cmatrix(self, params: dict) -> str:
+        name = params['quantity']
+
+        code = self.add_spaces(4) + "{\n"
+        code += self.add_spaces(4) + "for(int i = k; i < numV; i++){\n"
+        code += self.add_spaces(8) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
+        code += self.add_spaces(46) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
+        #code += self.add_spaces(8) + """cout << "electrode id " << electrodeid[i] << ",charge " << charge << endl;\n"""
+        code += self.add_spaces(8) + "CapacitanceMatrix(k,i) = charge;\n"
+        code += self.add_spaces(8) + "CapacitanceMatrix(i,k) = charge;}\n"
+        code += self.add_spaces(4) + """if (k == numV - 1){\n"""
+        code += self.add_spaces(8) + f"{name} << electrodenames << endl;\n"
+        code += self.add_spaces(8) + f"{name} << CapacitanceMatrix << endl;" + "}\n"
+        code += self.add_spaces(4) + "}\n"
+
+        return code
+
 
     def run(self, print_log=False):
 
         try:
-            bashCommand_ff = ['freefem++', self.dirname + self.edp_name + '.edp']
+            edp_name = self.config["meshfile"]
+            bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
             env = os.environ.copy()
             env['PATH'] += ":/Applications/FreeFem++.app/Contents/ff-4.12/bin"
             process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
@@ -323,7 +322,7 @@ class FreeFEM():
             logs = ""
             items = iter(process.stdout.readline, b'')
             bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35) 
-            
+
             for line in bar:
                 output_log = line.decode()
                 logs += output_log 
@@ -333,7 +332,7 @@ class FreeFEM():
                     print(output_log)
                 else:
                     pass
-                
+
             process.stdout.close()
             process.wait()
 
@@ -371,7 +370,7 @@ class CreateFreeFEMscript_InducedCharge(FreeFEM):
                 raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
         code += "\n        }"
         return code
-    
+
     def script_charge_distribution(self):
         pass
 
