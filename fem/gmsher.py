@@ -21,11 +21,11 @@ from ..src.core import Structure, Entity
 #---------------------------------------------
 # some useful functions
 
-def gmshLayer_info(ref_layer: str, d: float, z: float, physical_name: str, cut: tuple=None, forConstruction: bool=False) -> dict:
+def gmshLayer_info(ref_layer: str, z: float, d: float, physical_name: str, cut: tuple=None, forConstruction: bool=False) -> dict:
     return {
         'reference':        ref_layer,
-        'thickness':        d,
         'z':                z,
+        'thickness':        d,
         'physical':         physical_name,
         'cut'     :         cut,
         'forConstruction':  forConstruction
