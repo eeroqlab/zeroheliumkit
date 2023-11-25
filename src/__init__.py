@@ -6,8 +6,8 @@ from .basics import (Rectangle, Square, Circle, RegularPolygon, ArcLine,
                     Meander, MeanderHalf, PinchGate)
 
 from .geometries import (StraightLine, ArbitraryLine, Taper,
-                        ElbowLine, SigmoidLine, uChannelsAngle,
-                        SpiralInductor, IDC, claws)
+                        ElbowLine, SigmoidLine, MicroChannels,
+                        SpiralInductor, IDC, Claws)
 
 __all__ = [
     "Anchor",
@@ -19,6 +19,6 @@ __all__ = [
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
     "StraightLine", "ArbitraryLine", "Taper",
-    "ElbowLine", "SigmoidLine", "uChannelsAngle",
-    "SpiralInductor", "IDC", "claws"
+    "ElbowLine", "SigmoidLine", "MicroChannels",
+    "SpiralInductor", "IDC", "Claws"
     ]

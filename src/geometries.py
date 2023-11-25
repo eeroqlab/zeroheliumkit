@@ -1,8 +1,10 @@
+""" This submodule contains most frequently used geometries """
+
 from math import pi, tanh, cos, tan
 import numpy as np
 
 from shapely import Point, LineString, MultiLineString, Polygon
-from shapely import affinity, unary_union, box, intersection
+from shapely import affinity, unary_union, box
 
 from .core import Entity, Structure
 from .anchors import Anchor, MultiAnchor
@@ -25,14 +27,18 @@ class StraightLine(Entity):
         lendir (tuple, optional): length and orientation tuple. Defaults to None.
         layers (dict, optional): layers info. Defaults to {}.
         alabel (tuple, optional): labels of the start and end-points. Defaults to None.
+        cap_style (str, optional): defines the cap style of the line: ()"square", "flat", "round")
     """
     def __init__(self,
                  anchors: tuple=None,
                  lendir: tuple=None,
                  layers: dict=None,
-                 alabel: tuple=None):
+                 alabel: tuple=None,
+                 cap_style: str='square'):
 
         super().__init__()
+        if cap_style not in ["square", "round", "flat"]:
+            raise NameError("please choose line_ending from square, round or flat")
 
         if anchors:
             p1 = extract_coords_from_point(anchors[0])
@@ -52,7 +58,7 @@ class StraightLine(Entity):
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.buffer_line(name=k, offset=width/2, cap_style='square')
+                self.buffer_line(name=k, offset=width/2, cap_style=cap_style)
 
         # create anchors
         if alabel:
@@ -338,17 +344,19 @@ class Fillet(Structure):
             # using linestring for invalid fillet params
 
             dx = np.abs(anchor.x)/5
-            after_startPoint = Point(dx, 0)
-            before_endPoint = Point(anchor.x - dx * np.cos(dir_rad),
+            after_start_point = Point(dx, 0)
+            before_end_point = Point(anchor.x - dx * np.cos(dir_rad),
                                     anchor.y - dx * np.sin(dir_rad))
             self.skeletone = LineString([Point(0,0),
-                                         after_startPoint,
-                                         before_endPoint,
+                                         after_start_point,
+                                         before_end_point,
                                          anchor.point])
             self.__joinstyle = 'round'
 
 
 class ElbowLine(Fillet):
+    """ creates two lines connected with semicircle line """
+
     def __init__(self,
                  anchor1: Anchor,
                  anchor2: Anchor,
@@ -369,6 +377,8 @@ class ElbowLine(Fillet):
 
 
 class SigmoidLine(Structure):
+    """ creates sigmoid line (connected two parallel lines) """
+
     def __init__(self,
                  anchor1: Anchor,
                  anchor2: Anchor,
@@ -390,13 +400,13 @@ class SigmoidLine(Structure):
             self.append(r1)
         else:
             dx = np.abs(anchor2.x - anchor1.x)/10
-            followup_startPoint = Point(anchor1.x + dx,
+            followup_start_point = Point(anchor1.x + dx,
                                         anchor1.y + dx * np.tan(anchor1.direction * np.pi/180))
-            before_endPoint = Point(anchor2.x - dx,
+            before_end_point = Point(anchor2.x - dx,
                                     anchor2.y - dx * np.tan(anchor2.direction * np.pi/180))
             arb_line = ArbitraryLine(points=[anchor1.point,
-                                             followup_startPoint,
-                                             before_endPoint,
+                                             followup_start_point,
+                                             before_end_point,
                                              anchor2.point],
                                      layers=layers,
                                      alabel=None)
@@ -409,7 +419,9 @@ class SigmoidLine(Structure):
             self.add_anchor([anchor1, anchor2])
 
 
-class claws(Entity):
+class Claws(Entity):
+    """ creates a fork / claw type structure """
+
     def __init__(self,
                  radius: float,
                  offset: float,
@@ -418,15 +430,17 @@ class claws(Entity):
                  alabel: tuple):
         super().__init__()
         r = radius + offset
-        self.create_skeletone(offset, radius, length)
+        self.__create_skeletone(offset, radius, length)
 
         for k, width in layers.items():
-            self.add_buffer(name=k, offset=width/2, cap_style='round',
+            self.buffer_line(name=k, offset=width/2, cap_style='round',
                             join_style='round', quad_segs=20)
         self.anchors = MultiAnchor([Anchor((0,0), 0, alabel[0]),
-                                       Anchor((r,0), 0, alabel[1])])
+                                    Anchor((r,0), 0, alabel[1])])
 
-    def create_skeletone(self, offset, radius, length):
+    def __create_skeletone(self, offset, radius, length):
+        """ creates a claw / fork skeletone"""
+
         r = radius + offset     # radius of the claw
         angle = 180 * (length/2)/(r * pi)
         if angle > 90:
@@ -437,7 +451,10 @@ class claws(Entity):
         else:
             self.add_line(ArcLine(0, 0, r, -angle, angle, 50))
 
-class uChannelsAngle(Structure):
+
+class MicroChannels(Structure):
+    """ creates microchannels for eHe or can be used to create IDC """
+
     def __init__(self,
                  length: float,
                  spacing: float,
@@ -477,6 +494,8 @@ class uChannelsAngle(Structure):
 
 
 class SpiralInductor(Entity):
+    """ creates a spiral inductor """
+
     def __init__(self,
                  size: float,
                  width: float,
@@ -498,8 +517,8 @@ class SpiralInductor(Entity):
 
         # create polygons
         self.construct_spiral(size, radius, num_turns, smallest_section_length)
-        for k, width in layers.items():
-            self.buffer_line(name=k, offset=width/2, cap_style='round',
+        for k, w in layers.items():
+            self.buffer_line(name=k, offset=w/2, cap_style='round',
                              join_style='mitre', quad_segs=2)
 
         central_pad = box(-size/2, -size/2, size/2, size/2).buffer(self._width+eps, join_style=1)
@@ -515,7 +534,8 @@ class SpiralInductor(Entity):
                             Anchor(point=last, direction=0, label=alabel[1])])
 
     def num_segments(self, R: float, smallest_segment: float):
-        ''' limits the maximum number of segments in arc '''
+        # limits the maximum number of segments in arc
+
         return int(10*tanh(pi * R/2/smallest_segment/20))
 
     def construct_spiral(self, size: float, radius: float, num_turns:int, ls: float):
@@ -538,6 +558,7 @@ class SpiralInductor(Entity):
 
 
 class IDC(Entity):
+    """ creates a special IDC (symmetrical) """
     def __init__(self,
                  length: float,
                  spacing: float,
