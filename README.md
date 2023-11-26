@@ -10,12 +10,25 @@ ZeroHeliumKit is a Python module for planar geometry creation and manipulations 
 
 ## Installing
 
-Before cloning repository install neseccary packages:
+After cloning repository install neseccary packages:
 ```shell
 pip install -r requirements.txt
 ```
 Latest FreeFEM++ software can be found [here](https://github.com/FreeFem/FreeFem-sources/releases).
 
+## Usage
+
+The easiest way to learn is through [examples]("examples/")
+
+Creating anchors and routes [anchors_routes]("examples/anchors_routes.ipynb"):
+<p align="center">
+<img src="examples/anchors_routes.png" alt="zhk_logo" width="500"/>
+</p>
+
+Caculating electric field distribution in IDC [fem]("examples/fem.ipynb"):
+<p align="center">
+<img src="examples/fem.png" alt="zhk_logo" width="500"/>
+</p>
 
 ## Troubleshooting
 #### Unresolved import warnings in Vscode
