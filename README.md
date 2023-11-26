@@ -18,14 +18,14 @@ Latest FreeFEM++ software can be found [here](https://github.com/FreeFem/FreeFem
 
 ## Usage
 
-The easiest way to learn is through [examples]("examples/")
+The easiest way to learn is through [examples](examples/)
 
-Creating anchors and routes [anchors_routes]("examples/anchors_routes.ipynb"):
+Creating anchors and routes [anchors_routes](examples/anchors_routes.ipynb):
 <p align="center">
 <img src="examples/anchors_routes.png" alt="zhk_logo" width="500"/>
 </p>
 
-Caculating electric field distribution in IDC [fem]("examples/fem.ipynb"):
+Caculating electric field distribution in IDC [fem](examples/fem.ipynb):
 <p align="center">
 <img src="examples/fem.png" alt="zhk_logo" width="500"/>
 </p>
