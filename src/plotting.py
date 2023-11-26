@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 import colorsys
 
-from shapely import get_coordinates
+from shapely import get_coordinates, Point
 from shapely.plotting import plot_line, plot_polygon
 
 from .settings import *

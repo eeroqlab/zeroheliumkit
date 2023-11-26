@@ -34,6 +34,7 @@ def extract_results(quantity: str,
 
 
 class FreeFEM():
+    """ creates .edp files to run FreeFem++ calculations """
     
     def __init__(self,
                 config: dict,
@@ -347,43 +348,12 @@ class FreeFEM():
             print('Freefem calculations are complete')
 
 
-class CreateFreeFEMscript_InducedCharge(FreeFEM):
-    def __init__(self, 
-                edp_name: str, 
-                mesh_name: str, 
-                config: dict,
-                dirname: str,
-                filename: str):
-        super().__init__(edp_name, mesh_name, config, dirname, filename)
-
-    def create_edpScript(self):
-        code  = self.script_load_packages_and_mesh()
-
-        code += self.script_problem_definition(self.config.get('ff_polynomial'))
-        for extract_config in self.config.get('extract_opt'):
-            config_plane = extract_config.get('plane')
-            if config_plane in config_planes_2D:
-                code += self.script_save_data_2D(extract_config)
-            elif config_plane in config_planes_3D:
-                code += self.script_save_data_3D(extract_config)
-            else:
-                raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
-        code += "\n        }"
-        return code
-
-    def script_charge_distribution(self):
-        pass
-
 if __name__=="__main__":
 
-    directory = 'data/trap/'
-    with open(directory + r'/config.yaml', 'r') as file:
+    with open(r'freefem_config.yaml', 'r') as file:
         config = yaml.safe_load(file)
 
-    pyff = FreeFEM(
-                edp_name='qchip', 
-                mesh_name='qchip', 
-                config=config,
-                dirname=directory)
+    pyff = FreeFEM(config=config,
+                   dirname='')
 
     pyff.run(print_log=True)

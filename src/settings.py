@@ -2,7 +2,6 @@ from math import sqrt
 
 from shapely import (LineString, MultiLineString,
                      Polygon, MultiPolygon)
-from .anchors import Anchor, MultiAnchor
 
 GRID_SIZE = 1e-4
 EPS = 1e-6
@@ -32,6 +31,5 @@ LIGHTGRAY   = '#F1F1F1'
 COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY, RED, BLACK]
 
 # grouped geometry types
-PTS_CLASSES   = [Anchor, MultiAnchor]
 LINE_CLASSES  = [LineString, MultiLineString]
 PLG_CLASSES   = [Polygon, MultiPolygon]

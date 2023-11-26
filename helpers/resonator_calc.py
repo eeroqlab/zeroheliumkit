@@ -5,9 +5,8 @@ from scipy.special import ellipk
 
 from tabulate import tabulate
 
-mu0 = 1.25663706e-6
-eps0 = 8.85418782e-12
-speedoflight = 299792458.0
+from .constants import speedoflight, mu_0, epsilon_0
+
 
 GHz = 1e9
 MHz = 1e6
@@ -32,6 +31,8 @@ class CPW_params():
         self.height_substrate = height_substrate
         self.sheet_inductance = sheet_inductance
         self.calculate_params()
+        self.length = 0
+        self.frequency = 0
 
     def calculate_params(self) -> None:
 
@@ -50,8 +51,8 @@ class CPW_params():
         #return (1+substrate_epsR*Ktwid)/(1+Ktwid)
         self.eps_eff =  1 + (self.eps_substrate - 1) * Ktwid / 2
 
-        self.L = (mu0/4) * ellipk(k0p**2)/ellipk(k0**2) + self.sheet_inductance / self.width
-        self.C = 4 * eps0 * self.eps_eff * ellipk(k0**2)/ellipk(k0p**2)
+        self.L = (mu_0/4) * ellipk(k0p**2)/ellipk(k0**2) + self.sheet_inductance / self.width
+        self.C = 4 * epsilon_0 * self.eps_eff * ellipk(k0**2)/ellipk(k0p**2)
         self.Z = np.sqrt(self.L/self.C)
 
         #self.phase_velocity = speedoflight/np.sqrt(self.eps_eff)
@@ -85,6 +86,8 @@ class CPW_params():
                       }
         print(tabulate([parameters.keys(), parameters.values()]))
         
+        self.length = length
+        self.frequency = bare_frequency
         #return bare_frequency/unit
 
     def resonator_length(self,
@@ -106,5 +109,6 @@ class CPW_params():
                       }
         print(tabulate([parameters.keys(), parameters.values()]))
 
-
+        self.length = length
+        self.frequency = resonator_frequency
         #return length
