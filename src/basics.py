@@ -28,7 +28,7 @@ def Rectangle(width: float,
                     (width/2, -height/2)])
 
     if direction:
-        return affinity.rotate(poly, direction, origin=(0,0))
+        poly = affinity.rotate(poly, direction, origin=(0,0))
 
     if location:
         if isinstance(location, Point):
@@ -52,6 +52,7 @@ def Square(size: float, location: tuple | Point=None, direction: float=None) -> 
 
 def RegularPolygon(edge: float=None,
                    radius: float=None,
+                   location: tuple | Point=None,
                    num_edges: int=6) -> Polygon:
     """ creates a Regular polygon with specified number of edges.
         Size of the polygon defined by radius or edge size.
@@ -73,10 +74,17 @@ def RegularPolygon(edge: float=None,
         ycoor = radius * np.sin(i * angle)
         coords.append((xcoor, ycoor))
 
-    return Polygon(coords)
+    poly = Polygon(coords)
+
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(poly, *location)
+
+    return poly
 
 
-def Circle(radius: float) -> Polygon:
+def Circle(radius: float, location: tuple | Point=None, num_edges: int=100) -> Polygon:
     """ creates a Circle polygon
 
     Args:
@@ -85,7 +93,7 @@ def Circle(radius: float) -> Polygon:
     Returns:
         Polygon
     """
-    return RegularPolygon(radius=radius, num_edges=100)
+    return RegularPolygon(radius=radius, location=location, num_edges=num_edges)
 
 
 def ArcLine(centerx: float,

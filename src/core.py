@@ -48,7 +48,7 @@ class _Base:
         if (name[:1] != '_') and (name != "anchors"):
 
             try:
-                geometry_on_grid = set_precision(value, grid_size=GRID_SIZE)
+                geometry_on_grid = set_precision(value, grid_size=GRID_SIZE, mode="pointwise")
                 self.__dict__[name] = geometry_on_grid
             except Exception as e:
                 self._errors = value
@@ -374,6 +374,25 @@ class Entity(_Base):
 
         polygon_list[obj_idx] = set_coordinates(polygon, coords)
         setattr(self, lname, polygon_list)
+
+    def remove_holes_from_polygons(self, lname: str):
+        """ converts polygons with holes into separate polygons
+
+        Args:
+            lname (str): name of the layer, where polygons with holes are located
+        """
+
+        polygons = getattr(self, lname)
+
+        if isinstance(polygons, Polygon):
+            polygons = MultiPolygon([polygons])
+        
+        polygon_list = []
+        for p in polygons.geoms:
+            polys_with_no_holes = convert_polygon_with_holes_into_muiltipolygon(p)
+            polygon_list += list(polys_with_no_holes.geoms)
+
+        setattr(self, lname, MultiPolygon(polygon_list))
 
 
     ################################

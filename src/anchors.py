@@ -164,8 +164,9 @@ class MultiAnchor():
         return copy.deepcopy(self.multipoint)
 
     def rotate(self, angle: float, origin: tuple=(0,0)):
-        for p in self.multipoint:
-            p.rotate(angle, origin)
+        if self.multipoint:
+            for p in self.multipoint:
+                p.rotate(angle, origin)
 
     def move(self, xoff: float=0, yoff: float=0):
         for p in self.multipoint:

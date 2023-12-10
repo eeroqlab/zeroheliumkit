@@ -1,7 +1,8 @@
 from math import sqrt
 
 from shapely import (LineString, MultiLineString,
-                     Polygon, MultiPolygon)
+                     Polygon, MultiPolygon,
+                     Point, MultiPoint)
 
 GRID_SIZE = 1e-4
 EPS = 1e-6
@@ -33,3 +34,4 @@ COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY, RED, BLACK]
 # grouped geometry types
 LINE_CLASSES  = [LineString, MultiLineString]
 PLG_CLASSES   = [Polygon, MultiPolygon]
+PTS_CLASSES   = [Point, MultiPoint]
