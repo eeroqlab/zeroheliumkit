@@ -1,65 +1,212 @@
-import geopandas as gpd
-import matplotlib.pyplot as plt
+import warnings
+import numbers
+import gdspy
+import ezdxf
+import pickle
 
-from tabulate import tabulate
-from shapely import LineString, Polygon, MultiPolygon
+from ezdxf.colors import BYLAYER
+from shapely import Polygon, MultiPolygon, union
+
 from .errors import *
 
-class reader_dxf():
-    def __init__(self, filename: str, ignore_nonclosed: bool=False):
-        self.raw_geometries = gpd.read_file(filename)
-        self.extract_dxf_layers()
-        self.geometries = self.get_multipolygon_dict(ignore_nonclosed)
 
-    def extract_dxf_layers(self) -> None:
-        layer_info = self.raw_geometries[['Layer']]
-        layers = list(layer_info.iloc[:,0])
-        self.unique_layers = list(set(layers))
+class Exporter_GDS():
+    """ helper class to export zhk dictionary with geometries into .gds file """
 
-        num_polygon_in_layer = []
-        for name in self.unique_layers:
-            num_polygon_in_layer.append(layers.count(name))
+    __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
 
-        print(tabulate(zip(self.unique_layers, num_polygon_in_layer), headers=['Layer', 'Num Obj']))
+    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict) -> None:
+        self.name = name
+        self.zhk_layers = zhk_layers
+        self.layer_cfg = layer_cfg
+        self.preapre_gds()
 
-    def get_multipolygon_dict(self, ignore_nonclosed: bool=False):
+    def preapre_gds(self) -> None:
 
-        # create a dictionary with layers as KEY and list of polygons as VALUE
+        # The GDSII file is called a library, which contains multiple cells.
+        self.gdsii = gdspy.GdsLibrary()
+        # Geometry must be placed in cells.
+        cell = gdspy.Cell("toplevel", exclude_from_current=True)
+        """
+        deprecated:: 1.5
+            The parameter `exclude_from_current` has been deprecated in gdspy
+            alongside the use of a global library.  It will be removed in a
+            future version of Gdspy.
+        """
+        self.gdsii.add(cell)
 
-        LayersGeoms = self.raw_geometries[['Layer', 'geometry']]
-        value = lambda layer_name: list(LayersGeoms[LayersGeoms['Layer']==layer_name].iloc[:,1])
-        return {key: self.create_multipolygon(value(key), ignore_nonclosed) for key in self.unique_layers}
+        for lname, l_property in self.layer_cfg.items():
+            polygons = self.zhk_layers[lname]
+            for poly in polygons.geoms:
+                points = list(poly.exterior.coords)
+                gds_poly = gdspy.Polygon(points, **l_property)
+                cell.add(gds_poly)
+
+    def save(self):
+        self.gdsii.write_gds(self.name + '.gds')
+        print("Geometries saved successfully.")
+
+    def preview_gds(self):
+        warnings.warn("IMPORTANT: preview feature is unstable, kernel might crash in jupyter notebook, use with caution")
+        # good only for quick looks
+        gdspy.LayoutViewer(self.gdsii)
+
+
+class Reader_GDS():
+    """ helper class to import .gds file into zhk dictionary """
+
+    __slots__ = "filename", "geometries", "gdsii", "cells"
+
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.geometries = {}
+        self.cells = {}
+        self.gdsii = gdspy.GdsLibrary(infile=filename)
+        self.extract_geometries()
+
+    def extract_geometries(self) -> None:
+
+        cells = {}
+
+        for name, cell in self.gdsii.cells.items():
+            layer_names = cell.get_layers()
+            print(f"{self.filename} // Layers in cell '{name}': {layer_names}")
+
+            cells[name] = dict.fromkeys(layer_names, MultiPolygon())
+
+            for poly in cell.polygons:
+                lname = poly.layers[0]
+                cells[name][lname] = union(cells[name][lname], Polygon(poly.polygons[0]))
+
+        self.cells = cells
+
+    def import2zhk(self, cellname: str="toplevel"):
+        geoms = self.cells[cellname]
+        self.geometries = {"L"+str(k) if isinstance(k, numbers.Number) else k: v for k, v in geoms.items()}
+
+    def plot(self):
+        # IMPORTANT
+        # unstable, kernel might crash in jupyter notebook, use with caution
+        # good only for quick looks
+        gdspy.LayoutViewer(self.gdsii)
+
+
+class Exporter_DXF():
+    """ helper class to export zhk dictionary with geometries into .dxf file """
+
+    __slots__ = "name", "zhk_layers", "dxf", "layer_cfg"
+
+    def __init__(self, name: str, zhk_layers: dict, layer_cfg: list) -> None:
+        self.name = name
+        self.zhk_layers = zhk_layers
+        self.layer_cfg = layer_cfg
+        self.preapre_dxf()
+
+    def preapre_dxf(self) -> None:
+        
+        self.dxf = ezdxf.new("R2000")
+        msp = self.dxf.modelspace()
+
+        for i, lname in enumerate(self.layer_cfg):
+            self.dxf.layers.add(lname, color = i + 1)
+            polygons = self.zhk_layers[lname]
+            for poly in polygons.geoms:
+                points = list(poly.exterior.coords)
+                msp.add_lwpolyline(points, dxfattribs={"layer": lname,
+                                                       "color": BYLAYER})
+        
+    def save(self):
+        self.dxf.saveas(self.name + ".dxf")
+        print("Geometries saved successfully.")
+
+
+class Reader_DXF():
+    """ helper class to import .dxf file into zhk dictionary
+    NOTE: currently Arcs are not supported, and points will be ignored
+    """
+
+    __slots__ = "filename", "geometries", "dxf"
+
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.geometries = {}
+        self.dxf = ezdxf.readfile(filename)
+        self.extract_geometries()
+
+    def extract_geometries(self):
+        msp = self.dxf.modelspace()
+        self.geometries = msp.groupby(dxfattrib="layer")
+
+        layer_names = self.geometries.keys()
+        print(f"{self.filename} // Layers : {layer_names}")
+
+        for k in layer_names:
+            self.geometries[k] = self.convert_dxf2shapely(self.geometries[k])
     
-    def create_multipolygon(self, list_of_lines: list, ignore_nonclosed: bool=False) -> list:
-        all_polygons =[]
-        for item in list_of_lines:
-            p = self.convert_to_polygon(item, ignore_nonclosed)
-            if p!=None:
-                all_polygons.append(p)
-        return MultiPolygon(all_polygons)
-    
-    def convert_to_polygon(self, line: LineString, ignore_nonclosed: bool=False) -> Polygon:
-        coords = list(line.coords)
-        if len(coords) > 2:
-            p = Polygon(coords)
-            if p.area > 0:
-                return Polygon(coords)
-            else:
-                return None
-        elif not ignore_nonclosed:
-            errorMessage = 'LineString is not closed! check your dxf file and close objects'
-            plt.plot(*line.xy)
-            plt.title(errorMessage)
-            plt.show()
-            raise PolygonConverterError(errorMessage)
-        else:
-            return None
-    
-    def plot_dxf(self, **kwargs):
-        self.raw_geometries.plot(**kwargs)
-        plt.show()
+    def convert_dxf2shapely(self, dxfentity_list) -> MultiPolygon:
+        """ converts dxf entity into shapely MultiPolygon
+
+        Args:
+            dxfentity_list (_type_): dxf entity list
+
+        Returns:
+            MultiPolygon: converted geometries
+        """
+
+        polys = []
+        for dxfentity in dxfentity_list:
+            coords = []
+            for point in dxfentity:
+                x, y, _, _, _ = point
+                coords.append((x, y))
+            if len(coords) > 1:
+                # this ignores points
+                polys.append(Polygon(coords))
+
+        return MultiPolygon(polys)
+
+    def import2zhk(self):
+        return self.geometries
 
 
-if __name__=="__main__":
-    chip = reader_dxf('test.dxf')
-    chip.plot_dxf()
+class Reader_Pickle():
+
+    __slots__ = "filename", "geometries"
+
+    def __init__(self, filename: str):
+        self.filename = filename
+        self.geometries = {}
+        self.extract_geometries()
+
+    def extract_geometries(self):
+        try:
+            with open(self.filename, 'rb') as file:
+                self.geometries = pickle.load(file)
+        except Exception as e:
+            print(f"Error occurred while reading geometries: {e}")
+
+
+class Exporter_Pickle():
+
+    """ helper class to export zhk dictionary with geometries into .pickle file """
+
+    __slots__ = "name", "zhk_layers"
+
+    def __init__(self, name: str, zhk_layers: dict) -> None:
+        self.name = name + '.pickle'
+        self.zhk_layers = zhk_layers
+
+    def save(self):
+        """ Saves geometry layout of the Entity/Structure in .pickle format
+
+        Args:
+            geometries_dict (Entity/Structure): geometry layout
+            file_path: name and location of the file
+        """
+
+        try:
+            with open(self.name, 'wb') as file:
+                pickle.dump(self.zhk_layers, file)
+            print("Geometries saved successfully.")
+        except Exception as e:
+            print(f"Error occurred while saving geometries: {e}")
