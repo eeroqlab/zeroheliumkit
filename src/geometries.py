@@ -19,7 +19,7 @@ from .errors import TopologyError
 # Multi-layer Geometry Classes
 # _________________________________________________________________________________
 
-class StraightLine(Entity):
+class StraightLine(Structure):
     """ creates a straight line polygon structure
 
     Args:
