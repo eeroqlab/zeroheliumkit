@@ -15,13 +15,13 @@ from shapely.ops import linemerge
 from phidl import Device
 
 from .plotting import plot_geometry
-from .importing import reader_dxf
+from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .errors import RouteError
 from .settings import GRID_SIZE, COLORS, PLG_CLASSES, LINE_CLASSES, SIZE_L
 
 from .anchors import Anchor, MultiAnchor
-from .functions import (attach_line, save_geometries, convert_polygon_with_holes_into_muiltipolygon,
-                        create_list_geoms, read_geometries, polygonize_text)
+from .functions import (flatten_lines, flatten_polygon, flatten_multipolygon,
+                        create_list_geoms, polygonize_text)
 
 #---------------------------------------------
 # core classes
@@ -105,6 +105,13 @@ class Entity(_Base):
             return polygons_only
         raise NameError("Currently geom_type support only None or 'polygon'")
 
+    def clean(self) -> None:
+        """ remove all atributes with empty polygons
+        """
+        for lname in self.layer_names("polygon"):
+            geom = getattr(self, lname)
+            if geom.is_empty:
+                delattr(self, lname)
 
     ################################
     #### Geometrical operations ####
@@ -230,13 +237,21 @@ class Entity(_Base):
                             new_xy=new_xy,
                             new_direction=new_direction)
 
-    def remove_anchor(self, labels: list | str):
-        """ Delete anchor from the Entity
+    
+    def remove_anchor(self, *args):
+        """ Delete anchors from the Entity
 
         Args:
-            labels (list | str): provide list of labels or a label name
+            args: provide list of labels or a label names separated by comma
         """
-        self.anchors.remove(labels=labels)
+        if args:
+            if (len(args)==1 and isinstance(args[0], (list, tuple))):
+                labels = args[0]
+            else:
+                labels = args
+            self.anchors.remove(labels=labels)
+        else:
+            self.anchors = MultiAnchor([])
 
 
     #############################
@@ -258,7 +273,7 @@ class Entity(_Base):
                 if crosses(l1, l2):
                     raise RouteError("""Appending line crosses the skeletone.
                                         If crossing is intended use 'ignore_crossing=True'""")
-            self.skeletone = attach_line(l1, l2)
+            self.skeletone = flatten_lines(l1, l2)
         else:
             self.skeletone = l2
 
@@ -376,23 +391,15 @@ class Entity(_Base):
         setattr(self, lname, polygon_list)
 
     def remove_holes_from_polygons(self, lname: str):
-        """ converts polygons with holes into separate polygons
+        """ converting polygons with holes into a set of polygons without any holes
 
         Args:
             lname (str): name of the layer, where polygons with holes are located
         """
 
         polygons = getattr(self, lname)
-
-        if isinstance(polygons, Polygon):
-            polygons = MultiPolygon([polygons])
-        
-        polygon_list = []
-        for p in polygons.geoms:
-            polys_with_no_holes = convert_polygon_with_holes_into_muiltipolygon(p)
-            polygon_list += list(polys_with_no_holes.geoms)
-
-        setattr(self, lname, MultiPolygon(polygon_list))
+        fl_multipolygon = flatten_multipolygon(polygons)
+        setattr(self, lname, fl_multipolygon)
 
 
     ################################
@@ -437,71 +444,42 @@ class Entity(_Base):
     ##############################
     #### Exporting operations ####
     ##############################
-    def save_to_file(self, dirname, name):
-        geom_names = self.layer_names() + ["anchors"]
-        geom_values = [getattr(self, k) for k in geom_names]
-        geom_dict = dict(zip(geom_names, geom_values))
-
-        if not os.path.exists(dirname):
-            os.makedirs(dirname)
-        filename = dirname + f"{name}.pickle"
-        save_geometries(geom_dict, filename)
-
-    def export_to_gds(self,
-                      devname: str,
-                      filename: str,
-                      export_layers: list=None,
-                      layer_order: dict=None):
-        """_summary_
+    def get_zhk_dict(self, flatten_poly: bool=False) -> dict:
+        """ creates a dictionary with layer names and corresponding geometries in values
 
         Args:
-            devname (str): name of the device
-            filename (str): name of the exported file
-            export_layers (list, optional): defines, which layers to export. Defaults to None.
-            add_text (tuple(text, layer, location, size), optional): 
-                adds text to the "layer" at "location" [x,y]. Defaults to None.
-        """
-
-        if export_layers is None:
-            export_layers = self.layer_names(geom_type="polygon")
-
-        D = Device(devname)
-
-        for i, l in enumerate(export_layers):
-            mp = getattr(self, l)
-
-            if layer_order:
-                gds_layer = layer_order.get(l)
-            else:
-                gds_layer = i
-
-            if isinstance(mp, MultiPolygon):
-                for p in list(mp.geoms):
-                    self._add_poly_to_device(device=D, polygon=p, gds_layer=gds_layer)
-            else:
-                self._add_poly_to_device(device=D, polygon=mp, gds_layer=gds_layer)
-
-        D.write_gds(filename+'.gds')
-
-    def _add_poly_to_device(self, device: Device, polygon: Polygon, gds_layer: str) -> Device:
-        """ converts polygons with holes into simple polygons,
-         and adds them to phidl.Device
-
-        Args:
-            device (Device): phidl.Device
-            polygon (Polygon): shapely Polygon
-            gds_layer (str): name of the gds_layer
+            flatten_poly (bool, optional): remove holes or keep them. Defaults to False.
 
         Returns:
-            Device: phidl.Device
+            dict: _description_
         """
-        prepared_polygons = convert_polygon_with_holes_into_muiltipolygon(polygon)
-        for pp in list(prepared_polygons.geoms):
-            xpts, ypts = zip(*list(pp.exterior.coords))
-            device.add_polygon( [xpts, ypts], layer = gds_layer)
 
-        return device
+        layer_names = self.layer_names() + ["anchors"]
+        layer_cfg = dict.fromkeys(layer_names)
+        for lname in layer_names:
+            geometry = getattr(self, lname)
+            if (flatten_poly and (lname not in ["anchors", "skeletone"])):
+                layer_cfg[lname] = flatten_multipolygon(geometry)
+            else:
+                layer_cfg[lname] = geometry
 
+        return layer_cfg
+        
+
+    def export_pickle(self, filename: str) -> None:
+        zhk_layers = self.get_zhk_dict()
+        exp = Exporter_Pickle(filename, zhk_layers)
+        exp.save()
+    
+    def export_gds(self, filename: str, layer_cfg: dict) -> None:
+        zhk_layers = self.get_zhk_dict(flatten_poly=True)
+        exp = Exporter_GDS(filename, zhk_layers, layer_cfg)
+        exp.save()
+
+    def export_dxf(self, filename: str, layer_cfg: list) -> None:
+        zhk_layers = self.get_zhk_dict(flatten_poly=True)
+        exp = Exporter_DXF(filename, zhk_layers, layer_cfg)
+        exp.save()
 
     #############################
     #### Plotting operations ####
@@ -548,12 +526,13 @@ class Entity(_Base):
             zoom (tuple, optional): ((x0, y0), zoom_scale, aspect_ratio). Defaults to None.
         """
 
-        plot_layers = [k for k in plot_config.keys() if k in self.layer_names()] + ["anchors"]
+        plot_layers = [k for k in plot_config.keys() if k in self.layer_names()]
+        if self.anchors:
+            plot_layers += ["anchors"]
         plot_colors = [plot_config[k] for k in plot_layers]
         
         if ax is None:
-            fig = plt.figure(1, figsize=SIZE_L, dpi=90)
-            ax = fig.add_subplot(111)
+            fig, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
         self.plot(ax=ax, layer=plot_layers, color=plot_colors, show_idx=show_idx)
 
         if zoom is not None:
@@ -570,9 +549,7 @@ class Entity(_Base):
             ax.set_xlim(x0 - dx, x0 + dx)
             ax.set_ylim(y0 - dy, y0 + dy)
 
-        #plt.gca().set_aspect('equal')
         ax.set_aspect('equal')
-        #plt.show()
 
         return ax
 
@@ -709,23 +686,8 @@ class GeomCollection(Structure):
         name  <- key
         value <- item
     """
-    def __init__(self, layers: dict=None, import_file: str=None):
+    def __init__(self, layers: dict=None):
         super().__init__()
         if layers:
             for k, item in layers.items():
-                setattr(self, k, item)
-        if import_file:
-            if import_file[-3:]=="dxf":
-                geoms_dict = reader_dxf(import_file)
-                geoms = geoms_dict.geometries
-            elif import_file[-6:]=="pickle":
-                geoms = read_geometries(import_file)
-                keys = list(geoms.keys())
-                print(import_file + f": {keys}")
-            else:
-                raise ValueError("importing not supported format")
-
-            for k, item in geoms.items():
-                if not isinstance(k, str):
-                    k = str(k)
                 setattr(self, k, item)
