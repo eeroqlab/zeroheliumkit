@@ -1,15 +1,15 @@
-import pickle
 from math import atan, pi, fmod
 import numpy as np
 
 from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
-from shapely import centroid, line_interpolate_point, line_locate_point, intersection
+from shapely import (centroid, line_interpolate_point, line_locate_point,
+                     intersection, is_empty, crosses)
 from shapely import ops, affinity, unary_union
 
 from .anchors import Anchor
 from .settings import GRID_SIZE
 from .fonts import _glyph, _indentX, _indentY
-from .errors import TopologyError
+from .errors import TopologyError, RouteError
 
 
 def modFMOD(angle: float | int) ->float:
@@ -67,11 +67,11 @@ def merge_lines_with_tolerance(line1: LineString,
     return LineString(pts)
 
 
-def attach_line(base_line: LineString, line: LineString) -> None:
+def flatten_lines(line1: LineString, line2: LineString) -> LineString:
     """ appending line to an object """
 
-    coords_obj_1 = np.asarray(list(base_line.coords))
-    coords_obj_2 = np.asarray(list(line.coords))
+    coords_obj_1 = np.asarray(list(line1.coords))
+    coords_obj_2 = np.asarray(list(line2.coords))
     n1 = len(coords_obj_1)
     n2 = len(coords_obj_2)
     coords_obj_new = np.zeros((n1 + n2 - 1, 2), dtype=float)
@@ -80,6 +80,26 @@ def attach_line(base_line: LineString, line: LineString) -> None:
 
     return LineString(coords_obj_new)
 
+
+def add_line(line1: LineString,
+             line2: LineString,
+             direction: float=None,
+             ignore_crossing=False) -> LineString:
+    """ appending line2 to a line1 """
+
+    if direction:
+        line2 = affinity.rotate(line2, angle=direction, origin=(0,0))
+
+    if not is_empty(line1):
+        end = line1.boundary.geoms[-1]
+        line2 = affinity.translate(line2, xoff = end.x, yoff = end.y)
+        if not ignore_crossing:
+            if crosses(line1, line2):
+                raise RouteError("""Appending line crosses the skeletone.
+                                    If crossing is intended use 'ignore_crossing=True'""")
+        return flatten_lines(line1, line2)
+    else:
+        return line2
 
 def azimuth(point1, point2):
     '''azimuth between 2 shapely points (interval 0 - 360)'''
@@ -125,11 +145,17 @@ def get_angle_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
     return angle
 
 
-def get_length_between_points(p1: tuple | Point, p2: tuple | Point) -> float:
+def get_length_between_points(p1: tuple | Point | Anchor, p2: tuple | Point | Anchor) -> float:
     if isinstance(p1, Point):
         p1 = (p1.x, p1.y)
+    elif isinstance(p1, Anchor):
+        p1 = p1.coords
+
     if isinstance(p2, Point):
         p2 = (p2.x, p2.y)
+    elif isinstance(p2, Anchor):
+        p2 = p2.coords
+
     return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
 
@@ -209,6 +235,8 @@ def get_normals_along_line(line: LineString | MultiLineString,
     pts_down = line_interpolate_point(line, locs - epsilon_down, normalized=True).tolist()
     normal_angles = np.asarray(list(map(get_angle_between_points, pts_down, pts_up))) + 90
 
+    normal_angles = np.asarray([modFMOD(alpha) for alpha in normal_angles])
+
     if not float_indicator:
         return normal_angles
     return normal_angles[0]
@@ -216,32 +244,6 @@ def get_normals_along_line(line: LineString | MultiLineString,
 
 def midpoint(p1, p2, alpha=0.5):
     return Point(p1.x + alpha * (p2.x - p1.x), p1.y + alpha * (p2.y - p1.y))
-
-
-def save_geometries(geometries_dict, file_path):
-    """ Saves geometry layout of the Entity/Structure in .pickle format
-
-    Args:
-        geometries_dict (Entity/Structure): geometry layout
-        file_path: name and location of the file
-    """
-
-    try:
-        with open(file_path, 'wb') as file:
-            pickle.dump(geometries_dict, file)
-        print("Geometries saved successfully.")
-    except Exception as e:
-        print(f"Error occurred while saving geometries: {e}")
-
-
-def read_geometries(file_path):
-    try:
-        with open(file_path, 'rb') as file:
-            geometries_dict = pickle.load(file)
-        return geometries_dict
-    except Exception as e:
-        print(f"Error occurred while reading geometries: {e}")
-        return {}
 
 
 def create_list_geoms(geometry) -> list:
@@ -256,7 +258,7 @@ def has_interior(p: Polygon) -> bool:
     return False if not list(p.interiors) else True
 
 
-def convert_polygon_with_holes_into_muiltipolygon(p: Polygon) -> list:
+def flatten_polygon(p: Polygon) -> list:
     """ Converts polygon with hole into MultiPolygon.
         From the CenterOfMass of the interior a line is constructed, 
         which cuts the polygon into MultiPolygon. Note: the cut is done vertically.
@@ -287,6 +289,28 @@ def convert_polygon_with_holes_into_muiltipolygon(p: Polygon) -> list:
 
         return multipolygon
     return multipolygon
+
+
+def flatten_multipolygon(mp: MultiPolygon) -> MultiPolygon:
+    """ converting polygons with holes into a set of polygons without any holes
+
+    Args:
+        p (MultiPolygon): shapely MultiPolygon
+
+    Returns:
+        MultiPolygon: with no holes
+    """
+
+
+    if isinstance(mp, Polygon):
+        mp = MultiPolygon([mp])
+    
+    polygon_list = []
+    for p in mp.geoms:
+        polys_with_no_holes = flatten_polygon(p)
+        polygon_list += list(polys_with_no_holes.geoms)
+
+    return MultiPolygon(polygon_list)
 
 
 def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
