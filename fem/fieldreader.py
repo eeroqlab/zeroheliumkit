@@ -149,13 +149,15 @@ class FieldAnalyzer():
         ax.contourf(couplingConst['xlist'], couplingConst['ylist'], couplingConst[gate], 17, cmap='RdYlBu_r', vmin=-0.03)
         set_limits(ax, couplingConst['xlist'][0], couplingConst['xlist'][-1], couplingConst['ylist'][0], couplingConst['ylist'][-1])
     
-    def plot_potential2D(self, couplingConst: list, voltage_list: list, ax=None, zero_line=True, **kwargs):
+    def plot_potential2D(self, couplingConst: list, voltage_list: list, ax=None, zero_line = None, **kwargs):
         if ax is None:
             ax = _default_ax()
         data = self.potential(couplingConst, voltage_list)
         im = ax.contourf(data[0], data[1], np.transpose(data[2]), 17, **kwargs)
         if zero_line:
-            ax.contour(data[0], data[1], np.transpose(data[2]), [0], linestyles='dashed', colors=GRAY)
+            if isinstance(zero_line,bool):
+                zero_line = 0
+            ax.contour(data[0], data[1], np.transpose(data[2]), [zero_line], linestyles='dashed', colors=GRAY)
     
     ''' TODO
     def plot_potential_3D(self, voltage_list: list, scale: str, ax=None, **kwargs):

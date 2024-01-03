@@ -31,13 +31,14 @@ def gmshLayer_info(ref_layer: str, z: float, d: float, physical_name: str, cut: 
         'forConstruction':  forConstruction
         }
 
-def physSurface_info(ref_layer: str, polygon_idx: list, gmsh_layer: str):
+def physSurface_info(ref_layer: str, polygon_idx: list, gmsh_layer: str, linked_to: str=None):
     return {
         'ref_layer':    ref_layer,
         'polygons':     polygon_idx,
         'gmsh_layer':   gmsh_layer,
         'group_id':     int(),
-        'entities':     []
+        'entities':     [],
+        'linked_to':    linked_to
     }
 
 def flatten(l):
@@ -377,14 +378,24 @@ class GMSHmaker():
                         v['entities'].extend(down)
         
         # assigning electrodes to group_ids
+        unique_electrodes = {}
         for i, (k, v) in enumerate(electrodes.items()):
-            group_id = i + init_index + 1
-            v['group_id'] = group_id
-            gmsh.model.addPhysicalGroup(2, v['entities'], group_id, name=k)
-        
+            group_id = i + init_index + 1    
+            if v['linked_to']:
+                physSurfName = v['linked_to']
+                new_surfaces = v['entities']
+                uniques = unique_electrodes[physSurfName]['entities']
+                combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
+                unique_electrodes[physSurfName]['entities'] = combined_without_duplicates
+            else:
+                unique_electrodes[k] = {'group_id': group_id, 'entities': v['entities']}
+
+        for k, v in unique_electrodes.items():
+            gmsh.model.addPhysicalGroup(2, v['entities'], v['group_id'], name=k)
+
         gmsh.model.occ.synchronize()
-        
-        return electrodes
+
+        return unique_electrodes
     
     def get_surfaces_onEdges(self, Btype: str):
         allowed_types = ['x', 'y', 'z']
