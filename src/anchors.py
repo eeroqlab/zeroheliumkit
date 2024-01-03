@@ -3,7 +3,7 @@ from math import fmod
 import numpy as np
 
 from tabulate import tabulate
-from shapely import Point, affinity, set_precision
+from shapely import Point, affinity, set_precision, distance
 
 from .settings import GRID_SIZE, BLACK, RED
 from .plotting import default_ax
@@ -70,6 +70,12 @@ class Anchor():
     def properties(self):
         print(tabulate([["label", "coords", "direction"],
                         [self.label, self.coords, self.direction]]))
+
+    def distance_to(self, point: tuple | Point) -> float:
+        """Unitless distance to other point (float)"""
+        if isinstance(point, tuple):
+            point = Point(point)
+        return distance(self.point, point)
 
     def rename(self, newlabel: str) -> None:
         self.label = newlabel
@@ -195,7 +201,7 @@ class MultiAnchor():
         return self.multipoint[idx]
 
     def point(self, labels: list[str]):
-        if isinstance(labels, list):
+        if isinstance(labels, (list, tuple)):
             return [self.__point(l) for l in labels]
         return self.__point(labels)
 
