@@ -3,6 +3,7 @@
 .vscode/
 *egg-info/
 build/
+dev/
 *data/
 
 *.DS_Store

@@ -1,7 +1,7 @@
 # ZeroHeliumKit
 
 <p align="center">
-<img src="helpers/zhk.png" alt="zhk_logo" width="350"/>
+<img src="examples/zhk.png" alt="zhk_logo" width="350"/>
 </p>
 
 
