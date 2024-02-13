@@ -10,11 +10,15 @@ ZeroHeliumKit is a Python module for planar geometry creation and manipulations 
 
 ## Installing
 
-After cloning repository install neseccary packages:
+After cloning repository, `cd` into the new directory and install neseccary packages:
 ```shell
 pip install -r requirements.txt
 ```
-Latest FreeFEM++ software can be found [here](https://github.com/FreeFem/FreeFem-sources/releases).
+Next, install `zeroheliumkit` into your environment: 
+```
+pip install .
+```
+You can now open your python and run `import zeroheliumkit`. The final step is to install the latest FreeFEM++ software, which can be found [here](https://github.com/FreeFem/FreeFem-sources/releases).
 
 ## Usage
 

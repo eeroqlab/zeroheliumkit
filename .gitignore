@@ -1,6 +1,8 @@
 # Other files and folders
 .settings/
 .vscode/
+*egg-info/
+build/
 *data/
 
 *.DS_Store
