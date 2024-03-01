@@ -2,12 +2,10 @@ from .anchors import Anchor, MultiAnchor
 from .core import Entity, Structure, GeomCollection
 from .supercore import SuperStructure
 
-from .basics import (Rectangle, Square, Circle, RegularPolygon, ArcLine,
-                    Meander, MeanderHalf, PinchGate)
-
-from .geometries import (StraightLine, ArbitraryLine, Taper,
-                        ElbowLine, SigmoidLine, MicroChannels,
-                        SpiralInductor, IDC, Claws)
+from .geometries import (StraightLine, ArbitraryLine, Taper, Fillet,
+                        MicroChannels, SpiralInductor, IDC,
+                        Rectangle, Square, Circle, RegularPolygon, ArcLine,
+                        Meander, MeanderHalf, PinchGate)
 
 __all__ = [
     "Anchor",
@@ -18,7 +16,6 @@ __all__ = [
     "SuperStructure",
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
-    "StraightLine", "ArbitraryLine", "Taper",
-    "ElbowLine", "SigmoidLine", "MicroChannels",
-    "SpiralInductor", "IDC", "Claws"
+    "StraightLine", "ArbitraryLine", "Taper", "MicroChannels",
+    "SpiralInductor", "IDC", "Fillet"
     ]
