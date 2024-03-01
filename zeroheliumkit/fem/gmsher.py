@@ -12,7 +12,6 @@ import sys
 import numpy as np
 
 from shapely import Polygon, MultiPolygon, get_coordinates
-from tabulate import tabulate
 from alive_progress import alive_it
 
 from ..src.core import Structure, Entity
@@ -81,12 +80,14 @@ class GMSHmaker():
                  layout: Structure | Entity,
                  extrude_config: dict, 
                  electrodes_config: dict, 
-                 mesh_params: tuple, 
+                 mesh_params: tuple,
+                 additional_surfaces: dict=None,
                  log: bool=False):
         
         self.layout = convert_layout_to_dict(layout)
         self.extrude_config = extrude_config
-        #self.electrodes_config = electrodes_config
+        self.additional_surfaces = additional_surfaces
+        self.electrodes_config = electrodes_config
 
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
@@ -96,24 +97,24 @@ class GMSHmaker():
         self.fragmentation(flatten(list(vols.values())))
         
         self.physicalVolumes = self.create_PhysicalVolumes(vols)
-        self.physicalSurfaces = self.create_PhysicalSurfaces(electrodes_config)
+        self.physicalSurfaces = self.create_PhysicalSurfaces()
         
         self.define_mesh(*mesh_params)
         
     def get_polygon(self, lname: str, idx: int) -> Polygon:
         """ Returns a shapely Polygon from a specific layer and idx in layout dict"""
         return self.layout.get(lname)[idx]
-
-    def polygon_extruded(self, polygon: Polygon, zcoord: float, thickness: float):
-        """ Create  3D gmsh Volume by extruding shapely Polygon
+    
+    def create_gmsh_surface(self, polygon: Polygon, zcoord: float) -> int:
+        """
+        Creates a Gmsh surface based on the given polygon and z-coordinate.
 
         Args:
-            polygon (Polygon): shapely Polygon
-            zcoord (float): staring z-coordinate
-            thickness (float): thickness of the Volume
+            polygon (Polygon): Shapely polygon defining the shape of the surface.
+            zcoord (float): The z-coordinate of the surface.
 
         Returns:
-            gmsh Volume tag
+            int: The ID of the created Gmsh surface.
         """
         coords = get_coordinates(polygon)
 
@@ -133,6 +134,22 @@ class GMSHmaker():
 
         curvedLoop = gmsh.model.occ.addCurveLoop(lines)
         surface = gmsh.model.occ.addPlaneSurface([curvedLoop])
+
+        return surface
+
+    def create_gmsh_volume_by_extrusion(self, polygon: Polygon, zcoord: float, thickness: float):
+        """ Creates 3D gmsh Volume by extruding shapely Polygon
+
+        Args:
+            polygon (Polygon): shapely Polygon
+            zcoord (float): staring z-coordinate
+            thickness (float): thickness of the Volume
+
+        Returns:
+            gmsh Volume tag
+        """
+
+        surface = self.create_gmsh_surface(polygon, zcoord)
         shell = gmsh.model.occ.extrude([(2, surface)], 0, 0, thickness)
         
         surfaces = []
@@ -164,7 +181,7 @@ class GMSHmaker():
             polygons = self.layout.get(params['reference'])
 
             for p in polygons:
-                volumes[name].append(self.polygon_extruded(p, params['z'], params['thickness']))
+                volumes[name].append(self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness']))
             
         return volumes
     
@@ -261,7 +278,7 @@ class GMSHmaker():
             gmshObjs_forCutting = self.gmshObjs_forCutting(cutting_layers, volumes_forConstruction)
 
             for p in polygons:
-                base = self.polygon_extruded(p, params['z'], params['thickness'])
+                base = self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness'])
                 base = gmsh.model.occ.cut([(3, base)], gmshObjs_forCutting, removeTool=True)
                 for item in base[0]:
                     volumes_forConstruction[lname].append(item[1])
@@ -277,13 +294,19 @@ class GMSHmaker():
             gmshObjs_forCutting_andRemove = self.gmshObjs_forCutting(cutting_layers, volumes_forConstruction)
 
             for p in polygons:
-                base = self.polygon_extruded(p, params['z'], params['thickness'])
+                base = self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness'])
                 base_gmshObj = gmsh.model.occ.cut([(3, base)], gmshObjs_forCutting, removeTool=False)
                 if gmshObjs_forCutting_andRemove:
                     base_gmshObj = gmsh.model.occ.cut(base_gmshObj[0], gmshObjs_forCutting_andRemove, removeTool=True)
                 for item in base_gmshObj[0]:
                     volumes[lname].append(item[1])
-                
+
+        # adding additional surfaces
+        if self.additional_surfaces:
+            for surface in self.additional_surfaces.values():
+                gmshID = self.create_gmsh_surface(surface['geometry'], surface['z0'])
+                surface['gmshID'] = gmshID
+
         gmsh.model.occ.synchronize()
         
         return volumes
@@ -302,6 +325,9 @@ class GMSHmaker():
         item_rest = []
         for v in volumes[1:]:
             item_rest.append((3, v))
+        if self.additional_surfaces:
+            for value in self.additional_surfaces.values():
+                item_rest.append((2, value['gmshID']))
         new_volumes = gmsh.model.occ.fragment(item_base, item_rest)
         
         gmsh.model.occ.synchronize()
@@ -356,7 +382,7 @@ class GMSHmaker():
 
         return np.allclose(np.asarray(com), np.asarray(centroid), atol=tol)
     
-    def create_PhysicalSurfaces(self, electrodes: dict) -> dict:
+    def create_PhysicalSurfaces(self) -> dict:
         """ Defines the physical Surfaces, where voltages will be applied
 
         Args:
@@ -367,7 +393,8 @@ class GMSHmaker():
         """
         init_index = len(self.physicalVolumes.keys())
         gmsh_entities_in_Metal = self.physicalVolumes['METAL']['entities']
-        
+        electrodes = self.electrodes_config
+
         # populating electrodes with gmshEntities
         for i, (k, v) in enumerate(electrodes.items()):
             for gmsh_entity in gmsh_entities_in_Metal:
@@ -392,6 +419,13 @@ class GMSHmaker():
 
         for k, v in unique_electrodes.items():
             gmsh.model.addPhysicalGroup(2, v['entities'], v['group_id'], name=k)
+
+        # assigning additional surfaces to group_ids
+        group_id += 1
+        if self.additional_surfaces:
+            for i, (k, v) in enumerate(self.additional_surfaces.items()):
+                gmsh.model.addPhysicalGroup(2, [v['gmshID']], group_id + i, name=k)
+                unique_electrodes[k] = {'group_id': group_id + i, 'entities': [v['gmshID']]}
 
         gmsh.model.occ.synchronize()
 
