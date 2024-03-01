@@ -16,7 +16,7 @@ pip install -r requirements.txt
 ```
 Next, install `zeroheliumkit` into your environment: 
 ```
-pip install .
+pip install -e .
 ```
 You can now open your python and run `import zeroheliumkit`. The final step is to install the latest FreeFEM++ software, which can be found [here](https://github.com/FreeFem/FreeFem-sources/releases).
 
