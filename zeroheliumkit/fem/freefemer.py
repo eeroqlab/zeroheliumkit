@@ -21,7 +21,7 @@ def extract_results(quantity: str,
                     plane: str=None,
                     axis1_params: tuple=None,
                     axis2_params: tuple=None,
-                    axis3_params: float or tuple=None,
+                    axis3_params: float | tuple=None,
                     additional_name: str=None) -> dict:
     return {
         'quantity': quantity, 
@@ -38,10 +38,12 @@ class FreeFEM():
     
     def __init__(self,
                 config: dict,
-                dirname: str):
+                dirname: str,
+                run_from_notebook: bool=False):
 
         self.config = config
         self.dirname = dirname
+        self.run_from_notebook = run_from_notebook
 
         self.physicalVols = config.get('physicalVolumes')
         self.physicalSurfs = config.get('physicalSurfaces')
@@ -91,7 +93,11 @@ class FreeFEM():
         code += """load "medit"\n"""
         #code += f"""system("mkdir -p {self.dirname}");\n"""
         code += "\n"
-        code += f"""mesh3 Th = gmshload3("{self.config["meshfile"]}.msh2");\n"""
+        if self.run_from_notebook:
+            path_meshfile = self.dirname + self.config["meshfile"] + '.msh2'
+        else:
+            path_meshfile = self.config["meshfile"] + '.msh2'
+        code += f"""mesh3 Th = gmshload3("{path_meshfile}");\n"""
         return code
 
 
@@ -137,7 +143,10 @@ class FreeFEM():
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
             name = qty + ("_" + pln if pln else "") + ("_" + addname if addname else "")
-            
+
+            if self.run_from_notebook:
+                name = self.dirname + name
+
             code += f"""ofstream {qty}("{name}.txt");\n"""
 
         return code
@@ -318,15 +327,16 @@ class FreeFEM():
             bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
             env = os.environ.copy()
             env['PATH'] += ":/Applications/FreeFem++.app/Contents/ff-4.12/bin"
+
             process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
 
             logs = ""
             items = iter(process.stdout.readline, b'')
-            bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35) 
+            bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35)
 
             for line in bar:
                 output_log = line.decode()
-                logs += output_log 
+                logs += output_log
                 if output_log[1:6] == "Error":
                     raise FreefemError(output_log)
                 elif print_log:
@@ -343,7 +353,7 @@ class FreeFEM():
             logs += message
 
         finally:
-            with open(self.dirname + '/ff_logs.txt', 'w') as outfile:
+            with open(os.path.join(self.dirname, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(logs)
             print('Freefem calculations are complete')
 
