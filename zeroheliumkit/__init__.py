@@ -4,7 +4,7 @@
 #
 # --------------------------------------------------------------------------------------
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 from .src import *
 
@@ -17,7 +17,6 @@ __all__ = [
     "SuperStructure",
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
-    "StraightLine", "ArbitraryLine", "Taper",
-    "ElbowLine", "SigmoidLine", "uChannelsAngle",
-    "SpiralInductor", "IDC", "claws"
+    "StraightLine", "ArbitraryLine", "Taper", "MicroChannels",
+    "SpiralInductor", "IDC", "Fillet"
     ]
