@@ -1,19 +1,36 @@
+"""
+This file contains the implementation of a SuperStructure class, which is a subclass of the Structure class.
+The SuperStructure class provides additional methods for routing and adding structures along a skeleton line.
+"""
+
 import numpy as np
 
-from shapely import line_locate_point, line_interpolate_point, intersection_all, distance
-from shapely import LineString
+from shapely import (line_locate_point, line_interpolate_point, intersection_all,
+                     distance, difference, intersection, unary_union)
+from shapely import LineString, Polygon
 
 from .core import Structure, Entity
-from .geometries import StraightLine, ElbowLine, SigmoidLine
-from .functions import get_abc_line, create_list_geoms, get_normals_along_line, modFMOD
+from .anchors import fmodnew
+from .functions import (create_list_geoms, get_normals_along_line, round_polygon,
+                        flatten_lines, buffer_line_with_variable_width)
 from .errors import WrongSizeError
-from .routing import route_fillet
+from .routing import create_route
 
 
 class SuperStructure(Structure):
-    """ this class provides more advanced routing options.
-        Based on Structure class.
+    """A class representing a superstructure.
+
+    This class inherits from the Structure class and 
+    provides additional methods for routing and adding structures along the skeleton line.
+
+    Args:
+        route_config (dict): Configuration for routing.
+
+    Attributes:
+        _route_config (dict): Configuration for routing.
+
     """
+
     def __init__(self, route_config: dict):
         self._route_config = route_config
         super().__init__()
@@ -23,112 +40,65 @@ class SuperStructure(Structure):
               layers: dict=None,
               airbridge: Entity | Structure=None,
               extra_rotation: float=0,
-              new_feature: bool=False):
-        for labels in zip(anchors, anchors[1:]):
-            if airbridge:
-                self.route_with_intersection(labels, layers, airbridge, extra_rotation, new_feature)
-            else:
-                self.route_between_two_pts(anchors, layers)
-
-    def route_between_two_pts(self,
-                              anchors: tuple,
-                              layers: dict=None) -> None:
-        """ makes a route between two anchors.
-            specify route config in SuperStructure init stage.
+              new_feature: bool=False,
+              print_status: bool=False,
+              rm_anchor: bool | tuple | str=False,
+              rm_route: bool=False) -> None:
+        """ Routes between anchors.
+            This method routes between two anchors based on the provided parameters.
 
         Args:
-            anchors (tuple): two anchors between which a route is constructed
-            layers (dict): layer info
-
-        Raises:
-            TypeError: if more that two anchors are provided.
+        ----
+        anchors (tuple): Two anchors between which a route is constructed.
+        layers (dict): Layer information.
+        airbridge (Entity | Structure): Airbridge structure.
+        extra_rotation (float): Extra rotation angle.
+        new_feature (bool): Flag indicating if a new feature is used.
+        print_status (bool): Flag indicating if the status should be printed.
+        rm_anchor (bool or str, optional): If True, removes the anchor points after appending. 
+                                           If a string is provided, removes the specified anchor point. 
+                                           Defaults to False.
+        rm_route (bool, optional): If True, removes the route line after appending route polygons. Defaults to False.
         """
 
-        if len(anchors) != 2:
-            raise TypeError("Provide only two point labels in 'anchors'")
+        self.route_with_intersection(anchors, layers, airbridge, extra_rotation, print_status, rm_route)
 
-        point1 = self.get_anchor(anchors[0])
-        point2 = self.get_anchor(anchors[1])
-        radius = self._route_config.get("radius")
-        num_segments = self._route_config.get("num_segments")
-
-        # calculating angle of the line between anchors
-        a, b, _ = get_abc_line(point1.point, point2.point)
-        direction_sign_y = np.sign(point2.point.y - point1.point.y)
-        direction_sign_x = -np.sign(point2.point.x - point1.point.x)/2 + 0.5
-        if b != 0:
-            if a == 0:
-                angle = 180 * direction_sign_x
-            else:
-                angle = np.arctan(-a/b) * 180/np.pi
-                if direction_sign_y * np.sign(angle) < 0:
-                    angle = -180 * np.sign(angle) + angle
-        else:
-            angle = 90 * direction_sign_y
-
-
-        ##############################
-        #### MAIN routing choices ####
-        ##############################
-
-        if (np.abs(point1.direction - point2.direction) < 1e-4 and
-            np.abs(angle - point1.direction) < 1e-4):
-            # stright line construction
-            # - anchor directions are the same
-            # - direction is the same with anchor-anchor angle
-
-            connecting_structure = StraightLine(anchors=(point1,point2),
-                                                layers=layers)
-
-        elif np.abs(point1.direction - point2.direction) < 1e-4:
-            # sigmoid line construction
-            # - anchor directions are the same
-            
-            # calculating intermediate point direction
-            angle_point1reference = modFMOD(angle - point1.direction)
-            if (0 < angle_point1reference <= 90) or (-180 < angle_point1reference <= -90):
-                #mid_dir = modFMOD(point1.direction + np.abs(angle))
-                mid_dir = modFMOD(angle + 20)
-            else:
-                #mid_dir = modFMOD(point1.direction - np.abs(angle))
-                mid_dir = modFMOD(angle - 20)
-
-            connecting_structure = SigmoidLine(anchor1=point1,
-                                               anchor2=point2,
-                                               mid_direction=mid_dir,
-                                               radius=radius,
-                                               num_segments=num_segments,
-                                               layers=layers)
-        else:
-            # elbow line construction
-            # takes care of all othe possibilities
-
-            connecting_structure = ElbowLine(anchor1=point1,
-                                             anchor2=point2,
-                                             radius=radius,
-                                             num_segments=num_segments,
-                                             layers=layers)
-
-        ###################################
-        #### END of ROUTE construction ####
-        ###################################
-
-        self.append(connecting_structure)
+        # remove or not to remove anchor
+        if rm_anchor==True:
+            self.remove_anchor(anchors)
+        elif isinstance(rm_anchor, (str, tuple)):
+            self.remove_anchor(rm_anchor)
 
 
     def add_along_skeletone(self,
                             bound_anchors: tuple,
-                            num: int,
-                            structure: Structure | Entity) -> None:
-        """ add Structures alongth the skeletone line
+                            structure: Structure | Entity,
+                            locs: list=None,
+                            num: int=1,
+                            endpoints: bool=False,
+                            normalized: bool=False) -> None:
+        """ Add structures along the skeleton line.
 
         Args:
-            bound_anchors (tuple): skeletone regoin contained between two anchors
-            num (int): number of structures
-            structure (Structure | Entity): structure to be added
+        ----
+        bound_anchors (tuple): Skeleton region contained between two anchors.
+        structure (Structure | Entity): Structure to be added.
+        locs (list, optional): List of locations along the skeleton line where the structures will be added. 
+            If not provided, the structures will be evenly distributed between the two anchor points.
+        num (int, optional): Number of structures to be added. Ignored if locs is provided.
+        endpoints (bool, optional): Whether to include the endpoints of the skeleton line as locations for adding structures. Default is False.
+        normalized (bool, optional): Whether the locations are normalized along the skeleton line. Default is False.
 
         Raises:
-            ValueError: _description_
+        ------
+        WrongSizeError: If the number of bound_anchors is not equal to 2.
+
+        Example:
+        -------
+            >>> # Add 5 structures evenly distributed along the skeleton line between anchor1 and anchor2
+            >>> add_along_skeleton((anchor1, anchor2), structure, num=5)
+            >>> # Add 3 structures at specific locations along the skeleton line between anchor1 and anchor2
+            >>> add_along_skeleton((anchor1, anchor2), structure, locs=[0.2, 0.5, 0.8])
         """
 
         if len(bound_anchors) != 2:
@@ -139,11 +109,18 @@ class SuperStructure(Structure):
 
         start_point = line_locate_point(self.skeletone, p1, normalized=True)
         end_point = line_locate_point(self.skeletone, p2, normalized=True)
+        
+        extra_rotation = 0
+        if not locs:
+            if endpoints:
+                locs = np.linspace(start_point, end_point, num=num, endpoint=True)
+            else:
+                locs = np.linspace(start_point, end_point, num=num+2, endpoint=True)[1:-1]
+            normalized = True
+            extra_rotation = 90
 
-        locs = np.linspace(start_point, end_point, num=num+2, endpoint=True)
-        pts = line_interpolate_point(self.skeletone, locs[1:-1], normalized=True).tolist()
-        normal_angles = get_normals_along_line(self.skeletone, locs[1:-1]) - 90
-        normal_angles = np.asarray([modFMOD(alpha) for alpha in normal_angles])
+        pts = line_interpolate_point(self.skeletone, locs, normalized=normalized).tolist()
+        normal_angles = get_normals_along_line(self.skeletone, locs) + extra_rotation   # figure out why extra_rotation is added
 
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
@@ -151,41 +128,52 @@ class SuperStructure(Structure):
             s.moveby(xy=(point.x, point.y))
             self.append(s)
 
-
+    
     def route_with_intersection(self,
-                                anchors: tuple,
-                                layers: dict,
-                                airbridge: Entity | Structure,
-                                extra_rotation: float=0,
-                                new_feature: bool=False) -> None:
-        """ creates route between two anchors when a crossing with skeletone is expected
+                                    anchors: tuple,
+                                    layers: dict,
+                                    airbridge: Entity | Structure=None,
+                                    extra_rotation: float=0,
+                                    print_status: bool=False,
+                                    remove_line: bool=False) -> None:
+        """ Creates a route connecting specified anchors and
+            adding airbridge when a crossing with the skeleton is expected.
 
         Args:
-            anchors (tuple): routing between two anchors. provide labels
-            layers (dict): layer width information
-            airbridge (Entity | Structure): airbridge structure
-                                            should contain 'in' and 'out' anchors
+        ----
+        anchors (tuple): The anchors to route between. Provide labels.
+        layers (dict): The layer width information.
+        airbridge (Entity | Structure): The airbridge structure.
+            Should contain 'in' and 'out' anchors. Defaults to None
+        extra_rotation (float, optional): Additional rotation angle for the airbridge. Defaults to 0.
+        print_status (bool, optional): Whether to print the status of the route creation. Defaults to False.
+        remove_line (bool, optional): Whether to remove created route line. Defaults to False.
+
+        Examples:
+        --------
+            >>> ss = SuperStructure(route_config={...})
+            >>> ss.route_with_intersection(anchors=('A', 'B'),
+            >>>                                layers={'layer1': 0.1}, airbridge=airbridge_structure)
         """
-        if len(anchors) != 2:
-            raise WrongSizeError("Provide only two point labels in 'anchors'.")
-
-        anchor_labels_airbridge = ['in', 'out']
-
-        if ((anchor_labels_airbridge[0] not in airbridge.anchors.labels) or
-            (anchor_labels_airbridge[1] not in airbridge.anchors.labels)):
-            raise TypeError("airbridge anchors could be only 'in' and 'out'")
-
+        #start and end points
         p_start = self.get_anchor(anchors[0]).point
-        p_end = self.get_anchor(anchors[1]).point
+        p_end = self.get_anchor(anchors[-1]).point
 
-        # testing a new feature here
-        if new_feature:
-            route_line, _ = route_fillet(anchor1=self.get_anchor(anchors[0]),
-                                      anchor2=self.get_anchor(anchors[1]),
-                                      radius=self._route_config.get("radius"),
-                                      num_segments=self._route_config.get("num_segments"))
-        else:
-            route_line = LineString([p_start, p_end])
+        if airbridge:
+            ab_labels = ['in', 'out']
+            if ((ab_labels[0] not in airbridge.anchors.labels) or
+                (ab_labels[1] not in airbridge.anchors.labels)):
+                raise TypeError("airbridge anchors could be only 'in' and 'out'")
+        
+        # getting route line along the anchor points
+        route_line = LineString()
+        for labels in zip(anchors, anchors[1:]):
+            line = create_route(a1=self.get_anchor(labels[0]),
+                                a2=self.get_anchor(labels[1]),
+                                radius=self._route_config.get("radius"),
+                                num_segments=self._route_config.get("num_segments"),
+                                print_status=print_status)
+            route_line = flatten_lines(route_line, line)
 
         # get all intersection points with route line and skeletone
         intersections = intersection_all([route_line, self.skeletone])
@@ -193,205 +181,144 @@ class SuperStructure(Structure):
         # get valid intesections
         if not intersections.is_empty:
             # create a list of points
-            list_intersection_points = create_list_geoms(intersections)
+            list_of_intersection_points = create_list_geoms(intersections)
+            # getting airbridge locations (i.e. removing start and end points)
+            ab_locs = [p for p in list_of_intersection_points if p not in [p_start, p_end]]
 
-            # removing start and end points
-            valid_intersections = [p for p in list_intersection_points if p not in [p_start, p_end]]
+        ###################################
+        #### buffering along the route ####
+        ###################################
 
-        #######################
-        ### creating route ####
-        #######################
-
-        if intersections.is_empty or valid_intersections==[]:
-            # in case of no intersections make a simple route or no valid_intersections
-            self.route_between_two_pts(anchors, layers)
+        if intersections.is_empty or ab_locs==[]:
+            # in case of no intersections or no ab_locs make a simple route structure
+            self.bufferize_routing_line(route_line, layers, keep_line=False)
 
         else:
-            list_distances = np.asarray(list(map(distance,
-                                                 valid_intersections,
-                                                 [p_start]*len(valid_intersections)
-                                                 )
-                                            )
-                                        )
+            # getting list of distances of airbridge locations from starting point
+            list_distances = np.asarray(list(map(distance, ab_locs, [p_start]*len(ab_locs))))
             sorted_distance_indicies = np.argsort(list_distances)
 
-            intersect_locs_on_skeletone = line_locate_point(self.skeletone,
-                                                            valid_intersections,
-                                                            normalized=True)
-            intersect_normals = get_normals_along_line(self.skeletone, intersect_locs_on_skeletone)
+            ab_locs_on_skeletone = line_locate_point(self.skeletone, ab_locs, normalized=True)
+            ab_angles = get_normals_along_line(self.skeletone, ab_locs_on_skeletone)
 
+            # create route anchor list with temporary anchor list, which will be deleted in the end
             route_anchors = [anchors[0]]
-            # create temporary anchor list, which will be deleted in the end
             temporary_anchors = []
 
             # adding airbridges to superstructure
             for i, idx in enumerate(sorted_distance_indicies):
-                airBRDG = airbridge.copy()
+                ab_coords = (ab_locs[idx].x, ab_locs[idx].y)
+                ab_angle = fmodnew(ab_angles[idx] + 90 + extra_rotation)
 
-                airBRDG.rotate(angle=modFMOD(intersect_normals[idx] + 90 + extra_rotation))
-                air_loc = (valid_intersections[idx].x, valid_intersections[idx].y)
-                airBRDG.moveby(xy=air_loc)
+                ab = airbridge.copy()
+                ab.rotate(angle=ab_angle)
+                ab.moveby(xy=ab_coords)
 
                 # correcting the orientation of the airbridge if 'in' and 'out' are swapped
-                distance2in  = distance(airBRDG.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
-                distance2out = distance(airBRDG.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
-
+                distance2in  = distance(ab.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
+                distance2out = distance(ab.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
                 if distance2out < distance2in:
-                    airBRDG.rotate(180, origin=air_loc)
+                    ab.rotate(180, origin=ab_coords)
 
-                for ab_anchor in anchor_labels_airbridge:
-                    anchor_temp_name = str(i) + ab_anchor
-                    airBRDG.modify_anchor(label=ab_anchor,
-                                          new_name=anchor_temp_name)
-                    route_anchors.append(anchor_temp_name)
-                    temporary_anchors.append(anchor_temp_name)
-
-                self.append(airBRDG)
-
+                for label in ab_labels:
+                    temporary_name = str(i) + label
+                    ab.modify_anchor(label=label,
+                                     new_name=temporary_name)
+                    route_anchors.append(temporary_name)
+                    temporary_anchors.append(temporary_name)
+                self.append(ab)
             route_anchors.append(anchors[1])
 
-            # adding all routes between anchors
+            # adding all routes between airbridge anchors
             for labels in zip(route_anchors[::2], route_anchors[1::2]):
-                self.route_between_two_pts(anchors=labels, layers=layers)
+                route_line = create_route(a1=self.get_anchor(labels[0]),
+                                          a2=self.get_anchor(labels[1]),
+                                          radius=self._route_config.get("radius"),
+                                          num_segments=self._route_config.get("num_segments"),
+                                          print_status=print_status)
+                self.bufferize_routing_line(route_line, layers, keep_line=False)
 
+            # remove anchors
             self.remove_anchor(temporary_anchors)
 
-    ###################################################
-    ########### testing new routing ###################
-    ###################################################
+        # remove or not to remove route line
+        if not remove_line:
+            self.add_line(route_line, chaining=False)
+
     
-    def route_bezier(self,
-              anchors: tuple,
-              layers: dict=None,
-              airbridge: Entity | Structure=Entity(),
-              extra_rotation: float=0,
-              starting_length_scale: float=10):
-        for labels in zip(anchors, anchors[1:]):
-            self.route_with_intersection_bezier(labels, layers, airbridge, extra_rotation, starting_length_scale)
-    
-    def _add_buffered_route(self,
-                            route_line: LineString,
-                            layers: dict=None) -> None:
-        """ append route to skeletone and buffers to create polygons.
+    def bufferize_routing_line(self,
+                               line: LineString,
+                               layers: float | int | list | dict,
+                               keep_line: bool=True) -> None:
+        """ Append route to skeleton and create polygons by buffering.
 
         Args:
-            route_line (LineString): route line
-            layers (dict): layer info
+        ----
+        line (LineString): The route line.
+        layers (Union[float, int, list, dict]): The layer information.
+            It can be a single value, a list of values, or a dictionary with distances and widths.
+
+        Examples:
+        --------
+            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+            >>> layers = {'layer1': 0.1, 'layer2': [0.2, 0.3, 0.4]}
+            >>> bufferize_routing_line(line, layers)
+
+            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+            >>> layers = {'layer1': {'d': [0, 0.5, 1], 'w': [0.1, 0.2, 0.1], 'normalized': True}}
+            >>> bufferize_routing_line(line, layers)
+
+            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+            >>> layers = {'layer1': [0.1, 0.2, 0.3], 'layer2': {'d': [0, 0.5, 1], 'w': [0.2, 0.3, 0.2], 'normalized': False}}
+            >>> bufferize_routing_line(line, layers)
         """
-        routed_structure = Structure()
-        routed_structure.add_line(route_line)
-        
-        # create polygons
+        s = Structure()
+        if keep_line:
+            s.add_line(line)
+
         if layers:
             for k, width in layers.items():
-                routed_structure.buffer_line(name=k, offset=width/2, cap_style='square')
-        
-        self.append(routed_structure)
+                if isinstance(width, (int, float)):
+                    poly = line.buffer(distance=width/2, cap_style='flat')
+                elif isinstance(width, (list, np.ndarray)):
+                    distances = np.linspace(0, 1, len(width), endpoint=True)
+                    poly = buffer_line_with_variable_width(line, distances, width, normalized=True, join_style='flat')
+                elif isinstance(width, dict):
+                    distances = np.asarray(width.get("d"))
+                    widths = np.asarray(width.get("w"))
+                    norm = width.get("normalized")
+                    poly = buffer_line_with_variable_width(line, distances, widths, normalized=norm, join_style='flat')
+                else:
+                    raise TypeError("Provide a valid 'layers' dictionary.")
+                s.add_layer(k, poly)
+            self.append(s)
 
 
-    def route_with_intersection_bezier(self,
-                                anchors: tuple,
-                                layers: dict,
-                                airbridge: Entity | Structure,
-                                extra_rotation: float=0,
-                                starting_length_scale: float=10) -> None:
-        """ creates route between two anchors when a crossing with skeletone is expected
+    def round_sharp_corners(self, area: Polygon, layer: str | list[str], radius: float | int) -> None:
+        """ Rounds the sharp corners within the specified area for the given layer(s) by applying a radius.
 
         Args:
-            anchors (tuple): routing between two anchors. provide labels
-            layers (dict): layer width information
-            airbridge (Entity | Structure): airbridge structure
-                                            should contain 'in' and 'out' anchors
+        ----
+        area (Polygon): The area within which the corners should be rounded.
+        layer (str | list[str]): The layer(s) on which the operation should be performed.
+            If a single layer is provided as a string, the operation will be applied to that layer only.
+            If multiple layers are provided as a list of strings, the operation will be applied to each layer individually.
+        radius (float | int): The radius to be applied for rounding the corners.
+
+        Example:
+        -------
+            >>> s = ...  # your SuperStructure(route_config={...})
+            >>> area = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
+            >>> s.round_sharp_corners(area, "layer1", 2.5)
+            >>> # Round the sharp corners for multiple layers
+            >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
         """
-        if len(anchors) != 2:
-            raise WrongSizeError("Provide only two point labels in 'anchors'.")
-
-        anchor_labels_airbridge = ['in', 'out']
-
-        if ((anchor_labels_airbridge[0] not in airbridge.anchors.labels) or
-            (anchor_labels_airbridge[1] not in airbridge.anchors.labels)):
-            raise TypeError("airbridge anchors could be only 'in' and 'out'")
-
-        p_start = self.get_anchor(anchors[0]).point
-        p_end = self.get_anchor(anchors[1]).point
-
-        # testing a new feature here
-        route_line, _ = route_fillet(anchor1=self.get_anchor(anchors[0]),
-                                     anchor2=self.get_anchor(anchors[1]),
-                                     radius=self._route_config.get("radius"),
-                                     num_segments=self._route_config.get("num_segments"),
-                                     starting_length_scale=starting_length_scale)
-
-        # get all intersection points with route line and skeletone
-        intersections = intersection_all([route_line, self.skeletone])
-
-        # get valid intesections
-        if not intersections.is_empty:
-            # create a list of points
-            list_intersection_points = create_list_geoms(intersections)
-
-            # removing start and end points
-            valid_intersections = [p for p in list_intersection_points if p not in [p_start, p_end]]
-
-        #######################
-        ### creating route ####
-        #######################
-
-        if intersections.is_empty or valid_intersections==[]:
-            # in case of no intersections make a simple route or no valid_intersections
-            self._add_buffered_route(route_line, layers)
-
-        else:
-            list_distances = np.asarray(list(map(distance,
-                                                 valid_intersections,
-                                                 [p_start]*len(valid_intersections)
-                                                 )
-                                            )
-                                        )
-            sorted_distance_indicies = np.argsort(list_distances)
-
-            intersect_locs_on_skeletone = line_locate_point(self.skeletone,
-                                                            valid_intersections,
-                                                            normalized=True)
-            intersect_normals = get_normals_along_line(self.skeletone, intersect_locs_on_skeletone)
-
-            route_anchors = [anchors[0]]
-            # create temporary anchor list, which will be deleted in the end
-            temporary_anchors = []
-
-            # adding airbridges to superstructure
-            for i, idx in enumerate(sorted_distance_indicies):
-                airBRDG = airbridge.copy()
-
-                airBRDG.rotate(angle=modFMOD(intersect_normals[idx] + 90 + extra_rotation))
-                air_loc = (valid_intersections[idx].x, valid_intersections[idx].y)
-                airBRDG.moveby(xy=air_loc)
-
-                # correcting the orientation of the airbridge if 'in' and 'out' are swapped
-                distance2in  = distance(airBRDG.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
-                distance2out = distance(airBRDG.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
-
-                if distance2out < distance2in:
-                    airBRDG.rotate(180, origin=air_loc)
-
-                for ab_anchor in anchor_labels_airbridge:
-                    anchor_temp_name = str(i) + ab_anchor
-                    airBRDG.modify_anchor(label=ab_anchor,
-                                          new_name=anchor_temp_name)
-                    route_anchors.append(anchor_temp_name)
-                    temporary_anchors.append(anchor_temp_name)
-
-                self.append(airBRDG)
-
-            route_anchors.append(anchors[1])
-
-            # adding all routes between anchors
-            for labels in zip(route_anchors[::2], route_anchors[1::2]):
-                route_line, _ = route_fillet(anchor1=self.get_anchor(labels[0]),
-                                             anchor2=self.get_anchor(labels[1]),
-                                             radius=self._route_config.get("radius"),
-                                             num_segments=self._route_config.get("num_segments"),
-                                             starting_length_scale=starting_length_scale)
-                self._add_buffered_route(route_line, layers)
-
-            self.remove_anchor(temporary_anchors)
+        if isinstance(layer, str):
+            layer = [layer]
+        for l in layer:
+            original = getattr(self, l)
+            base = difference(original, area)
+            rounded = intersection(original, area.buffer(2*radius, join_style="mitre"))
+            rounded = round_polygon(rounded, radius)
+            rounded = intersection(rounded, area)
+            setattr(self, l, unary_union([base, rounded]))
