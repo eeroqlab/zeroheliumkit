@@ -7,28 +7,253 @@ from shapely import Point, LineString, MultiLineString, Polygon
 from shapely import affinity, unary_union, box
 
 from .core import Entity, Structure
-from .anchors import Anchor, MultiAnchor
-from .basics import ArcLine
-from .functions import (get_angle_between_points, offset_point, get_intersection_point_bruteforce,
-                        modFMOD, midpoint, extract_coords_from_point,
-                        get_intersection_point, get_abc_line)
+from .anchors import Anchor
+from .functions import azimuth, extract_coords_from_point, buffer_along_path
+from .routing import get_fillet_params, make_fillet_line, normalize_anchors
 from .settings import GRID_SIZE
-from .errors import TopologyError
 
 
-# Multi-layer Geometry Classes
-# _________________________________________________________________________________
+# -------------------------------------
+# Collection of simple geometries
+# -------------------------------------
 
-class StraightLine(Structure):
-    """ creates a straight line polygon structure
+def Rectangle(width: float,
+              height: float,
+              location: tuple | Point=None,
+              direction: float=None) -> Polygon:
+    """ Returns a rectangle Polygon
 
     Args:
-        anchors (tuple, optional): two anchors/points/coords. Defaults to None.
-        lendir (tuple, optional): length and orientation tuple. Defaults to None.
-        layers (dict, optional): layers info. Defaults to {}.
-        alabel (tuple, optional): labels of the start and end-points. Defaults to None.
-        cap_style (str, optional): defines the cap style of the line: ()"square", "flat", "round")
+    ----
+    width (float): width of the rectangle
+    height (float): height of the rectangle
+
+    Example:
+    -------
+        >>> Rectangle(4, 2)
     """
+    poly = Polygon([(-width/2, -height/2),
+                    (-width/2, height/2),
+                    (width/2, height/2),
+                    (width/2, -height/2)])
+    if direction:
+        poly = affinity.rotate(poly, direction, origin=(0,0))
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(poly, *location)
+    return  poly
+
+
+def Square(size: float, location: tuple | Point=None, direction: float=None) -> Polygon:
+    """ Returns a square Polygon
+
+    Args:
+    ----
+    size (float): size of the square
+
+    Example:
+    -------
+        >>> Square(3)
+    """
+    return Rectangle(size, size, location, direction)
+
+
+def RegularPolygon(edge_size: float=None,
+                   radius: float=None,
+                   location: tuple | Point=None,
+                   num_edges: int=6) -> Polygon:
+    """ Returns a regular Polygon with specified number of edges.
+        Size of the polygon defined by radius or edge size.
+
+    Args:
+    ----
+    edge (float): size of edge
+    radius (float): radius of the Regular polygon
+    num_edges (int): number of edges
+
+    Example:
+    -------
+        >>> RegularPolygon(edge=4, num_edges=6, location=(0,0))
+    """
+    coords = []
+    angle = 2 * np.pi / num_edges
+    if edge_size:
+        radius = edge_size/np.sin(angle/2) * 0.5
+    for i in range(num_edges):
+        x = radius * np.cos(i * angle)
+        y = radius * np.sin(i * angle)
+        coords.append((x, y))
+    polygon = Polygon(coords)
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(polygon, *location)
+    return polygon
+
+
+def Circle(radius: float, location: tuple | Point=None, num_edges: int=100) -> Polygon:
+    """ Returns a circle shape Polygon
+
+    Args:
+    ----
+    radius (float): radius of the circle
+
+    Example:
+    ------
+        >>> Circle(radius=5)
+    """
+    return RegularPolygon(radius=radius, location=location, num_edges=num_edges)
+
+
+def ArcLine(centerx: float,
+            centery: float,
+            radius: float,
+            start_angle: float,
+            end_angle: float,
+            numsegments: int=10) -> LineString:
+    """ Returns LineString representing an arc.
+
+    Args:
+    ----
+    centerx (float): center.x of arcline
+    centery (float): center.y of arcline
+    radius (float): radius of the arcline
+    start_angle (float): starting angle
+    end_angle (float): end angle
+    numsegments (int, optional): number of the segments. Defaults to 10.
+
+    Example:
+    -------
+        >>> ArcLine(centerx=0, centery=0, radius=5, start_angle=0, end_angle=180)
+    """
+    theta = np.radians(np.linspace(start_angle, end_angle, num=numsegments, endpoint=True))
+    x = centerx + radius * np.cos(theta)
+    y = centery + radius * np.sin(theta)
+    return LineString(np.column_stack([x, y]))
+
+
+def Meander(length: float,
+            radius: float,
+            direction: float,
+            num_segments: int=100) -> LineString:
+    """ Returns a 1D full Meander line.
+
+    Args:
+    ----
+    length (float): Length of the straight section.
+    radius (float): Radius of the round section.
+    direction (float): Rotates the meander by the given value in the end.
+    num_segments (int, optional): Number of segments in the round section.
+                                    Defaults to 100.
+
+    Example:
+    -------
+        >>> meander = Meander(10, 2, 45, 50)
+        >>> print(meander)
+    """
+    coord_init = [(0,0), (0,length/2)]
+    e = Entity()
+    e.add_line(LineString(coord_init))
+    e.add_line(ArcLine(radius, 0, radius, 180, 0, num_segments))
+    e.add_line(LineString([(0,0), (0,-length)]))
+    e.add_line(ArcLine(radius, 0, radius, 180, 360, num_segments))
+    e.add_line(LineString([(0,0), (0,length/2)]))
+    e.rotate(direction, origin=(0,0))
+    return e.skeletone
+
+
+def MeanderHalf(length: float,
+                radius: float,
+                direction: float,
+                num_segments: int=100) -> LineString:
+    """ Returns a 1D half Meander line.
+
+    Args:
+    ----
+    length (float): length of the straight section
+    radius (float): radius of the round section
+    direction (float): rotates the meander by given value in the end
+    num_segments (int, optional): number of segments in round section
+                                    Defaults to 100
+
+    Example:
+    -------
+        >>> MeanderHalf(10, 5, 45, 50)
+    """
+    coord_init = [(0,0), (0,length/2)]
+    e = Entity()
+    e.add_line(LineString(coord_init))
+    e.add_line(ArcLine(radius, 0, radius, 180, 0, num_segments))
+    e.add_line(LineString([(0,0), (0,-length/2)]))
+    e.rotate(direction, origin=(0,0))
+
+    return e.skeletone
+
+
+def PinchGate(arm_w: float,
+              arm_l: float,
+              length: float,
+              width: float) -> Polygon:
+    """ Returns a Polygon representing a pinch gate.
+
+    Args:
+    ----
+    arm_w (float): arm width
+    arm_l (float): arm length
+    length (float): length of the pinch gate
+    width (float): width of the pinch gate
+
+    Example:
+    -------
+        >>> PinchGate(2, 5, 10, 3)
+    """
+    pts = [(-arm_w/2, arm_w/2),
+            (arm_l - length/32, arm_w/2),
+            (arm_l, length/8),
+            (arm_l, 7*length/16),
+            (arm_l + width/3, length/2),
+            (arm_l + width, length/2),
+            (arm_l + width, -length/2),
+            (arm_l + width/3, -length/2),
+            (arm_l, -7*length/16),
+            (arm_l, -length/8),
+            (arm_l - length/32, -arm_w/2),
+            (-arm_w/2, -arm_w/2)
+            ]
+    return Polygon(pts)
+
+
+# -------------------------------------
+# Multi-layer Geometry Classes
+# -------------------------------------
+
+class StraightLine(Structure):
+    """ Represents a straight line 'polygons' in different layers.
+
+    Args:
+    ----
+    anchors (tuple, optional): Two anchors that define the start and end of the line.
+    lendir (tuple, optional): A tuple containing the length and direction (in degrees) of the line.
+    layers (dict, optional): A dictionary containing the names of the layers and their corresponding widths.
+    alabel (tuple, optional): A tuple containing labels for the start and end anchors.
+    cap_style (str, optional): The style of line ending. Valid options are 'square', 'round', or 'flat'.
+
+    Raises:
+    ------
+    NameError: If the provided cap_style is not one of 'square', 'round', or 'flat'.
+    AttributeError: If neither 'anchors' nor 'lendir' is provided, or if both are provided.
+
+    Examples:
+    --------
+        >>> # Create a straight line with anchors
+        >>> line = StraightLine(anchors=((0, 0), (10, 10)), cap_style='round')
+        >>> # Create a straight line with length and direction
+        >>> line = StraightLine(lendir=(5, 45), cap_style='square')
+        >>> # Create a straight line with layers and anchor labels
+        >>> line = StraightLine(anchors=((0, 0), (10, 10)), layers={'layer1': 1, 'layer2': 2}, alabel=('start', 'end'))
+    """
+
     def __init__(self,
                  anchors: tuple=None,
                  lendir: tuple=None,
@@ -62,19 +287,28 @@ class StraightLine(Structure):
 
         # create anchors
         if alabel:
-            angle = get_angle_between_points(p1, p2)
+            angle = azimuth(p1, p2)
             self.add_anchor([Anchor(point=p1, direction=angle, label=alabel[0]),
-                            Anchor(point=p2, direction=angle, label=alabel[1])])
+                             Anchor(point=p2, direction=angle, label=alabel[1])])
 
 
 class ArbitraryLine(Structure):
-    """ create an arbitrary line geometry based on list of point
-        and list of widths which defines the polygon
+    """ Represents an arbitrary line path (list of points) and
+        polygons created along this path and width values on the points.
 
-     Args:
+        Args:
+        ----
         points (list): list of points along which a polygon will be constructed
-        layers (dict): layers info
+        layers (dict): layers info, where the keys are the layer names and
+            the values are the corresponding widths
         alabel (tuple): labels of the start and end-points.
+
+        Example:
+        -------
+            >>> points = [(0, 0), (1, 1), (2, 0)]
+            >>> layers = {'layer1': 0.1, 'layer2': 0.2}
+            >>> alabel = ('start', 'end')
+            >>> line = ArbitraryLine(points, layers, alabel)
     """
     def __init__(self,
                  points: list,
@@ -89,94 +323,33 @@ class ArbitraryLine(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                polygon = self.make_base_polygon(points, width)
+                polygon = buffer_along_path(points, width)
                 setattr(self, k, polygon)
 
         # create anchors
         if alabel:
-            input_angle = get_angle_between_points(points[0], points[1])
-            output_angle = get_angle_between_points(points[-2], points[-1])
-            self.add_anchor([Anchor(point=points[0], direction=input_angle, label=alabel[0]),
-                            Anchor(point=points[-1], direction=output_angle, label=alabel[1])])
-
-    def make_base_polygon(self, points: list, width: list | float) -> Polygon:
-        """ creates arbitraryline polygons
-
-        Args:
-            points (list): alongth these points polygon structure is constructed
-            width (list | float): the width of the polygon defined by list or
-                                single value (uniform width)
-
-        Returns:
-            polygon (Polygon): polygon structure
-        """
-        num = len(points)
-        if isinstance(width, (int, float)):
-            width = np.full(shape=num, fill_value=width, dtype=np.float32)
-
-        p_start_up = offset_point(points[0],
-                                  width[0]/2,
-                                  get_angle_between_points(points[0], points[1]))
-        p_start_down = offset_point(points[0],
-                                    -width[0]/2,
-                                    get_angle_between_points(points[0], points[1]))
-        points_up = [p_start_up]
-        points_down = [p_start_down]
-        for i in range(1, num - 1):
-            points_up.append(self.get_boundary_intersection_point(points[i-1],
-                                                                  points[i],
-                                                                  points[i+1],
-                                                                  width[i-1]/2,
-                                                                  width[i]/2,
-                                                                  width[i+1]/2))
-            points_down.append(self.get_boundary_intersection_point(points[i-1],
-                                                                    points[i],
-                                                                    points[i+1],
-                                                                    -width[i-1]/2,
-                                                                    -width[i]/2,
-                                                                    -width[i+1]/2))
-        points_up.append(offset_point(points[-1],
-                                      width[-1]/2,
-                                      get_angle_between_points(points[-2], points[-1])))
-        points_down.append(offset_point(points[-1],
-                                        -width[-1]/2,
-                                        get_angle_between_points(points[-2], points[-1])))
-        pts = points_up + points_down[::-1]
-
-        return Polygon(pts)
-
-    def get_boundary_intersection_point(self,
-                                        point1: Point,
-                                        point2: Point,
-                                        point3: Point,
-                                        distance1: float,
-                                        distance2: float,
-                                        distance3: float):
-        """ given 3 points and offset distances calculates the coordinate of the offset point
-        from the middle point
-        """
-        angle1 = get_angle_between_points(point1, point2)
-        angle2 = get_angle_between_points(point2, point3)
-        offset_p1 = offset_point(point1, distance1, angle1)
-        offset_p2 = offset_point(point2, distance2, angle1)
-        offset_p3 = offset_point(point2, distance2, angle2)
-        offset_p4 = offset_point(point3, distance3, angle2)
-
-        try:
-            p5 = get_intersection_point_bruteforce(offset_p1, offset_p2, offset_p3, offset_p4)
-        except TopologyError:
-            p5 = get_intersection_point(get_abc_line(offset_p1, offset_p2),
-                                        get_abc_line(offset_p3, offset_p4))
-        return p5
+            input_angle = azimuth(points[0], points[1])
+            output_angle = azimuth(points[-2], points[-1])
+            self.add_anchor([Anchor(points[0], input_angle, alabel[0]),
+                             Anchor(points[-1], output_angle, alabel[1])])
 
 
 class Taper(ArbitraryLine):
-    """ creates a taper structure
+    """ Represents a multilayer Taper geometry.
 
     Args:
-        length (float): length of the tapered section
-        layers (dict, optional): layer info. Defaults to None.
-        alabel (tuple, optional): labels of the start and end-points. Defaults to None.
+    ----
+    length (float): length of the tapered section
+    layers (dict, optional): layer info. Dictionary values must be
+        a (input width, output width) tuple. Defaults to None.
+    alabel (tuple, optional): labels of the start and end-points. Defaults to None.
+
+    Examples:
+    --------
+        >>> length = 10.0
+        >>> layers = {'layer1': (0.1, 0.2), 'layer2': (0.2, 0.5)}
+        >>> alabel = ('start', 'end')
+        >>> taper = Taper(length, layers, alabel)
     """
     def __init__(self,
                  length: float,
@@ -204,256 +377,83 @@ class Taper(ArbitraryLine):
 
 
 class Fillet(Structure):
-    """ Fillet structure
-        creates a rounded route structure from origin (0,0) point towards anchor
+    """ Represents a multilayer Fillet geometry.
 
     Args:
-        anchor (Anchor): endpoint
-        radius (float): radius of the rounded section
-        num_segments (int): number of segments in arcline
-        layers (dict): layers info
-        alabel (tuple): labels of the start and end-points
+    ----
+    anchor (Anchor | tuple[Anchor, Anchor]): The anchor point(s) of the fillet. If a tuple is provided,
+        it represents the start and end anchors of the fillet.
+    radius (float): The radius of the fillet.
+    num_segments (int): The number of line segments used to approximate the fillet curve.
+    layers (dict, optional): A dictionary mapping layer names to widths for creating polygons.
+    alabel (bool, optional): Adds anchors if True. Defaults to True.
+
+    Example:
+    -------
+        >>> # Create a fillet from anchor A to anchor B with a radius of 10 and 8 line segments
+        >>> fillet = Fillet((anchor_A, anchor_B), radius=10, layers={'layer1': 0.5, 'layer2': 0.3})
+        >>> # Create a normalized fillet
+        >>> fillet = Fillet(Anchor(anchor_A, radius=10, layers={'layer1': 0.5, 'layer2': 0.3})
     """
+
     def __init__(self,
-                 anchor: Anchor,
+                 anchor: Anchor | tuple[Anchor, Anchor],
                  radius: float,
-                 num_segments: int,
+                 num_segments: int=20,
                  layers: dict=None,
-                 alabel: tuple=None):
+                 alabel: bool=True):
 
         super().__init__()
 
+        # determine to make a normalized fillet (start from origin) or
+        # make a fillet from the first anchor to the second anchor
+        if isinstance(anchor, tuple):
+            anchor_norm = normalize_anchors(anchor[0], anchor[1])
+        else:
+            anchor_norm = anchor
+
+        # get fillet params 
+        params = get_fillet_params(anchor_norm, radius)
+
         # create skeletone
-        self.__create_skeletone(anchor, radius, num_segments, layers)
+        self.skeletone = make_fillet_line(*params, radius, num_segments)
 
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.buffer_line(name=k, offset=width/2,
-                                cap_style='square', join_style=self.__joinstyle)
+                self.buffer_line(name=k,
+                                 offset=width/2,
+                                 cap_style='square')
 
-        # create anchors
-        if alabel:
-            first, last = self.get_skeletone_boundary()
-
-            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
-                            Anchor(point=last, direction=anchor.direction, label=alabel[1])])
-
-    def __get_fillet_params(self, anchor: Anchor, radius: float) -> tuple:
-        """ calculates fillet parameters
-
-        Args:
-            anchor (Anchor): endpoint of the fillet
-            radius (float): radius of the curved section
-
-        Returns:
-            tuple: _description_
-        """
-
-        ang = anchor.direction * np.pi/180
-
-        # calculating lengths
-        if cos(ang)==1:
-            length2 = anchor.y - radius
+        # snap to first anchor if relevant and add anchors to structure
+        if isinstance(anchor, tuple):
+            self.rotate(anchor[0].direction).moveby(anchor[0].coords)
+            if alabel:
+                self.add_anchor([anchor[0], anchor[1]])
         else:
-            length2 = (np.sign(ang)
-                       * (anchor.y - np.sign(ang) * radius * (1 - np.cos(ang)))
-                       / np.sqrt(1 - np.cos(ang)**2))
-
-        length1 = anchor.x - 1 * length2 * np.cos(ang) - np.sign(ang) * radius * np.sin(ang)
-
-        return length1, length2, anchor.direction
-
-    def __create_fillet_skeletone(self,
-                                  length1: float,
-                                  length2: float,
-                                  direction: float,
-                                  radius: float,
-                                  num_segments: int) -> None:
-        """ create a fillet linestring
-
-        Args:
-            length1 (float): length of the first section
-            length2 (float): length of the second section placed after arcline
-            direction (float): orientation of the endsegment
-            radius (float): radius if the arcline
-            num_segments (int): num of segments in the arcline
-        """
-
-        direction = modFMOD(direction)
-        dir_rad = direction * np.pi/180
-
-        # creating first section
-        pts = [(0, 0), (length1, 0)]
-        self.skeletone = LineString(pts)
-
-        # creating arcline section
-        if direction > 0:
-            x0, y0, phi0 = (0, radius, 270)
-        else:
-            x0, y0, phi0 = (0, -radius, 90)
-        self.add_line(ArcLine(x0, y0, radius, phi0, phi0 + direction, num_segments))
-
-        # creating second straight line section
-        self.add_line(LineString([(0, 0), (length2 * np.cos(dir_rad), length2 * np.sin(dir_rad))]))
-
-
-    def __create_skeletone(self,
-                           anchor: Anchor,
-                           radius: float,
-                           num_segments: int,
-                           layers: dict) -> None:
-        """ creating skeletone of the structure
-
-        Args:
-            anchor (Anchor): endpoint
-            radius (float): radius of the arcline
-            num_segments (int): number of segments in the arcline
-            layers (dict): layers info
-        """
-
-        # calculate fillet params
-        if layers is None:
-            extension_length = 0
-        else:
-            extension_length = max(layers.values())     # determines min length of section 2
-        length1, length2, direction = self.__get_fillet_params(anchor, radius)
-        dir_rad = direction * np.pi/180
-
-        if (length1 > 0 and length2 > 0) and np.sign(anchor.y)==np.sign(np.sin(dir_rad)):
-            # valid fillet
-            self.__create_fillet_skeletone(length1, length2, direction, radius, num_segments)
-
-            # correction of the last point -> adjusting to anchor point
-            self.skeletone = LineString(list(self.skeletone.coords[:-1]) + [anchor.coords])
-            self.__joinstyle = 'mitre'
-
-        elif np.sign(anchor.y)==np.sign(np.sin(dir_rad)) and length1 > 0:
-            # correcting the radius of the round section to make valid fillet
-
-            print("using smaller radius for routing")
-            while length2 < extension_length:
-                radius = radius * 0.6
-                length1, length2, direction = self.__get_fillet_params(anchor, radius)
-            self.__create_fillet_skeletone(length1, length2, direction, radius, num_segments)
-
-            self.skeletone = LineString(list(self.skeletone.coords[:-1]) + [anchor.coords])
-            self.__joinstyle = 'mitre'
-
-        else:
-            # using linestring for invalid fillet params
-
-            dx = np.abs(anchor.x)/5
-            after_start_point = Point(dx, 0)
-            before_end_point = Point(anchor.x - dx * np.cos(dir_rad),
-                                    anchor.y - dx * np.sin(dir_rad))
-            self.skeletone = LineString([Point(0,0),
-                                         after_start_point,
-                                         before_end_point,
-                                         anchor.point])
-            self.__joinstyle = 'round'
-
-
-class ElbowLine(Fillet):
-    """ creates two lines connected with semicircle line """
-
-    def __init__(self,
-                 anchor1: Anchor,
-                 anchor2: Anchor,
-                 radius: float=10,
-                 num_segments: int=10,
-                 layers: dict=None,
-                 alabel: tuple=None):
-
-        direction = anchor2.direction - anchor1.direction
-        p = affinity.rotate(Point((anchor2.x - anchor1.x, anchor2.y - anchor1.y)),
-                            -anchor1.direction,
-                            origin=(0,0))
-
-        super().__init__(Anchor(p, direction), radius, num_segments, layers, alabel)
-
-        self.rotate(anchor1.direction)
-        self.moveby((anchor1.x, anchor1.y))
-
-
-class SigmoidLine(Structure):
-    """ creates sigmoid line (connected two parallel lines) """
-
-    def __init__(self,
-                 anchor1: Anchor,
-                 anchor2: Anchor,
-                 mid_direction: float,
-                 radius: float=10,
-                 num_segments: int=10,
-                 layers: dict=None,
-                 alabel: tuple=None):
-        super().__init__()
-
-        anchormid = Anchor(midpoint(anchor1.point, anchor2.point), mid_direction)
-        r1 = ElbowLine(anchor1, anchormid, radius, num_segments, layers)
-        r2 = r1.copy()
-        r2.rotate(angle=180, origin=(anchormid.x, anchormid.y))
-        r1.append(r2)
-        r1.fix_line()
-
-        if not hasattr(r1.skeletone, "geoms"):
-            self.append(r1)
-        else:
-            dx = np.abs(anchor2.x - anchor1.x)/10
-            followup_start_point = Point(anchor1.x + dx,
-                                        anchor1.y + dx * np.tan(anchor1.direction * np.pi/180))
-            before_end_point = Point(anchor2.x - dx,
-                                    anchor2.y - dx * np.tan(anchor2.direction * np.pi/180))
-            arb_line = ArbitraryLine(points=[anchor1.point,
-                                             followup_start_point,
-                                             before_end_point,
-                                             anchor2.point],
-                                     layers=layers,
-                                     alabel=None)
-            self.append(arb_line)
-
-        # create anchors
-        if alabel:
-            anchor1.label = alabel[0]
-            anchor2.label = alabel[1]
-            self.add_anchor([anchor1, anchor2])
-
-
-class Claws(Entity):
-    """ creates a fork / claw type structure """
-
-    def __init__(self,
-                 radius: float,
-                 offset: float,
-                 length: float,
-                 layers: dict,
-                 alabel: tuple):
-        super().__init__()
-        r = radius + offset
-        self.__create_skeletone(offset, radius, length)
-
-        for k, width in layers.items():
-            self.buffer_line(name=k, offset=width/2, cap_style='round',
-                            join_style='round', quad_segs=20)
-        self.anchors = MultiAnchor([Anchor((0,0), 0, alabel[0]),
-                                    Anchor((r,0), 0, alabel[1])])
-
-    def __create_skeletone(self, offset, radius, length):
-        """ creates a claw / fork skeletone"""
-
-        r = radius + offset     # radius of the claw
-        angle = 180 * (length/2)/(r * pi)
-        if angle > 90:
-            d = (length - pi * r)/2
-            self.add_line(LineString([(-d, -r), (0, -r)]))
-            self.add_line(ArcLine(0, r, r, -90, 90, 50))
-            self.add_line(LineString([(0, 0), (-d, 0)]))
-        else:
-            self.add_line(ArcLine(0, 0, r, -angle, angle, 50))
+            if alabel:
+                self.add_anchor([Anchor((0,0), 0, "origin"), anchor])
 
 
 class MicroChannels(Structure):
-    """ creates microchannels for eHe or can be used to create IDC """
+    """ Creates microchannels for eHe or can be used to create IDC.
+
+    Args:
+    ----
+    length (float): The length of the microchannels.
+    spacing (float): The spacing between each microchannel.
+    num (int): The number of microchannels.
+    angle (float): The angle of the microchannels in degrees.
+    layers (dict): A dictionary containing the names and widths of the layers.
+    alabel (tuple, optional): A tuple containing the labels for the anchors.
+
+    Example:
+    -------
+        >>> # Create a MicroChannels object with length 10, spacing 1, 3 microchannels,
+        >>> # angle 45 degrees, layers {'layer1': 0.5, 'layer2': 0.3}, and anchors ('A', 'B').
+        >>> mc = MicroChannels(length=10, spacing=1, num=3, angle=45,
+        >>>                    layers={'layer1': 0.5, 'layer2': 0.3}, alabel=('A', 'B'))
+    """
 
     def __init__(self,
                  length: float,
@@ -485,25 +485,40 @@ class MicroChannels(Structure):
 
         # create anchors
         if alabel:
-            first, last = self.get_skeletone_boundary()
+            first, last = self.skeletone.boundary.geoms
             self.add_anchor([Anchor(point=first, direction=90, label=alabel[0]),
-                            Anchor(point=last, direction=0, label=alabel[1])])
-
-        # delete skeletone
-        self.skeletone = MultiLineString()
+                             Anchor(point=last, direction=0, label=alabel[1])])
 
 
 class SpiralInductor(Entity):
-    """ creates a spiral inductor """
+    """ Represents a spiral inductor.
+
+    Args:
+        size (float): The size of the inductor.
+        width (float): The width of each turn in the spiral.
+        gap (float): The gap between each turn in the spiral.
+        num_turns (int): The number of turns in the spiral.
+        smallest_section_length (float): The length of the smallest section in the spiral.
+        layers (dict): A dictionary mapping layer names to their respective widths.
+        alabel (dict): A dictionary containing labels for the first and last anchor points.
+
+    Example:
+    -------
+        >>> # Create a spiral inductor
+        >>> inductor = SpiralInductor(size=10, width=1, gap=0.5, num_turns=3,
+        >>>                           smallest_section_length=0.2,
+        >>>                           layers={'layer1': 0.1, 'layer2': 0.2},
+        >>>                           alabel=('start', 'end'))
+    """
 
     def __init__(self,
                  size: float,
                  width: float,
                  gap: float,
-                 num_turns: int,
-                 smallest_section_length: float,
-                 layers: dict,
-                 alabel: dict):
+                 num_turns: int=5,
+                 smallest_section_length: float=0.1,
+                 layers: dict={"layer1": 0.1},
+                 alabel: tuple=None):
         super().__init__()
 
         # create skeletone
@@ -516,7 +531,7 @@ class SpiralInductor(Entity):
         self.skeletone = LineString(coord_init)
 
         # create polygons
-        self.construct_spiral(size, radius, num_turns, smallest_section_length)
+        self.__construct_spiral(size, radius, num_turns, smallest_section_length)
         for k, w in layers.items():
             self.buffer_line(name=k, offset=w/2, cap_style='round',
                              join_style='mitre', quad_segs=2)
@@ -529,36 +544,52 @@ class SpiralInductor(Entity):
 
         # create anchors
         if alabel:
-            first, last = self.get_skeletone_boundary()
+            first, last = self.skeletone.boundary.geoms
             self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
                             Anchor(point=last, direction=0, label=alabel[1])])
 
-    def num_segments(self, R: float, smallest_segment: float):
+    def __num_segments(self, R: float, smallest_segment: float):
         # limits the maximum number of segments in arc
-
         return int(10*tanh(pi * R/2/smallest_segment/20))
 
-    def construct_spiral(self, size: float, radius: float, num_turns:int, ls: float):
-
-        self.add_line(ArcLine(0, radius, radius, 270, 360, self.num_segments(radius, ls)))
+    def __construct_spiral(self, size: float, radius: float, num_turns:int, ls: float):
+        # create the spiral line
+        self.add_line(ArcLine(0, radius, radius, 270, 360, self.__num_segments(radius, ls)))
         self.add_line(LineString([(0, 0), (0, size/2)]))
-
         for _ in range(num_turns):
             radius = radius + self._gap + self._width
             self.add_line(LineString([(0, 0), (0, size/2)]))
-            self.add_line(ArcLine(-radius, 0, radius, 0, 90, self.num_segments(radius, ls)))
+            self.add_line(ArcLine(-radius, 0, radius, 0, 90, self.__num_segments(radius, ls)))
             self.add_line(LineString([(0, 0), (-size, 0)]))
-            self.add_line(ArcLine(0, -radius, radius, 90, 180, self.num_segments(radius, ls)))
+            self.add_line(ArcLine(0, -radius, radius, 90, 180, self.__num_segments(radius, ls)))
             self.add_line(LineString([(0, 0), (0, -size)]))
-            self.add_line(ArcLine(radius, 0, radius, 180, 270, self.num_segments(radius, ls)))
+            self.add_line(ArcLine(radius, 0, radius, 180, 270, self.__num_segments(radius, ls)))
             self.add_line(LineString([(0, 0), (size + self._width + self._gap, 0)]))
-            self.add_line(ArcLine(0, radius, radius, 270, 360, self.num_segments(radius, ls)))
+            self.add_line(ArcLine(0, radius, radius, 270, 360, self.__num_segments(radius, ls)))
             self.add_line(LineString([(0, 0), (0, size/2)]))
         self.add_line(LineString([(0, 0), (2*self._gap + 2*self._width, 0)]))
 
 
 class IDC(Entity):
-    """ creates a special IDC (symmetrical) """
+    """ Represents a special IDC (symmetrical).
+
+    Args:
+    ----
+    length (float): The length of the IDC.
+    spacing (float): The spacing between each IDC.
+    num (int): The number of IDCs to create.
+    layers (dict): A dictionary mapping layer names to their widths.
+    alabel (tuple): A tuple containing two labels for the anchors.
+
+    Example:
+    -------
+        >>> length = 10.0
+        >>> spacing = 5.0
+        >>> num = 3
+        >>> layers = {'layer1': 0.5, 'layer2': 0.3}
+        >>> alabel = ('start', 'end')
+        >>> idc = IDC(length, spacing, num, layers, alabel)
+    """
     def __init__(self,
                  length: float,
                  spacing: float,
@@ -579,6 +610,6 @@ class IDC(Entity):
 
         # create anchors
         if alabel:
-            first, last = self.get_skeletone_boundary()
+            first, last = self.skeletone.boundary.geoms
             self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
                             Anchor(point=last, direction=0, label=alabel[1])])
