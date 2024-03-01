@@ -1,5 +1,4 @@
 from math import sqrt
-
 from shapely import (LineString, MultiLineString,
                      Polygon, MultiPolygon,
                      Point, MultiPoint)
