@@ -11,7 +11,15 @@ from .errors import *
 
 
 class Exporter_GDS():
-    """ helper class to export zhk dictionary with geometries into .gds file """
+    """ A class for exporting geometries to GDSII format.
+
+    Attributes:
+    ----------
+    name (str): The name of the GDSII file.
+    zhk_layers (dict): A dictionary containing the geometries for each layer.
+    gdsii (gdspy.GdsLibrary): The GDSII library object.
+    layer_cfg (dict): A dictionary containing the layer configuration.
+    """
 
     __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
 
@@ -22,17 +30,22 @@ class Exporter_GDS():
         self.preapre_gds()
 
     def preapre_gds(self) -> None:
+        """
+        Prepare the GDSII file by creating a library and adding cells with polygons.
 
+        This method initializes a GDSII library and creates a top-level cell. It then iterates
+        over the layer configuration and adds polygons to the cell based on the provided layer
+        properties. The polygons are created using the points extracted from the geometries.
+
+        Note:
+        ----
+        The `exclude_from_current` parameter has been deprecated in gdspy and will be removed
+        in a future version.
+        """
         # The GDSII file is called a library, which contains multiple cells.
         self.gdsii = gdspy.GdsLibrary()
         # Geometry must be placed in cells.
         cell = gdspy.Cell("toplevel", exclude_from_current=True)
-        """
-        deprecated:: 1.5
-            The parameter `exclude_from_current` has been deprecated in gdspy
-            alongside the use of a global library.  It will be removed in a
-            future version of Gdspy.
-        """
         self.gdsii.add(cell)
 
         for lname, l_property in self.layer_cfg.items():
@@ -43,10 +56,12 @@ class Exporter_GDS():
                 cell.add(gds_poly)
 
     def save(self):
+        """ Save the GDSII file"""
         self.gdsii.write_gds(self.name + '.gds')
         print("Geometries saved successfully.")
 
     def preview_gds(self):
+        """ Preview the GDSII file"""
         warnings.warn("IMPORTANT: preview feature is unstable, kernel might crash in jupyter notebook, use with caution")
         # good only for quick looks
         gdspy.LayoutViewer(self.gdsii)
