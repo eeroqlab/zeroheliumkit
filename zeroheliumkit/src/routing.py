@@ -15,8 +15,7 @@ Note: This file depends on the following modules: numpy, bezier, shapely.
 """
 
 import numpy as np
-import bezier
-
+from scipy.interpolate import BPoly
 from numpy import deg2rad
 from shapely import Point, LineString, affinity
 
@@ -251,9 +250,12 @@ def make_bezier_line(a1: Anchor,
 
     x = [a1.x + dx1, a1.x + depth_factor * dx1, a2.x - depth_factor * dx2, a2.x - dx2]
     y = [a1.y + dy1, a1.y + depth_factor * dy1, a2.y - depth_factor * dy2, a2.y - dy2]
-    nodes = np.asfortranarray([x, y])
-    curve = bezier.Curve(nodes, degree=len(x)-1)
-    pts_bezier = curve.evaluate_multi(np.linspace(0.0, 1.0, num_segments))
+    # nodes = np.asfortranarray([x, y])
+    # curve = bezier.Curve(nodes, degree=len(x)-1)
+    # pts_bezier = curve.evaluate_multi(np.linspace(0.0, 1.0, num_segments))
+    nodes = np.asarray(list(zip(x, y)))
+    curve = BPoly(nodes[:, np.newaxis, :], [0, 1])
+    pts_bezier = curve(np.linspace(0, 1, num_segments)).T
     line = LineString([(a1.x, a1.y)] + list(zip(*pts_bezier)) + [(a2.x, a2.y)])
 
     return line
