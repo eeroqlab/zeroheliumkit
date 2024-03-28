@@ -526,6 +526,18 @@ class Entity(_Base):
         return self
 
 
+    def simplify_layer(self, lname: str, tolerance: float=0.1):
+        """ Simplify polygons in a layer
+
+        Args:
+        ----
+        lname (str): The name of the layer.
+        tolerance (float, optional): The tolerance value for simplification. Defaults to 0.1.
+        """
+        setattr(self, lname, getattr(self, lname).simplify(tolerance))
+        return self
+
+
     ###############################
     #### Additional operations ####
     ###############################
