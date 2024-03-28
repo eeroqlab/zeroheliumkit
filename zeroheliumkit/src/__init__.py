@@ -5,7 +5,7 @@ from .supercore import SuperStructure
 from .geometries import (StraightLine, ArbitraryLine, Taper, Fillet,
                         MicroChannels, SpiralInductor, IDC,
                         Rectangle, Square, Circle, RegularPolygon, ArcLine,
-                        Meander, MeanderHalf, PinchGate)
+                        Meander, MeanderHalf, PinchGate, CircleSegment)
 
 __all__ = [
     "Anchor",
@@ -17,5 +17,5 @@ __all__ = [
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
     "StraightLine", "ArbitraryLine", "Taper", "MicroChannels",
-    "SpiralInductor", "IDC", "Fillet"
+    "SpiralInductor", "IDC", "Fillet", "CircleSegment"
     ]
