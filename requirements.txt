@@ -1,11 +1,9 @@
 alive_progress==3.1.1
-bezier==2023.7.28
 ezdxf==1.0.3
 gdspy==1.6.12
 gmsh==4.11.1
 matplotlib==3.7.1
 numpy==1.24.3
-phidl==1.6.3
 PyYAML==6.0.1
 scipy==1.11.4
 Shapely==2.0.2
