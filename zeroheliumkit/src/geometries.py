@@ -106,6 +106,43 @@ def Circle(radius: float, location: tuple | Point=None, num_edges: int=100) -> P
     return RegularPolygon(radius=radius, location=location, num_edges=num_edges)
 
 
+def CircleSegment(radius: float=1,
+                  start_angle: float=0,
+                  end_angle: float=90,
+                  location: tuple | Point=None,
+                  num_edges: int=25) -> Polygon:
+    """ Returns a polygon representing a circular segment.
+
+    Args:
+    ----
+    radius (float): The radius of the circle segment.
+    start_angle (float): The starting angle of the circular segment in degrees.
+    end_angle (float): The ending angle of the circular segment in degrees.
+    location (tuple or Point, optional): The location of the circular segment. If provided,
+        the circular segment will be translated to this location. Defaults to None.
+    num_edges (int, optional): The number of edges used to approximate the circular segment.
+        Defaults to 25.
+
+    Example:
+        >>> segment = CircleSegment(radius=5, start_angle=45, end_angle=135)
+        >>> print(segment)
+        POLYGON ((3.535533905932737 3.535533905932737, 4.045084971874737 4.045084971874737, ...))
+    """
+    coords = []
+    iteration_angle = (end_angle - start_angle) / (num_edges - 1)
+
+    for i in range(num_edges):
+        x = radius * np.cos(np.deg2rad(start_angle + i * iteration_angle))
+        y = radius * np.sin(np.deg2rad(start_angle + i * iteration_angle))
+        coords.append((x, y))
+    polygon = Polygon(coords)
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(polygon, *location)
+    return polygon    
+
+
 def ArcLine(centerx: float,
             centery: float,
             radius: float,
