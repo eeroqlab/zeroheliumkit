@@ -43,7 +43,8 @@ class SuperStructure(Structure):
               new_feature: bool=False,
               print_status: bool=False,
               rm_anchor: bool | tuple | str=False,
-              rm_route: bool=False) -> None:
+              rm_route: bool=False,
+              cap_style: str="flat") -> None:
         """ Routes between anchors.
             This method routes between two anchors based on the provided parameters.
 
@@ -61,7 +62,7 @@ class SuperStructure(Structure):
         rm_route (bool, optional): If True, removes the route line after appending route polygons. Defaults to False.
         """
 
-        self.route_with_intersection(anchors, layers, airbridge, extra_rotation, print_status, rm_route)
+        self.route_with_intersection(anchors, layers, airbridge, extra_rotation, print_status, rm_route, cap_style)
 
         # remove or not to remove anchor
         if rm_anchor==True:
@@ -76,7 +77,9 @@ class SuperStructure(Structure):
                             locs: list=None,
                             num: int=1,
                             endpoints: bool=False,
-                            normalized: bool=False) -> None:
+                            normalized: bool=False,
+                            additional_rotation: float | int=0,
+                            line_idx: int=None) -> None:
         """ Add structures along the skeleton line.
 
         Args:
@@ -107,8 +110,13 @@ class SuperStructure(Structure):
         p1 = self.get_anchor(bound_anchors[0]).point
         p2 = self.get_anchor(bound_anchors[1]).point
 
-        start_point = line_locate_point(self.skeletone, p1, normalized=True)
-        end_point = line_locate_point(self.skeletone, p2, normalized=True)
+        if line_idx:
+            line = self.skeletone.geoms[line_idx]
+        else:
+            line = self.skeletone
+
+        start_point = line_locate_point(line, p1, normalized=True)
+        end_point = line_locate_point(line, p2, normalized=True)
         
         extra_rotation = 0
         if not locs:
@@ -119,12 +127,12 @@ class SuperStructure(Structure):
             normalized = True
             extra_rotation = 90
 
-        pts = line_interpolate_point(self.skeletone, locs, normalized=normalized).tolist()
-        normal_angles = get_normals_along_line(self.skeletone, locs) + extra_rotation   # figure out why extra_rotation is added
+        pts = line_interpolate_point(line, locs, normalized=normalized).tolist()
+        normal_angles = get_normals_along_line(line, locs) + extra_rotation   # figure out why extra_rotation is added
 
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
-            s.rotate(angle)
+            s.rotate(angle + additional_rotation)
             s.moveby(xy=(point.x, point.y))
             self.append(s)
 
@@ -135,7 +143,8 @@ class SuperStructure(Structure):
                                     airbridge: Entity | Structure=None,
                                     extra_rotation: float=0,
                                     print_status: bool=False,
-                                    remove_line: bool=False) -> None:
+                                    remove_line: bool=False,
+                                    cap_style: str="flat") -> None:
         """ Creates a route connecting specified anchors and
             adding airbridge when a crossing with the skeleton is expected.
 
@@ -191,7 +200,7 @@ class SuperStructure(Structure):
 
         if intersections.is_empty or ab_locs==[]:
             # in case of no intersections or no ab_locs make a simple route structure
-            self.bufferize_routing_line(route_line, layers, keep_line=False)
+            self.bufferize_routing_line(route_line, layers, keep_line=False, cap_style=cap_style)
 
         else:
             # getting list of distances of airbridge locations from starting point
@@ -249,7 +258,8 @@ class SuperStructure(Structure):
     def bufferize_routing_line(self,
                                line: LineString,
                                layers: float | int | list | dict,
-                               keep_line: bool=True) -> None:
+                               keep_line: bool=True,
+                               cap_style: str="flat") -> None:
         """ Append route to skeleton and create polygons by buffering.
 
         Args:
@@ -279,7 +289,7 @@ class SuperStructure(Structure):
         if layers:
             for k, width in layers.items():
                 if isinstance(width, (int, float)):
-                    poly = line.buffer(distance=width/2, cap_style='flat')
+                    poly = line.buffer(distance=width/2, cap_style=cap_style)
                 elif isinstance(width, (list, np.ndarray)):
                     distances = np.linspace(0, 1, len(width), endpoint=True)
                     poly = buffer_line_with_variable_width(line, distances, width, normalized=True, join_style='flat')
