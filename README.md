@@ -14,6 +14,10 @@ After cloning repository, `cd` into the new directory and install neseccary pack
 ```shell
 pip install -r requirements.txt
 ```
+Note, if you are on Windows or Mac and don’t already have `gdspy` installed, you will need a C++ compiler (in case if you have an error in installing this package):
+* for Windows + Python 3, install the Microsoft [“Build Tools for Visual Studio”](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019)
+* For Mac, install “Xcode” from the App Store, then run the command `xcode-select --install` in the terminal
+
 Next, install `zeroheliumkit` into your environment: 
 ```
 pip install -e .
