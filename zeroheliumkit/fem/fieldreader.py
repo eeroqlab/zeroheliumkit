@@ -1,8 +1,8 @@
 import numpy as np
-import yaml
+import numpy.ma as ma
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
+from shapely import Polygon
 from ..src.settings import *
 
 
@@ -25,6 +25,10 @@ def center_within_area(x0: float, y0: float, xlist: list, ylist: list, tol=0.25)
         return False
     else:
         return True
+
+def inside_trap(geom: Polygon, x: float, y: float) -> bool:
+    """ checks if (x,y) is inside polygon """
+    return Point(x, y).within(geom)
 
 def set_limits(ax, x0, xN, y0, yN, aspect='equal'):
     ax.set_xlim(x0, xN)
@@ -158,16 +162,6 @@ class FieldAnalyzer():
             if isinstance(zero_line,bool):
                 zero_line = 0
             ax.contour(data[0], data[1], np.transpose(data[2]), [zero_line], linestyles='dashed', colors=GRAY)
-    
-    ''' TODO
-    def plot_potential_3D(self, voltage_list: list, scale: str, ax=None, **kwargs):
-        if ax is None:
-            ax = _default_ax()
-        data = self.potential(voltage_list, scale)
-        ax = fig.add_subplot(projection='3d')
-        ax.plot_wireframe(X_trap, Y_trap, interp((Y_trap, X_trap)), rstride=3, cstride=3, alpha=0.4, color='m', label='linear interp')
-        plt.show()
-    '''
 
     def plot_potential_XYcut(self, couplingConst: dict, voltages: dict, xy_cut: str, loc: float, ax=None, zlevel_key=None, **kwargs):
         if ax is None:
@@ -185,3 +179,19 @@ class FieldAnalyzer():
             ax.plot(Y, -Phi[int(np.size(X)/2), :]*1e3, label=f'y_cut', **kwargs)
         ax.set_xlabel('$x$ or $y$ (um)')
         ax.set_ylabel('electrostatic potential $-\phi(x)$ (mV)')
+    
+    def crop_data(self, new_attr_name: str, attr_name: str, crop_area: Polygon) -> None:
+        data = getattr(self, attr_name)
+        yy, xx = np.meshgrid(data.get('xlist'), data.get('ylist'))
+        mask = np.vectorize(inside_trap, excluded=["geom"])(crop_area, yy, xx)
+        mask = np.invert(mask)
+        mask = np.transpose(mask)
+
+        cropped_data ={}
+        for (k, v) in data.items():
+            if k=='xlist' or k=='ylist':
+                cropped_data[k] = v
+            else:
+                cropped_data[k] = ma.masked_array(v, mask=mask)
+
+        setattr(self, new_attr_name, cropped_data)

@@ -65,21 +65,22 @@ class FreeFEM():
         code += self.script_create_savefiles()
         code += self.script_problem_definition()
 
-        for extract_config in self.config.get('extract_opt'):
+        for i, extract_config in enumerate(self.config.get('extract_opt')):
+            fem_object_name = self.__extract_opt[i]
             # check supported parameters for extraction
             if extract_config.get("quantity") not in config_quantity.keys():
                 raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
 
             if extract_config.get("quantity") == 'Cm':
                 # extract capacitance matrix
-                code += self.script_save_cmatrix(extract_config)
+                code += self.script_save_cmatrix(extract_config, fem_object_name)
             else:
                 # extract electrostatic field solutions
                 plane = extract_config.get('plane')
                 if plane in config_planes_2D:
-                    code += self.script_save_data_2D(extract_config)
+                    code += self.script_save_data_2D(extract_config, fem_object_name)
                 elif plane in config_planes_3D:
-                    code += self.script_save_data_3D(extract_config)
+                    code += self.script_save_data_3D(extract_config, fem_object_name)
                 else:
                     raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
 
@@ -138,16 +139,17 @@ class FreeFEM():
 
     def script_create_savefiles(self):
         code = "\n"
-        for extract_cfg in self.config.get('extract_opt'):
+        self.__extract_opt = {}
+        for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
             addname = extract_cfg['additional_name']
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
-            name = qty + ("_" + pln if pln else "") + ("_" + addname if addname else "")
+            name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "")
 
             if self.run_from_notebook:
                 name = self.dirname + name
-
-            code += f"""ofstream {qty}("{name}.txt");\n"""
+            code += f"""ofstream extract{idx}{qty}("{name}.txt");\n"""
+            self.__extract_opt[idx] = f"extract{idx}{qty}"
 
         return code
 
@@ -198,7 +200,7 @@ class FreeFEM():
         return code
 
 
-    def script_save_data_2D(self, params: dict) -> str:
+    def script_save_data_2D(self, params: dict, fem_object_name: str) -> str:
         if params.get('plane')=='xy':
             xyz = "ax1,ax2,ax3"
         elif params.get('plane')=='yz':
@@ -208,7 +210,7 @@ class FreeFEM():
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_2D}')
         
-        name = params['quantity']
+        name = fem_object_name  #params['quantity']
  
         code = self.add_spaces(4) + "{\n"
         code += self.add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
@@ -248,13 +250,13 @@ class FreeFEM():
         return code  
 
 
-    def script_save_data_3D(self, params: dict) -> str:
+    def script_save_data_3D(self, params: dict, fem_object_name: str) -> str:
         if params.get('plane')=='xyZ':
             xyz = "ax1,ax2,ax3"
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
 
-        name = params['quantity']
+        name = fem_object_name  # params['quantity']
 
         code = self.add_spaces(4) + "{\n"
 
@@ -302,8 +304,8 @@ class FreeFEM():
         return code
 
 
-    def script_save_cmatrix(self, params: dict) -> str:
-        name = params['quantity']
+    def script_save_cmatrix(self, params: dict, fem_object_name: str) -> str:
+        name = fem_object_name  # params['quantity']
 
         code = self.add_spaces(4) + "{\n"
         code += self.add_spaces(4) + "for(int i = k; i < numV; i++){\n"

@@ -99,7 +99,7 @@ class GMSHmaker():
         self.physicalVolumes = self.create_PhysicalVolumes(vols)
         self.physicalSurfaces = self.create_PhysicalSurfaces()
         
-        self.define_mesh(*mesh_params)
+        self.define_mesh(mesh_params)
         
     def get_polygon(self, lname: str, idx: int) -> Polygon:
         """ Returns a shapely Polygon from a specific layer and idx in layout dict"""
@@ -439,43 +439,37 @@ class GMSHmaker():
         #gmsh_ent_points = gmsh.model.occ.getEntities(dim=0)
         #gmsh_ent_onSurf1 = gmsh.model.occ.getEntitiesInBoundingBox(xmin, ymin, zmin, xmax, ymax, zmax, dim=-1)
     
-    def define_mesh(self, m1: float, m2: float, m3: float, fineregion_box: list, mediumregion_box: list):
-        box = gmsh.model.mesh.field.add("Box")
-        gmsh.model.mesh.field.setNumber(box, "Thickness", 4)
-        gmsh.model.mesh.field.setNumber(box, "VIn", m2)
-        gmsh.model.mesh.field.setNumber(box, "VOut", m1)
-        gmsh.model.mesh.field.setNumber(box, "XMin", mediumregion_box[0])
-        gmsh.model.mesh.field.setNumber(box, "XMax", mediumregion_box[1])
-        gmsh.model.mesh.field.setNumber(box, "YMin", mediumregion_box[2])
-        gmsh.model.mesh.field.setNumber(box, "YMax", mediumregion_box[3])
-        gmsh.model.mesh.field.setNumber(box, "ZMin", mediumregion_box[4])
-        gmsh.model.mesh.field.setNumber(box, "ZMax", mediumregion_box[5])
+    def define_mesh(self, mesh_config: dict | list[dict]):
+        """ The mesh setup config. It can be a single dictionary or a list of dictionaries.
 
-        box2 = gmsh.model.mesh.field.add("Box")
-        gmsh.model.mesh.field.setNumber(box2, "Thickness", 2)
-        gmsh.model.mesh.field.setNumber(box2, "VIn", m3)
-        gmsh.model.mesh.field.setNumber(box2, "VOut", m1)
-        gmsh.model.mesh.field.setNumber(box2, "XMin", fineregion_box[0])
-        gmsh.model.mesh.field.setNumber(box2, "XMax", fineregion_box[1])
-        gmsh.model.mesh.field.setNumber(box2, "YMin", fineregion_box[2])
-        gmsh.model.mesh.field.setNumber(box2, "YMax", fineregion_box[3])
-        gmsh.model.mesh.field.setNumber(box2, "ZMin", fineregion_box[4])
-        gmsh.model.mesh.field.setNumber(box2, "ZMax", fineregion_box[5])
+        Args:
+        ----
+        mesh_config (dict | list[dict]):
+            Each dictionary should contain the following keys:
+            - "Thickness" (float): The thickness of the box.
+            - "VIn" (float): The inner value of the box.
+            - "VOut" (float): The outer value of the box.
+            - "box" (list[float]): The coordinates of the box in the format [XMin, XMax, YMin, YMax, ZMin, ZMax].
+        """
 
-        """
-        cyl = gmsh.model.mesh.field.add("Cylinder")
-        gmsh.model.mesh.field.setNumber(cyl, "Radius", fineregion_R)
-        gmsh.model.mesh.field.setNumber(cyl, "VIn", m3)
-        gmsh.model.mesh.field.setNumber(cyl, "VOut", m1)
-        gmsh.model.mesh.field.setNumber(cyl, "XAxis", mediumregion_box[1] - mediumregion_box[0])
-        gmsh.model.mesh.field.setNumber(cyl, "XCenter", (mediumregion_box[1] + mediumregion_box[0])/2)
-        gmsh.model.mesh.field.setNumber(cyl, "YAxis", 0)
-        gmsh.model.mesh.field.setNumber(cyl, "YCenter", 0)
-        gmsh.model.mesh.field.setNumber(cyl, "ZAxis", 0)
-        gmsh.model.mesh.field.setNumber(cyl, "ZCenter", 0.5)
-        """
+        if isinstance(mesh_config, dict):
+            mesh_config = [mesh_config]
+        boxes = []
+        for cfg in mesh_config:
+            box = gmsh.model.mesh.field.add("Box")
+            gmsh.model.mesh.field.setNumber(box, "Thickness", cfg["Thickness"])
+            gmsh.model.mesh.field.setNumber(box, "VIn", cfg["VIn"])
+            gmsh.model.mesh.field.setNumber(box, "VOut", cfg["VOut"])
+            gmsh.model.mesh.field.setNumber(box, "XMin", cfg["box"][0])
+            gmsh.model.mesh.field.setNumber(box, "XMax", cfg["box"][1])
+            gmsh.model.mesh.field.setNumber(box, "YMin", cfg["box"][2])
+            gmsh.model.mesh.field.setNumber(box, "YMax", cfg["box"][3])
+            gmsh.model.mesh.field.setNumber(box, "ZMin", cfg["box"][4])
+            gmsh.model.mesh.field.setNumber(box, "ZMax", cfg["box"][5])
+            boxes.append(box)
+
         minimum = gmsh.model.mesh.field.add("Min")
-        gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", [box, box2])
+        gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", boxes)
         gmsh.model.mesh.field.setAsBackgroundMesh(minimum)
         gmsh.model.occ.synchronize()
     
