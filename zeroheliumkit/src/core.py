@@ -20,7 +20,7 @@ from shapely import (affinity, unary_union,
                      set_coordinates, get_coordinates)
 from shapely.ops import linemerge
 
-from .plotting import plot_geometry
+from .plotting import plot_geometry, interactive_widget_handler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, PLG_CLASSES, LINE_CLASSES, SIZE_L
 
@@ -379,6 +379,21 @@ class Entity(_Base):
         """ Removes the skeletone from the object """
         self.skeletone = LineString()
         return self
+    
+
+    def remove_line(self, line_id: int | tuple | list):
+        """ Remove a line from the skeletone
+
+        Args:
+        ----
+        line_id (int | tuple | list): The index of the line to be removed.
+        """
+        if isinstance(line_id, int):
+            line_id = [line_id]
+
+        lines = list(self.skeletone.geoms)
+        self.skeletone = MultiLineString([line for i, line in enumerate(lines) if i not in line_id])
+        return self
 
 
     ################################
@@ -495,6 +510,26 @@ class Entity(_Base):
         """
         polygons = getattr(self, lname)
         setattr(self, lname, flatten_multipolygon(polygons))
+    
+
+    def remove_polygon(self, lname: str, polygon_id: int | tuple | list):
+        """ Remove a polygon from the layer
+
+        Args:
+        ----
+        lname (str): The name of the layer.
+        polygon_id (int | tuple | list): The index of the polygon to be removed.
+        """
+        polygons = getattr(self, lname)
+
+        if isinstance(polygons, Polygon):
+            raise ValueError("Cannot remove polygon from a single polygon object")
+
+        if isinstance(polygon_id, int):
+            polygon_id = [polygon_id]
+
+        poly_list = list(polygons.geoms)
+        setattr(self, lname, MultiPolygon([poly for i, poly in enumerate(poly_list) if i not in polygon_id]))
 
 
     ################################
@@ -688,6 +723,7 @@ class Entity(_Base):
         plot_colors = [plot_config[k] for k in plot_layers]
 
         if ax is None:
+            interactive_widget_handler()
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
         self.plot(ax=ax, layer=plot_layers, color=plot_colors, show_idx=show_idx, **kwargs)
 
@@ -733,7 +769,8 @@ class Structure(Entity):
                structure: Entity,
                anchoring: tuple=None,
                direction_snap: bool=False,
-               remove_anchor: bool | str=False) -> None:
+               remove_anchor: bool | str=False,
+               upd_alabels: list[tuple]=None) -> None:
         """ Appends an Entity or Structure to the Structure.
 
         Args:
@@ -753,6 +790,10 @@ class Structure(Entity):
             If True, removes the anchor points after appending. 
             If a string is provided, removes the specified anchor point. 
             Defaults to False.
+        upd_alabels (list, optional):
+            Renames anchor labels of the appending structure before appending.
+            A list of tuples with the old and new anchor labels: (old_label, new_label) 
+            Defaults to None.
 
         Example:
         -------
@@ -780,6 +821,9 @@ class Structure(Entity):
             s.moveby(offset)
 
         # appending anchors
+        if upd_alabels:
+            for label_old, label_new in upd_alabels:
+                s.anchors.modify(label_old, new_name=label_new)
         self.add_anchor(s.anchors.multipoint)
 
         # appending lines and polygons

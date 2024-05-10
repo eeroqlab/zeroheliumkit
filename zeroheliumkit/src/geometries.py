@@ -4,7 +4,7 @@ from math import pi, tanh, cos, tan
 import numpy as np
 
 from shapely import Point, LineString, MultiLineString, Polygon
-from shapely import affinity, unary_union, box
+from shapely import affinity, unary_union, intersection, box
 
 from .core import Entity, Structure
 from .anchors import Anchor
@@ -140,7 +140,81 @@ def CircleSegment(radius: float=1,
         if isinstance(location, Point):
             location = (location.x, location.y)
         return affinity.translate(polygon, *location)
-    return polygon    
+    return polygon
+
+
+def Ring(inner_radius: float, outer_radius: float, location: tuple | Point=None, num_edges: int=100) -> Polygon:
+    """ Returns a ring shape Polygon
+
+    Args:
+    ----
+    inner_radius (float): inner radius of the ring
+    outer_radius (float): outer radius of the ring
+    location (tuple or Point, optional): The location of the ring.
+        If provided, the ring will be translated to this location. Defaults to None.
+    num_edges (int, optional): The number of edges used to approximate the ring. Defaults to 100.
+
+    Example:
+    -------
+        >>> Ring(3, 5)
+    """
+    inner = Circle(inner_radius, num_edges=num_edges)
+    outer = Circle(outer_radius, num_edges=num_edges)
+    ring = outer.difference(inner)
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(ring, *location)
+    return ring
+
+
+def RingSector(inner_radius: float,
+               outer_radius: float,
+               start_angle: float,
+               end_angle: float,
+               location: tuple | Point=None,
+               num_edges: int=100):
+    """ Returns the intersection between a ring and a circular sector.
+
+    Args:
+    ----
+    inner_radius (float): The inner radius of the ring.
+    outer_radius (float): The outer radius of the ring.
+    start_angle (float): The starting angle of the sector in degrees.
+    end_angle (float): The ending angle of the sector in degrees.
+    location (tuple | Point, optional): The location of the center of the ring. Defaults to None.
+    num_edges (int, optional): The number of edges used to approximate the ring and sector. Defaults to 100.
+
+    Example:
+    -------
+        >>> inner_radius = 2.0
+        >>> outer_radius = 4.0
+        >>> start_angle = 0.0
+        >>> end_angle = math.pi / 2
+        >>> location = (0, 0)
+        >>> num_edges = 100
+        >>> result = RingSector(inner_radius, outer_radius, start_angle, end_angle, location, num_edges)
+        >>> print(result)
+        [(4.0, 0.0), (3.9999999999999996, 0.040000000000000036), (3.9999999999999996, 0.08000000000000007), ...]
+    """
+    
+    coords = []
+    iteration_angle = (end_angle - start_angle) / (num_edges - 1)
+
+    for i in range(num_edges):
+        x = inner_radius * np.cos(np.deg2rad(start_angle + i * iteration_angle))
+        y = inner_radius * np.sin(np.deg2rad(start_angle + i * iteration_angle))
+        coords.append((x, y))
+    for i in range(num_edges):
+        x = outer_radius * np.cos(np.deg2rad(end_angle - i * iteration_angle))
+        y = outer_radius * np.sin(np.deg2rad(end_angle - i * iteration_angle))
+        coords.append((x, y))
+    polygon = Polygon(coords)
+    if location:
+        if isinstance(location, Point):
+            location = (location.x, location.y)
+        return affinity.translate(polygon, *location)
+    return polygon
 
 
 def ArcLine(centerx: float,
@@ -170,10 +244,13 @@ def ArcLine(centerx: float,
     return LineString(np.column_stack([x, y]))
 
 
-def Meander(length: float,
-            radius: float,
-            direction: float,
-            num_segments: int=100) -> LineString:
+def Meander(length: float=100,
+            radius: float=50,
+            direction: float=None,
+            num_segments: int=100,
+            input_radius: float=None,
+            output_radius: float=None,
+            mirror: str=None) -> LineString:
     """ Returns a 1D full Meander line.
 
     Args:
@@ -189,21 +266,40 @@ def Meander(length: float,
         >>> meander = Meander(10, 2, 45, 50)
         >>> print(meander)
     """
-    coord_init = [(0,0), (0,length/2)]
     e = Entity()
-    e.add_line(LineString(coord_init))
+    if input_radius:
+        assert input_radius < length/2, "input_radius should be less than length/2"
+        e.add_line(ArcLine(0, input_radius, input_radius, -90, 0, int(num_segments/2)))
+        e.add_line(LineString([(0,0), (0,length/2 - input_radius)]))
+    else:
+        e.add_line(LineString([(0,0), (0,length/2)]))
+
     e.add_line(ArcLine(radius, 0, radius, 180, 0, num_segments))
     e.add_line(LineString([(0,0), (0,-length)]))
     e.add_line(ArcLine(radius, 0, radius, 180, 360, num_segments))
-    e.add_line(LineString([(0,0), (0,length/2)]))
-    e.rotate(direction, origin=(0,0))
+
+    if output_radius:
+        assert output_radius < length/2, "output_radius should be less than length/2"
+        e.add_line(LineString([(0,0), (0,length/2 - output_radius)]))
+        e.add_line(ArcLine(output_radius, 0, output_radius, 180, 90, int(num_segments/2)))
+    else:
+        e.add_line(LineString([(0,0), (0,length/2)]))
+
+    if mirror:
+        e.mirror(aroundaxis=mirror)
+    if direction:
+        e.rotate(direction, origin=(0,0))
+
     return e.skeletone
 
 
-def MeanderHalf(length: float,
-                radius: float,
-                direction: float,
-                num_segments: int=100) -> LineString:
+def MeanderHalf(length: float=100,
+                radius: float=50,
+                direction: float=None,
+                num_segments: int=100,
+                input_radius: float=None,
+                output_radius: float=None,
+                mirror: str=None) -> LineString:
     """ Returns a 1D half Meander line.
 
     Args:
@@ -218,12 +314,28 @@ def MeanderHalf(length: float,
     -------
         >>> MeanderHalf(10, 5, 45, 50)
     """
-    coord_init = [(0,0), (0,length/2)]
     e = Entity()
-    e.add_line(LineString(coord_init))
+
+    if input_radius:
+        assert input_radius < length/2, "input_radius should be less than length/2"
+        e.add_line(ArcLine(0, input_radius, input_radius, -90, 0, int(num_segments/2)))
+        e.add_line(LineString([(0,0), (0,length/2 - input_radius)]))
+    else:
+        e.add_line(LineString([(0,0), (0,length/2)]))
+
     e.add_line(ArcLine(radius, 0, radius, 180, 0, num_segments))
-    e.add_line(LineString([(0,0), (0,-length/2)]))
-    e.rotate(direction, origin=(0,0))
+
+    if output_radius:
+        assert output_radius < length/2, "output_radius should be less than length/2"
+        e.add_line(LineString([(0,0), (0,-length/2 + output_radius)]))
+        e.add_line(ArcLine(output_radius, 0, output_radius, 180, 270, int(num_segments/2)))
+    else:
+        e.add_line(LineString([(0,0), (0,-length/2)]))
+    
+    if mirror:
+        e.mirror(aroundaxis=mirror)
+    if direction:
+        e.rotate(direction, origin=(0,0))
 
     return e.skeletone
 
@@ -391,7 +503,8 @@ class Taper(ArbitraryLine):
     def __init__(self,
                  length: float,
                  layers: dict=None,
-                 alabel: tuple=None):
+                 alabel: tuple=None,
+                 cap_style: str='square'):
 
         # preparing dictionary for supplying it into ArbitraryLine class
         for k, v in layers.items():
@@ -410,6 +523,13 @@ class Taper(ArbitraryLine):
                (length/2, 0),
                (length/2 + w2, 0)
                ]
+        if cap_style == "flat":
+            pts = pts[1:-1]
+            layers = {k: v[1:-1] for k, v in layers.items()}
+        elif cap_style == "square":
+            pass
+        else:
+            raise NameError("please choose cap_style from square or flat")
         super().__init__(pts, layers, alabel)
 
 

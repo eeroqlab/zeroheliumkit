@@ -576,7 +576,7 @@ def get_intersection_withoffset(pts: Tuple[Point, Point, Point],
     return p
 
 
-def round_polygon(polygon: Polygon, round_radius: float) -> Polygon:
+def round_polygon(polygon: Polygon, round_radius: float, **kwargs) -> Polygon:
     """ Rounds the corners of a polygon by applying a buffer operation.
 
     Args:
@@ -584,7 +584,7 @@ def round_polygon(polygon: Polygon, round_radius: float) -> Polygon:
     polygon (Polygon): The input polygon to round.
     round_radius (float): The radius of the rounding.
     """
-    return polygon.buffer(round_radius).buffer(-2*round_radius).buffer(round_radius)
+    return polygon.buffer(round_radius,**kwargs).buffer(-2*round_radius,**kwargs).buffer(round_radius,**kwargs)
 
 
 def buffer_along_path(points: List[tuple | Point], widths: list | float) -> Polygon:

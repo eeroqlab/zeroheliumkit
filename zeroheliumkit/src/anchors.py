@@ -134,6 +134,8 @@ class Anchor():
 
         self.direction = fmodnew(self.direction)
 
+        return self
+
 
     def rotate_dir(self, angle: float):
         """ Rotates the direction of the anchor by the specified angle. Doesn't update the point.
@@ -143,6 +145,8 @@ class Anchor():
         angle (float): The angle (in radians) by which to rotate the direction.
         """
         self.direction = fmodnew(self.direction + angle)
+
+        return self
 
 
     def move(self, xoff: float=0, yoff: float=0):
@@ -155,6 +159,8 @@ class Anchor():
         """
         point_upd = affinity.translate(self.point, xoff=xoff, yoff=yoff)
         self.point = set_precision(point_upd, grid_size=GRID_SIZE)
+
+        return self
 
 
     def scale(self, xfact: float=1.0, yfact: float=1.0, origin: tuple=(0,0)):
@@ -176,6 +182,8 @@ class Anchor():
             if xfact < 0:
                 #rotation around y_axis
                 self.direction = 180 - self.direction
+
+        return self
 
 
     def mirror(self, aroundaxis: str=None, update_label: str=None):
@@ -200,6 +208,8 @@ class Anchor():
 
         if aroundaxis and update_label:
             self.label = update_label
+
+        return self
 
 
     def plot(self, ax=None, color: str=None, draw_direction: bool=True):
@@ -299,6 +309,8 @@ class MultiAnchor():
             for p in self.multipoint:
                 p.rotate(angle, origin)
 
+        return self
+
 
     def move(self, xoff: float=0, yoff: float=0):
         """ Moves the anchors by the specified offsets.
@@ -310,6 +322,8 @@ class MultiAnchor():
         """
         for p in self.multipoint:
             p.move(xoff, yoff)
+
+        return self
 
 
     def scale(self, xfact: float=1.0, yfact: float=1.0, origin: tuple=(0,0)):
@@ -323,6 +337,9 @@ class MultiAnchor():
         """
         for p in self.multipoint:
             p.scale(xfact, yfact, origin)
+
+        return self
+
 
     def mirror(self, aroundaxis: str=None, update_labels: bool=False, keep_original: bool=False):
         """ Mirrors the multipoint anchors around a specified axis.
@@ -345,6 +362,8 @@ class MultiAnchor():
             for p in self.multipoint:
                 p.mirror(aroundaxis, p.label + "_m")
             self.multipoint = self.multipoint + original
+
+        return self
 
 
     def __point(self, label: str):
@@ -377,6 +396,8 @@ class MultiAnchor():
         S2 = set(self.multipoint)
         self.multipoint = list(S2.difference(S1))
 
+        return self
+
 
     def modify(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None):
         """ Modifies the properties of an anchor.
@@ -394,6 +415,8 @@ class MultiAnchor():
             self.__point(label).direction = new_direction
         if new_name:
             self.__point(label).label = new_name
+
+        return self
 
 
     def add(self, points: list[Anchor] | Anchor=[]):
@@ -417,6 +440,8 @@ class MultiAnchor():
                 raise ValueError(f"""point label {p} already exists in MultiAnchor.
                                  Choose different label name.""")
         self.multipoint += points
+
+        return self
 
 
     def plot(self, ax=None, color: str=None, draw_direction: bool=True):

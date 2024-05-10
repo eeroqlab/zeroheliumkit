@@ -40,11 +40,11 @@ class SuperStructure(Structure):
               layers: dict=None,
               airbridge: Entity | Structure=None,
               extra_rotation: float=0,
-              new_feature: bool=False,
               print_status: bool=False,
               rm_anchor: bool | tuple | str=False,
               rm_route: bool=False,
-              cap_style: str="flat") -> None:
+              cap_style: str="flat",
+              **kwargs) -> None:
         """ Routes between anchors.
             This method routes between two anchors based on the provided parameters.
 
@@ -54,7 +54,6 @@ class SuperStructure(Structure):
         layers (dict): Layer information.
         airbridge (Entity | Structure): Airbridge structure.
         extra_rotation (float): Extra rotation angle.
-        new_feature (bool): Flag indicating if a new feature is used.
         print_status (bool): Flag indicating if the status should be printed.
         rm_anchor (bool or str, optional): If True, removes the anchor points after appending. 
                                            If a string is provided, removes the specified anchor point. 
@@ -62,7 +61,7 @@ class SuperStructure(Structure):
         rm_route (bool, optional): If True, removes the route line after appending route polygons. Defaults to False.
         """
 
-        self.route_with_intersection(anchors, layers, airbridge, extra_rotation, print_status, rm_route, cap_style)
+        self.route_with_intersection(anchors, layers, airbridge, extra_rotation, print_status, rm_route, cap_style, **kwargs)
 
         # remove or not to remove anchor
         if rm_anchor==True:
@@ -119,7 +118,7 @@ class SuperStructure(Structure):
         end_point = line_locate_point(line, p2, normalized=True)
         
         extra_rotation = 0
-        if not locs:
+        if locs is None:
             if endpoints:
                 locs = np.linspace(start_point, end_point, num=num, endpoint=True)
             else:
@@ -138,13 +137,14 @@ class SuperStructure(Structure):
 
     
     def route_with_intersection(self,
-                                    anchors: tuple,
-                                    layers: dict,
-                                    airbridge: Entity | Structure=None,
-                                    extra_rotation: float=0,
-                                    print_status: bool=False,
-                                    remove_line: bool=False,
-                                    cap_style: str="flat") -> None:
+                                anchors: tuple,
+                                layers: dict,
+                                airbridge: Entity | Structure=None,
+                                extra_rotation: float=0,
+                                print_status: bool=False,
+                                remove_line: bool=False,
+                                cap_style: str="flat",
+                                **kwargs) -> None:
         """ Creates a route connecting specified anchors and
             adding airbridge when a crossing with the skeleton is expected.
 
@@ -181,7 +181,8 @@ class SuperStructure(Structure):
                                 a2=self.get_anchor(labels[1]),
                                 radius=self._route_config.get("radius"),
                                 num_segments=self._route_config.get("num_segments"),
-                                print_status=print_status)
+                                print_status=print_status,
+                                **kwargs)
             route_line = flatten_lines(route_line, line)
 
         # get all intersection points with route line and skeletone
@@ -201,6 +202,9 @@ class SuperStructure(Structure):
         if intersections.is_empty or ab_locs==[]:
             # in case of no intersections or no ab_locs make a simple route structure
             self.bufferize_routing_line(route_line, layers, keep_line=False, cap_style=cap_style)
+            # remove or not to remove route line
+            if not remove_line:
+                self.add_line(route_line, chaining=False)
 
         else:
             # getting list of distances of airbridge locations from starting point
@@ -244,17 +248,17 @@ class SuperStructure(Structure):
                                           a2=self.get_anchor(labels[1]),
                                           radius=self._route_config.get("radius"),
                                           num_segments=self._route_config.get("num_segments"),
-                                          print_status=print_status)
+                                          print_status=print_status,
+                                          **kwargs)
                 self.bufferize_routing_line(route_line, layers, keep_line=False)
+                # remove or not to remove route line
+                if not remove_line:
+                    self.add_line(route_line, chaining=False)
 
             # remove anchors
             self.remove_anchor(temporary_anchors)
 
-        # remove or not to remove route line
-        if not remove_line:
-            self.add_line(route_line, chaining=False)
 
-    
     def bufferize_routing_line(self,
                                line: LineString,
                                layers: float | int | list | dict,
@@ -304,7 +308,7 @@ class SuperStructure(Structure):
             self.append(s)
 
 
-    def round_sharp_corners(self, area: Polygon, layer: str | list[str], radius: float | int) -> None:
+    def round_sharp_corners(self, area: Polygon, layer: str | list[str], radius: float | int, **kwargs) -> None:
         """ Rounds the sharp corners within the specified area for the given layer(s) by applying a radius.
 
         Args:
@@ -329,6 +333,6 @@ class SuperStructure(Structure):
             original = getattr(self, l)
             base = difference(original, area)
             rounded = intersection(original, area.buffer(2*radius, join_style="mitre"))
-            rounded = round_polygon(rounded, radius)
+            rounded = round_polygon(rounded, radius, **kwargs)
             rounded = intersection(rounded, area)
             setattr(self, l, unary_union([base, rounded]))

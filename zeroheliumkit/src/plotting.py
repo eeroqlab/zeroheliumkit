@@ -11,6 +11,16 @@ from shapely.plotting import plot_line, plot_polygon
 
 from .settings import *
 
+def interactive_widget_handler():
+    """
+    Closes the current matplotlib figure if it exists.
+    """
+    try:
+        plt.close()
+    except:
+        pass
+
+
 def default_ax():
     """ Returns the default axis object (matplotlib.axes.Axes)
         with grid enabled and equal aspect ratio.
