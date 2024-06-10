@@ -163,22 +163,69 @@ class FieldAnalyzer():
                 zero_line = 0
             ax.contour(data[0], data[1], np.transpose(data[2]), [zero_line], linestyles='dashed', colors=GRAY)
 
-    def plot_potential_XYcut(self, couplingConst: dict, voltages: dict, xy_cut: str, loc: float, ax=None, zlevel_key=None, **kwargs):
+
+    def get_potential_1D(self, couplingConst: dict, voltages: dict, xy_cut: str, loc: float, zlevel_key=None) -> np.ndarray:
+        """ Return the 1D potential distribution along a specified cut in the XY plane.
+
+        Args:
+        _____
+        couplingConst (dict): A dictionary containing the coupling constants.
+        voltages (dict): A dictionary containing the voltages.
+        xy_cut (str): The cut direction. Can be either 'x' or 'y'.
+        loc (float): The location along the cut.
+        zlevel_key (optional): The key for the z-level. Defaults to None.
+        """
+        X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
+        if xy_cut == 'x':
+            idx = find_nearest(Y, loc)
+            return X, -Phi[:, idx]
+        elif xy_cut == 'y':
+            idy = find_nearest(X, loc)
+            return Y, -Phi[idy, :]
+        else:
+            raise ValueError("xy_cut must be either 'x' or 'y'.")
+    
+    def get_field_1D(self, couplingConst: dict, voltages: dict, xy_cut: str, loc: float, zlevel_key=None) -> np.ndarray:
+        """ Return the 1D electric field distribution along a specified cut in the XY plane.
+
+        Args:
+        _____
+        couplingConst (dict): A dictionary containing the coupling constants.
+        voltages (dict): A dictionary containing the voltages.
+        xy_cut (str): The cut direction. Can be either 'x' or 'y'.
+        loc (float): The location along the cut.
+        zlevel_key (optional): The key for the z-level. Defaults to None.
+        """
+        X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
+        if xy_cut == 'x':
+            idx = find_nearest(Y, loc)
+            return X, np.gradient(Phi[:, idx], X)
+        elif xy_cut == 'y':
+            idy = find_nearest(X, loc)
+            return Y, np.gradient(Phi[idy, :], Y)
+        else:
+            raise ValueError("xy_cut must be either 'x' or 'y'.")
+
+
+    def plot_potential_1D(self, couplingConst: dict, voltages: dict, xy_cut: str, loc: float, ax=None, zlevel_key=None, **kwargs):
         if ax is None:
             ax = _default_ax()
 
-        X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
-        if xy_cut=='x':
-            idx = find_nearest(Y, loc)
-            ax.plot(X, -Phi[:, idx]*1e3, **kwargs)
-        elif xy_cut=='y':
-            idy = find_nearest(X, loc)
-            ax.plot(Y, -Phi[idy, :]*1e3, **kwargs)
-        else:
-            ax.plot(X, -Phi[:, int(np.size(Y)/2)]*1e3, label=f'x_cut', **kwargs)
-            ax.plot(Y, -Phi[int(np.size(X)/2), :]*1e3, label=f'y_cut', **kwargs)
+        x, y = self.get_potential_1D(couplingConst, voltages, xy_cut, loc, zlevel_key)
+        ax.plot(x, y*1e3, **kwargs)
         ax.set_xlabel('$x$ or $y$ (um)')
-        ax.set_ylabel('electrostatic potential $-\phi(x)$ (mV)')
+        ax.set_ylabel('potential $-\phi(x)$ (mV)')
+        return ax
+    
+    def plot_field_1D(self, couplingConst: dict, voltages: dict, xy_cut: str, loc: float, ax=None, zlevel_key=None, **kwargs):
+        if ax is None:
+            ax = _default_ax()
+
+        x, y = self.get_field_1D(couplingConst, voltages, xy_cut, loc, zlevel_key)
+        ax.plot(x, y, **kwargs)
+        ax.set_xlabel('$x$ or $y$ (um)')
+        ax.set_ylabel('field $E(x)$ (V/um)')
+        return ax
     
     def crop_data(self, new_attr_name: str, attr_name: str, crop_area: Polygon) -> None:
         data = getattr(self, attr_name)

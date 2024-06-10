@@ -535,7 +535,7 @@ class Entity(_Base):
     ################################
     #### Operations on layers ####
     ################################
-    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon):
+    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon()):
         """
         Add a layer to the object with the given name and geometry.
 
