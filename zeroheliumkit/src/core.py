@@ -674,19 +674,20 @@ class Entity(_Base):
     def plot(self,
             ax=None,
             layer: list=None,
-            show_idx=False,
+            show_idx: bool=False,
             color=None,
-            alpha=1,
-            draw_direction=True,
+            alpha: float=1,
+            draw_direction: bool=True,
             **kwargs):
-        """ Plot the Entity.
+        """ Plots the Entity
 
         Args:
         ----
         ax (matplotlib.axes.Axes, optional): The axis to plot on. Defaults to None.
         layer (list, optional): The layer(s) to plot. Defaults to ["all"].
         show_idx (bool, optional): Whether to show the id of the polygon. Defaults to False.
-        color (str or list, optional): The color(s) to use for plotting. Defaults to None.
+        color (str or list, optional): The color(s) to use for plotting. If tuple is provided
+                                        it is unpacked to color and alpha. Defaults to None.
         alpha (float, optional): The transparency of the plot. Defaults to 1.
         draw_direction (bool, optional): Whether to draw arrows. Defaults to True.
         **kwargs: Additional keyword arguments to pass to the plot_geometry function.
@@ -698,6 +699,8 @@ class Entity(_Base):
         for l, c in zip(layer, color):
             if hasattr(self, l) and l != "anchors":
                 geometry = getattr(self, l)
+                if isinstance(c, tuple):
+                    (c, alpha) = c
                 plot_geometry(geometry,
                                 ax=ax,
                                 show_idx=show_idx,
