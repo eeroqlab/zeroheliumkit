@@ -604,13 +604,16 @@ class Entity(_Base):
     ##############################
     #### Exporting operations ####
     ##############################
-    def get_zhk_dict(self, flatten_polygon: bool=False) -> dict:
+    def get_zhk_dict(self,
+                     flatten_polygon: bool=False,
+                     polygons_only: bool=False) -> dict:
         """ Returns a dictionary with layer names as keys
             and corresponding geometries as values
 
         Args:
         ----
         flatten_polygon (bool, optional): Flag to remove holes from polygons. Defaults to False.
+        polygons_only (bool, optional): Flag to return layers with polygons only. Defaults to False.
         """
         lnames = self.layer_names() + ["anchors"]
         zhk_dict = dict.fromkeys(lnames)
@@ -620,6 +623,11 @@ class Entity(_Base):
                 zhk_dict[lname] = flatten_multipolygon(geometry)
             else:
                 zhk_dict[lname] = geometry
+
+        if polygons_only:
+            zhk_dict.pop("anchors", None)
+            zhk_dict.pop("skeletone", None)
+
         return zhk_dict
 
 
