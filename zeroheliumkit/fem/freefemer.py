@@ -1,12 +1,11 @@
-'''
+""" This module contains functions and a class for creating freefem files
     created by Niyaz B / January 10th, 2023
-'''
+"""
 
+import os
 import yaml
 import subprocess
 from alive_progress import alive_it
-import os
-
 from ..src.errors import *
 
 config_planes_2D = ['xy', 'yz', 'xz']
@@ -50,15 +49,20 @@ class FreeFEM():
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
         self.write_edpScript()
 
+
     def write_edpScript(self):
         script = self.create_edpScript()
         with open(self.dirname + self.config["meshfile"] + '.edp', 'w') as file:
             file.write(script)
-    
+
+
     def add_spaces(self, num: int) -> str:
         return ' ' * num
 
-    def create_edpScript(self):
+
+    def create_edpScript(self) -> str:
+        """ Creates main .edp script by combining different script components."""
+
         code  = self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix()
@@ -188,7 +192,6 @@ class FreeFEM():
         code += self.add_spaces(4) + "problem Electro(u,v,solver=CG) =\n"
         code += self.add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
 
-
         for i, v in enumerate(self.physicalSurfs.values()):
             code += self.add_spaces(20) + f"+ on({v},u = V(k,{i}))\n"
         code += self.add_spaces(20) + ";\n"
@@ -311,7 +314,6 @@ class FreeFEM():
         code += self.add_spaces(4) + "for(int i = k; i < numV; i++){\n"
         code += self.add_spaces(8) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
         code += self.add_spaces(46) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
-        #code += self.add_spaces(8) + """cout << "electrode id " << electrodeid[i] << ",charge " << charge << endl;\n"""
         code += self.add_spaces(8) + "CapacitanceMatrix(k,i) = charge;\n"
         code += self.add_spaces(8) + "CapacitanceMatrix(i,k) = charge;}\n"
         code += self.add_spaces(4) + """if (k == numV - 1){\n"""
@@ -322,13 +324,15 @@ class FreeFEM():
         return code
 
 
-    def run(self, print_log=False):
+    def run(self,
+            print_log=False,
+            freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.12/bin"):
 
         try:
             edp_name = self.config["meshfile"]
             bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
             env = os.environ.copy()
-            env['PATH'] += ":/Applications/FreeFem++.app/Contents/ff-4.12/bin"
+            env['PATH'] += freefem_path
 
             process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
 
@@ -364,8 +368,5 @@ if __name__=="__main__":
 
     with open(r'freefem_config.yaml', 'r') as file:
         config = yaml.safe_load(file)
-
-    pyff = FreeFEM(config=config,
-                   dirname='')
-
+    pyff = FreeFEM(config=config, dirname='')
     pyff.run(print_log=True)
