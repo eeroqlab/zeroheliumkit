@@ -18,5 +18,6 @@ __all__ = [
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
     "StraightLine", "ArbitraryLine", "Taper", "MicroChannels",
-    "SpiralInductor", "IDC", "Fillet"
+    "SpiralInductor", "IDC", "Fillet",
+    "Ring", "RingSector"
     ]
