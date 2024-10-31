@@ -19,29 +19,15 @@ such as `settings` and `plotting` for importing necessary dependencies.
 
 import copy
 import numpy as np
-from math import fmod
 from tabulate import tabulate
-from shapely import Point, affinity, set_precision, distance
+from shapely import Point, LineString, MultiLineString, Polygon
+from shapely import set_precision, distance, affinity, unary_union
+from shapely.plotting import plot_line
+from shapely.ops import linemerge
 
-from .settings import GRID_SIZE, BLACK, RED
+from .utils import fmodnew, append_line
+from .settings import GRID_SIZE, BLACK, RED, DARKGRAY
 from .plotting import default_ax
-
-
-def fmodnew(angle: float | int) -> float:
-    """ Returns a Modified modulo calculations for angles in degrees.
-        The lower branch always has a negative sign.
-
-    Args:
-    -----
-    angle (float | int): The angle in degrees.
-    """
-    if np.abs(angle) % 360 == 180:
-        return 180
-    if np.abs(angle) % 360 < 180:
-        return fmod(angle, 360)
-    if np.sign(angle) > 0:
-        return angle % 360 - 360
-    return angle % 360
 
 
 class Anchor():
@@ -73,6 +59,9 @@ class Anchor():
             self.point = set_precision(point, grid_size=GRID_SIZE)
         self.direction = fmodnew(direction)
         self.label = label
+
+    def __repr__(self):
+        return f"<ANCHOR ({self.point}, {self.direction}, {self.label})>"
 
     @property
     def x(self):
@@ -161,6 +150,19 @@ class Anchor():
         self.point = set_precision(point_upd, grid_size=GRID_SIZE)
 
         return self
+
+
+    def offset(self, distance: float, angle: float):
+        """ Moves the anchor point by the specified distance and angle.
+
+        Args:
+        ----
+        distance (float): The distance to move the anchor point.
+        angle (float): The angle in degrees at which to move the anchor point.
+        """
+        xoff = distance * np.cos(angle * np.pi / 180)
+        yoff = distance * np.sin(angle * np.pi / 180)
+        return self.move(xoff, yoff)
 
 
     def scale(self, xfact: float=1.0, yfact: float=1.0, origin: tuple=(0,0)):
@@ -273,12 +275,22 @@ class MultiAnchor():
     __slots__ = "multipoint"
 
     def __init__(self, multipoint: list=[]):
-        self.multipoint = multipoint
+        self.multipoint = multipoint if multipoint else []
+
+    def __repr__(self):
+        name = f"<MULTIANCHOR {self.labels}>"
+        max_length = 75
+        if len(name) > max_length:
+            return f"{name[: max_length - 3]}...>"
+
+        return name
+
 
     @property
     def labels(self) -> list:
         return [p.label for p in self.multipoint]
 
+    # TODO: Add __getitem__ method to access anchors by index
 
     def label_exist(self, label: str) -> bool:
         """ Checks if a label exists in the list of labels.
@@ -378,9 +390,12 @@ class MultiAnchor():
         ----
         labels (list[str]): A list of labels for which to retrieve the anchors.
         """
+        existing_labels = self.labels
         if isinstance(labels, (list, tuple)):
-            return [self.__point(l) for l in labels]
-        return self.__point(labels)
+            return [self.__point(l) for l in labels if l in existing_labels]
+        if labels in self.labels:
+            return self.__point(labels)
+        return None
 
 
     def remove(self, labels: list | str):
@@ -456,3 +471,184 @@ class MultiAnchor():
         """
         for p in self.multipoint:
             p.plot(ax=ax, color=color, draw_direction=draw_direction)
+
+
+class Skeletone():
+
+    lines = MultiLineString()
+
+    def __init__(self, lines: MultiLineString = MultiLineString()):
+        self.lines = lines
+    
+    def __repr__(self):
+        return f"<SKELETONE {self.lines}>"
+
+    def __setattr__(self, name, value):
+        """Changes the behavior of the __setattr__ method.
+            Whenever a new LineString is created or an existing one is modified,
+            it is set to the precision of the grid size.
+
+        Args:
+        ----
+        name (str): The class attribute name.
+        value (obj): The shapely object.
+        """
+        self.__dict__[name] = set_precision(value, grid_size=GRID_SIZE, mode="pointwise")
+
+    @property
+    def length(self) -> float:
+        return self.lines.length
+    
+    @property
+    def boundary(self) -> list:
+        return list(self.lines.boundary.geoms)
+    
+    @property
+    def numlines(self) -> int:
+        return len(self.lines.geoms)
+
+    # TODO: Add method buffer to create a buffer around the skeletone
+
+    def rotate(self, angle: float=0, origin=(0,0)) -> None:
+        """ Rotates the skeletone by the given angle around the origin.
+
+        Args:
+        ----
+        angle (float): The angle of rotation in degrees.
+        origin (tuple): The origin point of rotation.
+        """
+        self.lines = affinity.rotate(self.lines, angle, origin)
+        return self
+
+    def move(self, xoff: float=0, yoff: float=0) -> None:
+        """ Moves the skeletone by the specified offsets.
+
+        Args:
+        ----
+        xoff (float): The horizontal offset to move the skeletone by.
+        yoff (float): The vertical offset to move the skeletone by.
+        """
+        self.lines = affinity.translate(self.lines, xoff=xoff, yoff=yoff)
+        return self
+
+
+    def scale(self, xfact: float=1.0, yfact: float=1.0, origin=(0,0)) -> None:
+        """ Scales the skeletone by the given factors along the x and y axes.
+
+        Args:
+        ----
+        xfact (float): The scaling factor along the x-axis.
+        yfact (float): The scaling factor along the y-axis.
+        origin (tuple): The origin point for scaling.
+        """
+        self.lines = affinity.scale(self.lines, xfact=xfact, yfact=yfact, zfact=1.0, origin=origin)
+        return self
+
+
+    def mirror(self, aroundaxis: str=None, keep_original: bool=False) -> None:
+        """ Mirrors the skeletone around the specified axis.
+
+        Args:
+        ----
+        aroundaxis (str): The axis around which to mirror the skeletone.
+        """
+        if aroundaxis == 'y':
+            sign = (-1, 1)
+        elif aroundaxis == 'x':
+            sign = (1, -1)
+        else:
+            raise TypeError("Choose 'x' or 'y' axis for mirroring")
+        
+        mirrored = affinity.scale(self.lines, *sign, 1.0, origin=(0, 0))
+        if keep_original:
+            original = self.lines
+            self.lines = unary_union([mirrored, original])
+        else:
+            self.lines = mirrored
+        return self
+
+
+    def add_line(self,
+                 line: LineString,
+                 direction: float=None,
+                 ignore_crossing=False,
+                 chaining=True) -> None:
+        """ Appends a LineString to the skeleton.
+
+        Args:
+        ----
+        line (LineString): The LineString to append.
+        direction (float, optional): The direction of the LineString. Defaults to None.
+        ignore_crossing (bool, optional): Whether to ignore crossing lines. Defaults to False.
+        chaining (bool, optional): Whether to chain lines. 
+            Defaults to True.
+        """
+        self.lines = append_line(self.lines, line, direction, ignore_crossing, chaining)
+        return self
+
+
+    def remove_line(self, line_id: int | tuple | list):
+        """ Remove a line from the skeletone
+
+        Args:
+        ----
+        line_id (int | tuple | list): The index of the line to be removed.
+        """
+        if isinstance(line_id, int):
+            line_id = [line_id]
+
+        lines = list(self.lines.geoms)
+        self.lines = MultiLineString([line for i, line in enumerate(lines) if i not in line_id])
+        return self
+
+
+    def fix(self):
+        """ Fixes the skeletone by merging the lines """
+        try:
+            self.lines = linemerge(self.lines)
+        except Exception:
+            print("there is nothing to fix in skeletone")
+        return self
+
+
+    def cut_with_polygon(self, polygon):
+        """ Cuts the skeletone with a polygon.
+
+        Args:
+        ----
+        polygon (Polygon): The polygon to cut the skeletone with.
+        """
+        self.lines = self.lines.difference(polygon)
+        return self
+
+
+    def buffer(self, offset: float, **kwargs) -> Polygon:
+        """ Creates a Polygon by buffering the skeleton
+
+        Args:
+        ----
+        offset (float): buffering skeleton by offset
+        **kwargs: additional keyword arguments to be passed to the buffer method
+
+        Note:
+        ----
+        - see Shapely 'buffer' function for additional keyword arguments
+        """
+        return self.lines.buffer(offset, **kwargs)
+
+
+    def plot(self, ax=None, color: str=DARKGRAY) -> None:
+        """ Plots the skeleton on the given axes.
+
+        Args:
+        ----
+        ax (matplotlib.axes.Axes, optional): The axes on which to plot the skeleton.
+        color (str, optional): The color of the skeleton.
+        """
+        if ax is None:
+            ax = default_ax()
+        
+        if self.lines.is_empty:
+            return ax
+        plot_line(self.lines, ax=ax, color=color, add_points=False, ls="dashed", lw=1)
+        return ax
