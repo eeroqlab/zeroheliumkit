@@ -9,6 +9,7 @@
 
 import gmsh
 import sys
+import yaml
 import numpy as np
 
 from shapely import Polygon, MultiPolygon, get_coordinates
@@ -64,11 +65,10 @@ def convert_layout_to_dict(layout: Structure | Entity) -> dict:
                 dict items - list of shapely Polygons
     """
 
-    layer_names = layout.layer_names(geom_type="polygon")
-    layer_geoms = [getattr(layout, k) for k in layer_names]     # list of Polygons and MultiPolygons
+    layer_geoms = [getattr(layout, k) for k in layout.layers]     # list of Polygons and MultiPolygons
     geoms_list  = [convert_polygons_to_list(geoms) for geoms in layer_geoms]
     
-    return dict(zip(layer_names, geoms_list))
+    return dict(zip(layout.layers, geoms_list))
 
 
 #---------------------------------------------
@@ -505,3 +505,11 @@ class GMSHmaker():
     
     def disable_consoleOutput(self):
         gmsh.option.setNumber("General.Terminal", 0)
+
+    def export_physical(self, save_dir: str):
+        gmsh_physical_config ={
+            'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
+            'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
+        }
+        with open(save_dir + r'/gmsh.yaml', 'w') as file:
+            yaml.safe_dump(gmsh_physical_config, file)
