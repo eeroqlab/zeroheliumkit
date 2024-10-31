@@ -32,6 +32,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from numpy import ma
+from numpy.typing import ArrayLike
 from shapely import Polygon, Point
 from ..src.settings import GRAY
 
@@ -47,7 +48,10 @@ def find_max_index(arr: list) -> int:
     return max_index
 
 
-def find_nearest(array: list, value: float | int) -> int:
+def find_nearest(array: list | ArrayLike, value: float | int) -> int:
+    """
+    Finds the nearest value in array. Returns index of array for which this is true.
+    """
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return idx
@@ -73,8 +77,28 @@ def set_limits(ax, xminmax, yminmax, aspect='equal'):
 
 def _default_ax():
     ax = plt.gca()
-    ax.set_aspect("equal")
+    #ax.set_aspect("equal")
     return ax
+
+
+def crop_matrix(x: ArrayLike, y: ArrayLike, U: ArrayLike, xrange: tuple, yrange: tuple) -> tuple:
+    """Crops the matrix to the boundaries specified by xrange and yrange. 
+
+    Args:
+    ----
+        x (ArrayLike): one dimensional array of x-points
+        y (ArrayLike): one dimensional array of y-points
+        U (ArrayLike): two dimensional array to be cropped.
+        xrange (tuple): tuple of two floats that indicate the min and max range for the x-coordinate.
+        yrange (tuple): tuple of two floats that indicate the min and max range for the y-coordinate.
+
+    Returns:
+        tuple: cropped x array, cropped y array, cropped potential array
+    """
+    xmin_idx, xmax_idx = find_nearest(x, xrange[0]), find_nearest(x, xrange[1])
+    ymin_idx, ymax_idx = find_nearest(y, yrange[0]), find_nearest(y, yrange[1])
+
+    return x[xmin_idx:xmax_idx], y[ymin_idx:ymax_idx], U[xmin_idx:xmax_idx, ymin_idx:ymax_idx]
 
 
 def fmt(x):
@@ -374,18 +398,18 @@ class FieldAnalyzer():
         return ax
 
 
-    def crop_data(self, new_attr_name: str, attr_name: str, crop_area: Polygon) -> None:
-        """ Crops the data based on the specified crop area and stores it as a new attribute.
+    def mask_data(self, new_attr_name: str, attr_name: str, mask_area: Polygon) -> None:
+        """ Masks the data based on the specified mask area and stores it as a new attribute.
 
         Args:
         _____
         new_attr_name (str): The name of the new attribute to store the cropped data.
         attr_name (str): The name of the attribute containing the original data.
-        crop_area (Polygon): The polygon representing the crop area.
+        mask_area (Polygon): The polygon representing the crop area.
         """
         data = getattr(self, attr_name)
         y, x = np.meshgrid(data.get('xlist'), data.get('ylist'))
-        mask = np.vectorize(inside_trap, excluded=["geom"])(crop_area, y, x)
+        mask = np.vectorize(inside_trap, excluded=["geom"])(mask_area, y, x)
         mask = np.invert(mask)
         mask = np.transpose(mask)
 
@@ -397,3 +421,84 @@ class FieldAnalyzer():
                 cropped_data[k] = ma.masked_array(v, mask=mask)
 
         setattr(self, new_attr_name, cropped_data)
+
+
+    def crop_data(self, new_attr_name: str, attr_name: str, xrange: tuple=(-1,1), yrange: tuple=(-1,1)) -> None:
+        """ Crop the data stored in the attribute specified by `attr_name`
+            and store the cropped data in a new attribute specified by `new_attr_name`.
+        
+        Args:
+        _____
+        new_attr_name (str): The name of the new attribute to store the cropped data.
+        attr_name (str): The name of the attribute containing the data to be cropped.
+        xrange (tuple, optional): The range of x-values to crop the data. Defaults to (-1, 1).
+        yrange (tuple, optional): The range of y-values to crop the data. Defaults to (-1, 1).
+        """
+        
+        data = getattr(self, attr_name)
+        cropped = {}
+        for (k, v) in data.items():
+            if k not in ('xlist', 'ylist'):
+                crd_x, crd_y, crd_phi = crop_matrix(data['xlist'], data['ylist'], v, 
+                                                    xrange=xrange, yrange=yrange)
+                cropped[k] = crd_phi
+        cropped['xlist'] = crd_x
+        cropped['ylist'] = crd_y
+        setattr(self, new_attr_name, cropped)
+
+
+    def make_symmetric(self, attr_name: str, symmetric_electrodes: list, mirror_electrodes: list[tuple], symmetry_axis: str, name: str) -> None:
+        """ Make the data in 'attr_name' symmetric based on the given symmetry axis and store it in a new attribute with the name 'name'.
+        
+        Args:
+        -----
+        - attr_name (str): The name of the data to make symmetric.
+        - symmetric_electrodes (list): The list of electrodes to make symmetric.
+        - mirror_electrodes (list[tuple]): The list of electrode pairs which are mirror to each other.
+        - symmetry_axis (str): The axis of symmetry ('x' or 'y').
+        - name (str): The name of the new attribute where symmetric data will be stored.
+        """
+
+        data = getattr(self, attr_name)
+        nx = len(data['xlist'])
+        ny = len(data['ylist'])
+        mid_idx_x = int(nx/2)
+        mid_idx_y = int(ny/2)
+
+        new_dict = {}
+        for k in symmetric_electrodes:
+            if symmetry_axis == 'x':
+                v = data[k]
+                idx = mid_idx_y
+            elif symmetry_axis == 'y':
+                v = data[k].T
+                idx = mid_idx_x
+            else:
+                raise ValueError("symmetry_axis must be either 'x' or 'y'.")
+            symm_array = np.zeros(v.shape)
+            # averaging over positive and negative y
+            averaged_half = (v[:,idx+1:] + v[:,:idx][:,::-1])/2
+            symm_array[:,idx+1:] = averaged_half
+            symm_array[:,:idx] = averaged_half[:,::-1]
+            symm_array[:,idx] = v[:,idx]
+            new_dict[k] = symm_array if symmetry_axis == 'x' else symm_array.T
+
+        for k1, k2 in mirror_electrodes:
+            if symmetry_axis == 'x':
+                v1 = data[k1]
+                v2 = data[k2]
+            elif symmetry_axis == 'y':
+                v1 = data[k1].T
+                v2 = data[k2].T
+            else:
+                raise ValueError("symmetry_axis must be either 'x' or 'y.")
+            v1 = data[k1]
+            v2 = data[k2]
+            mirror_array = (v1 + v2[:,::-1])/2
+            new_dict[k1] = mirror_array if symmetry_axis == 'x' else mirror_array.T
+            new_dict[k2] = mirror_array[:,::-1] if symmetry_axis == 'x' else mirror_array[:,::-1].T
+
+        new_dict['xlist'] = data['xlist']
+        new_dict['ylist'] = data['ylist']
+
+        setattr(self, name, new_dict)

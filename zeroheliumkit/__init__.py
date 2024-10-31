@@ -4,20 +4,21 @@
 #
 # --------------------------------------------------------------------------------------
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 
 from .src import *
 
 __all__ = [
     "Anchor",
     "MultiAnchor",
+    "Skeletone",
     "Entity",
     "Structure",
-    "GeomCollection",
     "SuperStructure",
+    "GeomCollection",
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
     "StraightLine", "ArbitraryLine", "Taper", "MicroChannels",
-    "SpiralInductor", "IDC", "Fillet",
+    "SpiralInductor", "IDC", "Fillet", "CircleSegment",
     "Ring", "RingSector"
     ]

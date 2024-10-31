@@ -32,5 +32,5 @@ COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY, RED, BLACK]
 
 # grouped geometry types
 LINE_CLASSES  = [LineString, MultiLineString]
-PLG_CLASSES   = [Polygon, MultiPolygon]
+PLG_CLASSES   = [Polygon, MultiPolygon,type(None)]
 PTS_CLASSES   = [Point, MultiPoint]

@@ -62,7 +62,8 @@ class CPW_params():
                             length: float=1*cm,
                             resonator_type: float=0.5,
                             harmonic: int=0,
-                            unit: float=GHz) -> float:
+                            unit: float=GHz,
+                            print_status: bool=True) -> float:
 
 
         if (resonator_type==0.25): 
@@ -81,10 +82,11 @@ class CPW_params():
                         "eps ": round(self.eps_substrate),
                         "eps_eff": round(self.eps_eff, 2),
                         "impedance, Ohm": round(self.Z, 2),
-                        "L, nH": round(self.L * 1e9, 3),
-                        "C, pF":round(self.C* 1e12, 3)
+                        "L, nH/m": round(self.L * 1e9, 3),
+                        "C, pF/m":round(self.C* 1e12, 3)
                       }
-        print(tabulate([parameters.keys(), parameters.values()]))
+        if print_status:
+            print(tabulate([parameters.keys(), parameters.values()]))
         
         self.length = length
         self.frequency = bare_frequency
@@ -94,7 +96,8 @@ class CPW_params():
                          resonator_frequency: float=5*GHz,
                          resonator_type: float=0.5,
                          harmonic: int=0,
-                         unit: float=mm) -> None:
+                         unit: float=mm,
+                         print_status: bool=True) -> None:
         length = resonator_type * self.phase_velocity / resonator_frequency
         parameters = {
                         "f0, GHz": round(resonator_frequency/GHz, 3),
@@ -104,10 +107,11 @@ class CPW_params():
                         "eps ": round(self.eps_substrate),
                         "eps_eff": round(self.eps_eff, 2),
                         "impedance, Ohm": round(self.Z, 2),
-                        "L, nH": round(self.L * 1e9, 3),
-                        "C, pF":round(self.C* 1e12, 3)
+                        "L, nH/m": round(self.L * 1e9, 3),
+                        "C, pF/m":round(self.C* 1e12, 3)
                       }
-        print(tabulate([parameters.keys(), parameters.values()]))
+        if print_status:
+            print(tabulate([parameters.keys(), parameters.values()]))
 
         self.length = length
         self.frequency = resonator_frequency
