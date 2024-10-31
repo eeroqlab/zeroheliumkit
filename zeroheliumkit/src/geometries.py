@@ -3,12 +3,13 @@
 from math import pi, tanh, cos, tan
 import numpy as np
 
-from shapely import Point, LineString, MultiLineString, Polygon
-from shapely import affinity, unary_union, intersection, box
+from shapely import Point, LineString, Polygon
+from shapely import affinity, unary_union, box
 
 from .core import Entity, Structure
 from .anchors import Anchor
-from .functions import azimuth, extract_coords_from_point, buffer_along_path
+from .utils import azimuth, buffer_along_path
+from .functions import extract_coords_from_point
 from .routing import get_fillet_params, make_fillet_line, normalize_anchors
 from .settings import GRID_SIZE
 
@@ -290,7 +291,7 @@ def Meander(length: float=100,
     if direction:
         e.rotate(direction, origin=(0,0))
 
-    return e.skeletone
+    return e.skeletone.lines
 
 
 def MeanderHalf(length: float=100,
@@ -337,7 +338,7 @@ def MeanderHalf(length: float=100,
     if direction:
         e.rotate(direction, origin=(0,0))
 
-    return e.skeletone
+    return e.skeletone.lines
 
 
 def PinchGate(arm_w: float,
@@ -427,7 +428,7 @@ class StraightLine(Structure):
             raise AttributeError("provide only one argument: 'anchors' or 'lendir'")
 
         # create skeletone
-        self.skeletone = LineString([p1, p2])
+        self.skeletone.lines = LineString([p1, p2])
 
         # create polygons
         if layers:
@@ -467,12 +468,13 @@ class ArbitraryLine(Structure):
         super().__init__()
 
         # create skeletone
-        self.skeletone = LineString(points)
+        self.skeletone.lines = LineString(points)
 
         # create polygons
         if layers:
             for k, width in layers.items():
                 polygon = buffer_along_path(points, width)
+                self.layers.append(k)
                 setattr(self, k, polygon)
 
         # create anchors
@@ -573,7 +575,7 @@ class Fillet(Structure):
         params = get_fillet_params(anchor_norm, radius)
 
         # create skeletone
-        self.skeletone = make_fillet_line(*params, radius, num_segments)
+        self.skeletone.lines = make_fillet_line(*params, radius, num_segments)
 
         # create polygons
         if layers:
@@ -642,7 +644,7 @@ class MicroChannels(Structure):
 
         # create anchors
         if alabel:
-            first, last = self.skeletone.boundary.geoms
+            first, last = self.skeletone.lines.boundary.geoms
             self.add_anchor([Anchor(point=first, direction=90, label=alabel[0]),
                              Anchor(point=last, direction=0, label=alabel[1])])
 
@@ -685,7 +687,7 @@ class SpiralInductor(Entity):
         self._width = width
         coord_init = [(0, 0), (0, -size/2 - width/2),
                       (size/2 + width + gap, -size/2 - width/2)]
-        self.skeletone = LineString(coord_init)
+        self.skeletone.lines = LineString(coord_init)
 
         # create polygons
         self.__construct_spiral(size, radius, num_turns, smallest_section_length)
@@ -697,11 +699,12 @@ class SpiralInductor(Entity):
         central_pad.simplify(0.2, preserve_topology=True)
         for k in layers.keys():
             united = unary_union([getattr(self, k), central_pad])
+            self.layers.append(k)
             setattr(self, k, united)
 
         # create anchors
         if alabel:
-            first, last = self.skeletone.boundary.geoms
+            first, last = self.skeletone.lines.boundary.geoms
             self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
                             Anchor(point=last, direction=0, label=alabel[1])])
 
@@ -757,7 +760,7 @@ class IDC(Entity):
 
         pts = [(0, 0), (spacing/2, 0), (spacing/2,length),
                (spacing/2, -length), (spacing/2, 0), (spacing, 0)]
-        self.skeletone = LineString(pts)
+        self.skeletone.lines = LineString(pts)
         for _ in range(num):
             self.add_line(LineString(pts))
 
@@ -767,6 +770,6 @@ class IDC(Entity):
 
         # create anchors
         if alabel:
-            first, last = self.skeletone.boundary.geoms
+            first, last = self.skeletone.lines.boundary.geoms
             self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
                             Anchor(point=last, direction=0, label=alabel[1])])

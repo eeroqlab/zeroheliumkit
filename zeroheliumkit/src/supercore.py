@@ -10,11 +10,11 @@ from shapely import (line_locate_point, line_interpolate_point, intersection_all
 from shapely import LineString, Polygon
 
 from .core import Structure, Entity
-from .anchors import fmodnew
-from .functions import (create_list_geoms, get_normals_along_line, round_polygon,
-                        flatten_lines, buffer_line_with_variable_width)
-from .errors import WrongSizeError
+from .utils import (fmodnew, flatten_lines, create_list_geoms,
+                    round_polygon, buffer_line_with_variable_width)
+from .functions import get_normals_along_line
 from .routing import create_route
+from .errors import WrongSizeError
 
 
 class SuperStructure(Structure):
@@ -110,9 +110,9 @@ class SuperStructure(Structure):
         p2 = self.get_anchor(bound_anchors[1]).point
 
         if line_idx:
-            line = self.skeletone.geoms[line_idx]
+            line = self.skeletone.lines.geoms[line_idx]
         else:
-            line = self.skeletone
+            line = self.skeletone.lines
 
         start_point = line_locate_point(line, p1, normalized=True)
         end_point = line_locate_point(line, p2, normalized=True)
@@ -186,7 +186,7 @@ class SuperStructure(Structure):
             route_line = flatten_lines(route_line, line)
 
         # get all intersection points with route line and skeletone
-        intersections = intersection_all([route_line, self.skeletone])
+        intersections = intersection_all([route_line, self.skeletone.lines])
 
         # get valid intesections
         if not intersections.is_empty:
@@ -211,8 +211,8 @@ class SuperStructure(Structure):
             list_distances = np.asarray(list(map(distance, ab_locs, [p_start]*len(ab_locs))))
             sorted_distance_indicies = np.argsort(list_distances)
 
-            ab_locs_on_skeletone = line_locate_point(self.skeletone, ab_locs, normalized=True)
-            ab_angles = get_normals_along_line(self.skeletone, ab_locs_on_skeletone)
+            ab_locs_on_skeletone = line_locate_point(self.skeletone.lines, ab_locs, normalized=True)
+            ab_angles = get_normals_along_line(self.skeletone.lines, ab_locs_on_skeletone)
 
             # create route anchor list with temporary anchor list, which will be deleted in the end
             route_anchors = [anchors[0]]

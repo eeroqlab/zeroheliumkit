@@ -19,8 +19,9 @@ from scipy.interpolate import BPoly
 from numpy import deg2rad
 from shapely import Point, LineString, affinity
 
-from .anchors import Anchor, fmodnew
-from .functions import get_distance, append_line
+from .utils import append_line, fmodnew
+from .anchors import Anchor
+from .functions import get_distance
 from .errors import RouteError
 
 

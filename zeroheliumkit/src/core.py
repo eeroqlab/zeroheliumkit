@@ -12,21 +12,20 @@ defining settings and constants used throughout the library.
 
 import copy
 import matplotlib.pyplot as plt
+from warnings import warn
 
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
 from shapely import (affinity, unary_union,
                      difference, set_precision, intersection,
                      set_coordinates, get_coordinates)
-from shapely.ops import linemerge
 
 from .plotting import plot_geometry, interactive_widget_handler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
-from .settings import GRID_SIZE, PLG_CLASSES, LINE_CLASSES, SIZE_L
+from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
-from .anchors import Anchor, MultiAnchor
-from .functions import (flatten_multipolygon, append_line,
-                        create_list_geoms, polygonize_text)
+from .anchors import Anchor, MultiAnchor, Skeletone
+from .utils import flatten_multipolygon, create_list_geoms, polygonize_text
 
 
 
@@ -35,7 +34,8 @@ class _Base:
 
     Attributes:
     ----------
-        _errors: Holds any errors that occur during attribute assignment.
+        layers: List of layer names.
+        errors: Holds any errors that occur during attribute assignment.
 
     Methods:
     -------
@@ -47,8 +47,12 @@ class _Base:
         rename_layer(old_name, new_name):
             Changes the name of a layer/attribute in the class.
     """
+    layers = []
+    errors = None
 
-    _errors = None
+    def __init__(self):
+        self.layers = []
+        self.errors = None
 
     def copy(self):
         """Returns a deepcopy of the class."""
@@ -64,22 +68,47 @@ class _Base:
         ----
         name (str): The class attribute name.
         value (obj): The shapely object.
-
-        Note:
-        ----
-        Class attribute names with shapely geometries should not start with '_'.
         """
 
-        if (name[:1] != '_') and (name != "anchors"):
+        if name in self.layers:
             try:
                 geometry_on_grid = set_precision(value, grid_size=GRID_SIZE, mode="pointwise")
                 self.__dict__[name] = geometry_on_grid
             except Exception as e:
-                self._errors = value
+                self.errors = value
                 print("Something went wrong with setting precision.")
                 print("The error is:", e)
         else:
             self.__dict__[name] = value
+
+
+    ################################
+    #### Operations on layers ####
+    ################################
+
+    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon()):
+        """ Add a layer to the class with the given name and geometry.
+
+        Args:
+        ----
+        lname (str): The name of the layer.
+        geometry (Polygon | MultiPolygon): The geometry of the layer.
+        """
+        self.layers.append(lname)
+        setattr(self, lname, geometry)
+        return self
+
+
+    def remove_layer(self, lname: str):
+        """ Remove a layer from the class.
+
+        Args:
+        ----
+        lname (str): The name of the layer.
+        """
+        if lname in self.layers:
+            self.layers.remove(lname)
+            delattr(self, lname)
 
 
     def rename_layer(self, old_name: str, new_name: str) -> None:
@@ -90,7 +119,26 @@ class _Base:
         old_name (str): The old name.
         new_name (str): The new name.
         """
-        self.__dict__[new_name] = self.__dict__.pop(old_name)
+        if old_name in self.layers:
+            self.__dict__[new_name] = self.__dict__.pop(old_name)
+            self.layers[self.layers.index(old_name)] = new_name
+        else:
+            print(f"Layer '{old_name}' not found in layers.")
+
+
+    def simplify_layer(self, lname: str, tolerance: float=0.1):
+        """ Simplify polygons in a layer
+
+        Args:
+        ----
+        lname (str): The name of the layer.
+        tolerance (float, optional): The tolerance value for simplification. Defaults to 0.1.
+        """
+        if lname in self.layers:
+            setattr(self, lname, getattr(self, lname).simplify(tolerance))
+        else:
+            print(f"Layer '{lname}' not found in layers.")
+
 
 
 class Entity(_Base):
@@ -105,44 +153,23 @@ class Entity(_Base):
     """
 
     def __init__(self):
-        self.skeletone = LineString()
-        self.anchors = MultiAnchor([])
-        # TODO add layers attribute
+        super().__init__()
+        self.skeletone = Skeletone()
+        self.anchors = MultiAnchor()
 
 
-    def layer_names(self, geom_type: str=None) -> list:
-        """ Returns a list of layer names.
-
-        Args:
-        ----
-        geom_type (str, optional): Selects only layers with polygons.
-
-        Returns:
-        -------
-        list: A list of layer names with geometries.
-
-        Raises:
-        ------
-        NameError: If geom_type is not None or 'polygon'.
-        """
-        name_list = []
-        for attribute in dir(self):
-            if attribute[:1] != '_':
-                value = getattr(self, attribute)
-                if not callable(value) and (value is not None) and (attribute != "anchors"):
-                    name_list.append(attribute)
-
-        if not geom_type:
-            return name_list
-        if geom_type=="polygon":
-            polygons_only = [l for l in name_list if l not in ("skeletone", "anchors")]
-            return polygons_only
-        raise NameError("Currently geom_type supports only None or 'polygon'")
+    def __repr__(self):
+        class_name = self.__class__.__name__
+        repr_name = f"{class_name} {tuple(self.layers)}"
+        max_length = 75
+        if len(repr_name) > max_length:
+            return f"{repr_name[: max_length - 3]}..."
+        return repr_name
 
 
     def clean(self) -> None:
         """ Removes all layers with empty polygons  """
-        for lname in self.layer_names("polygon"):
+        for lname in self.layers:
             geom = getattr(self, lname)
             if geom.is_empty:
                 delattr(self, lname)
@@ -160,10 +187,10 @@ class Entity(_Base):
         origin (str, optional): rotations are made around this point.
         """
 
-        attr_list = self.layer_names()
-        for attr in attr_list:
-            setattr(self, attr, affinity.rotate(getattr(self, attr), angle, origin))
+        for l in self.layers:
+            setattr(self, l, affinity.rotate(getattr(self, l), angle, origin))
 
+        self.skeletone.rotate(angle, origin)
         self.anchors.rotate(angle, origin)
         return self
 
@@ -175,13 +202,14 @@ class Entity(_Base):
         ----
         xy (tuple): The x and y offsets to move the geometry by.
         """
-        attr_list = self.layer_names()
-        for a in attr_list:
-            translated_geometry = affinity.translate(getattr(self, a),
+        for l in self.layers:
+            translated_geometry = affinity.translate(getattr(self, l),
                                                      xoff = xy[0],
                                                      yoff = xy[1])
-            setattr(self, a, translated_geometry)
-        self.anchors.move(xoff=xy[0], yoff=xy[1])
+            setattr(self, l, translated_geometry)
+
+        self.skeletone.move(*xy)
+        self.anchors.move(*xy)
         return self
 
 
@@ -222,11 +250,11 @@ class Entity(_Base):
         origin ((x,y), optional): scales with respect (x,y) point.
         """
 
-        attr_list = self.layer_names()
-        for attr in attr_list:
-            setattr(self, attr, affinity.scale(getattr(self, attr), xfact, yfact, 1.0, origin))
+        for l in self.layers:
+            setattr(self, l, affinity.scale(getattr(self, l), xfact, yfact, 1.0, origin))
 
-        self.anchors.scale(xfact=xfact, yfact=yfact, origin=origin)
+        self.skeletone.scale(xfact, yfact, origin)
+        self.anchors.scale(xfact, yfact, origin)
         return self
 
 
@@ -248,8 +276,7 @@ class Entity(_Base):
         else:
             raise TypeError("Choose 'x' or 'y' axis for mirroring")
 
-        lnames = self.layer_names()
-        for name in lnames:
+        for name in self.layers:
             mirrored = affinity.scale(getattr(self, name), *sign, 1.0, origin=(0, 0))
             if keep_original:
                 original = getattr(self, name)
@@ -257,6 +284,8 @@ class Entity(_Base):
             else:
                 setattr(self, name, mirrored)
 
+        self.skeletone.mirror(aroundaxis=aroundaxis,
+                              keep_original=keep_original)
         self.anchors.mirror(aroundaxis=aroundaxis,
                             update_labels=update_labels,
                             keep_original=keep_original)
@@ -345,7 +374,7 @@ class Entity(_Base):
         chaining (bool, optional): Whether to chain lines. 
             Defaults to True.
         """
-        self.skeletone = append_line(self.skeletone, line, direction, ignore_crossing, chaining)
+        self.skeletone.add_line(line, direction, ignore_crossing, chaining)
         return self
 
 
@@ -362,22 +391,20 @@ class Entity(_Base):
         ----
         - see Shapely 'buffer' function for additional keyword arguments
         """
-        setattr(self, name, self.skeletone.buffer(offset, **kwargs))
+        self.layers.append(name)
+        setattr(self, name, self.skeletone.lines.buffer(offset, **kwargs))
         return self
 
 
     def fix_line(self):
         """ Fixes the skeletone by merging the lines """
-        try:
-            self.skeletone = linemerge(self.skeletone)
-        except Exception:
-            print("there is nothing to fix in skeletone")
+        self.skeletone.fix()
         return self
 
 
     def remove_skeletone(self):
         """ Removes the skeletone from the object """
-        self.skeletone = LineString()
+        self.skeletone = Skeletone()
         return self
     
 
@@ -388,11 +415,7 @@ class Entity(_Base):
         ----
         line_id (int | tuple | list): The index of the line to be removed.
         """
-        if isinstance(line_id, int):
-            line_id = [line_id]
-
-        lines = list(self.skeletone.geoms)
-        self.skeletone = MultiLineString([line for i, line in enumerate(lines) if i not in line_id])
+        self.skeletone.remove_line(line_id)
         return self
 
 
@@ -430,8 +453,7 @@ class Entity(_Base):
         ----
         polygon (Polygon): The polygon used for cutting
         """
-        lnames = self.layer_names(geom_type="polygon")
-        for lname in lnames:
+        for lname in self.layers:
             self.cut_polygon(lname, polygon)
         return self
 
@@ -443,8 +465,7 @@ class Entity(_Base):
         ----
         polygon (Polygon): The cropping polygon.
         """
-        lnames = self.layer_names(geom_type="polygon")
-        for lname in lnames:
+        for lname in self.layers:
             self.crop_layer(lname, polygon)
         return self
 
@@ -532,47 +553,6 @@ class Entity(_Base):
         setattr(self, lname, MultiPolygon([poly for i, poly in enumerate(poly_list) if i not in polygon_id]))
 
 
-    ################################
-    #### Operations on layers ####
-    ################################
-    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon()):
-        """
-        Add a layer to the object with the given name and geometry.
-
-        Args:
-        ----
-        lname (str): The name of the layer.
-        geometry (Polygon | MultiPolygon): The geometry of the layer.
-        """
-        setattr(self, lname, geometry)
-        return self
-
-
-    def remove_layer(self, *args: str):
-        """ Remove one or more layers/attributes from the class.
-
-        Args:
-        ----
-        *args: Variable number of layer names to be removed.
-        """
-        for layer_name in args:
-            if hasattr(self, layer_name):
-                delattr(self, layer_name)
-        return self
-
-
-    def simplify_layer(self, lname: str, tolerance: float=0.1):
-        """ Simplify polygons in a layer
-
-        Args:
-        ----
-        lname (str): The name of the layer.
-        tolerance (float, optional): The tolerance value for simplification. Defaults to 0.1.
-        """
-        setattr(self, lname, getattr(self, lname).simplify(tolerance))
-        return self
-
-
     ###############################
     #### Additional operations ####
     ###############################
@@ -590,32 +570,19 @@ class Entity(_Base):
         ptext = affinity.translate(ptext, *loc)
         self.add_polygon(layer, ptext)
 
-    # deprecated
-    # def get_skeletone_boundary(self) -> list:
-    #     """ finds first and last points of the skeletone
-
-    #     Returns:
-    #         list: list of two Points
-    #     """
-    #     coords = np.asarray(list(self.skeletone.coords))
-    #     return (coords[0], coords[-1])
-
 
     ##############################
     #### Exporting operations ####
     ##############################
-    def get_zhk_dict(self,
-                     flatten_polygon: bool=False,
-                     polygons_only: bool=False) -> dict:
+    def get_zhk_dict(self, flatten_polygon: bool=False) -> dict:
         """ Returns a dictionary with layer names as keys
             and corresponding geometries as values
 
         Args:
         ----
         flatten_polygon (bool, optional): Flag to remove holes from polygons. Defaults to False.
-        polygons_only (bool, optional): Flag to return layers with polygons only. Defaults to False.
         """
-        lnames = self.layer_names() + ["anchors"]
+        lnames = self.layers + ["skeletone", "anchors"]
         zhk_dict = dict.fromkeys(lnames)
         for lname in lnames:
             geometry = getattr(self, lname)
@@ -623,11 +590,6 @@ class Entity(_Base):
                 zhk_dict[lname] = flatten_multipolygon(geometry)
             else:
                 zhk_dict[lname] = geometry
-
-        if polygons_only:
-            zhk_dict.pop("anchors", None)
-            zhk_dict.pop("skeletone", None)
-
         return zhk_dict
 
 
@@ -682,20 +644,19 @@ class Entity(_Base):
     def plot(self,
             ax=None,
             layer: list=None,
-            show_idx: bool=False,
+            show_idx=False,
             color=None,
-            alpha: float=1,
-            draw_direction: bool=True,
+            alpha=1,
+            draw_direction=True,
             **kwargs):
-        """ Plots the Entity
+        """ Plot the Entity.
 
         Args:
         ----
         ax (matplotlib.axes.Axes, optional): The axis to plot on. Defaults to None.
         layer (list, optional): The layer(s) to plot. Defaults to ["all"].
         show_idx (bool, optional): Whether to show the id of the polygon. Defaults to False.
-        color (str or list, optional): The color(s) to use for plotting. If tuple is provided
-                                        it is unpacked to color and alpha. Defaults to None.
+        color (str or list, optional): The color(s) to use for plotting. Defaults to None.
         alpha (float, optional): The transparency of the plot. Defaults to 1.
         draw_direction (bool, optional): Whether to draw arrows. Defaults to True.
         **kwargs: Additional keyword arguments to pass to the plot_geometry function.
@@ -705,18 +666,20 @@ class Entity(_Base):
             ax = fig.add_subplot(111)
 
         for l, c in zip(layer, color):
-            if hasattr(self, l) and l != "anchors":
+            if l in self.layers:
                 geometry = getattr(self, l)
                 if isinstance(c, tuple):
                     (c, alpha) = c
                 plot_geometry(geometry,
-                                ax=ax,
-                                show_idx=show_idx,
-                                color=c,
-                                alpha=alpha,
-                                **kwargs)
-            elif hasattr(self, l) and l == "anchors":
+                              ax=ax,
+                              show_idx=show_idx,
+                              color=c,
+                              alpha=alpha,
+                              **kwargs)
+            elif l == "anchors":
                 self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
+            elif l == "skeletone":
+                self.skeletone.plot(ax=ax, color=c)
 
 
     def quickplot(self, plot_config: dict, zoom: tuple=None,
@@ -728,9 +691,13 @@ class Entity(_Base):
         plot_config (dict): dict of ordered layers (keys) with predefined colors as dict values
         zoom (tuple, optional): ((x0, y0), zoom_scale, aspect_ratio). Defaults to None.
         """
-        plot_layers = [k for k in plot_config.keys() if k in self.layer_names()]
-        if hasattr(self, "anchors"):
-            plot_layers += ["anchors"]
+        if "anchors" not in plot_config:
+            plot_config["anchors"] = RED
+        if "skeletone" not in plot_config:
+            plot_config["skeletone"] = DARKGRAY
+
+        all_plot_objects = self.layers + ["anchors", "skeletone"]
+        plot_layers = [k for k in plot_config.keys() if k in all_plot_objects]
         plot_colors = [plot_config[k] for k in plot_layers]
 
         if ax is None:
@@ -815,9 +782,9 @@ class Structure(Entity):
         """
 
         s = structure.copy()
-        attr_list_device = self.layer_names()
-        attr_list_structure = s.layer_names()
-        attr_list = list(set(attr_list_device + attr_list_structure))
+        attr_list_device = self.layers
+        attr_list_structure = s.layers
+        self.layers = list(set(attr_list_device + attr_list_structure))
 
         # snapping direction
         if direction_snap:
@@ -831,14 +798,8 @@ class Structure(Entity):
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
             s.moveby(offset)
 
-        # appending anchors
-        if upd_alabels:
-            for label_old, label_new in upd_alabels:
-                s.anchors.modify(label_old, new_name=label_new)
-        self.add_anchor(s.anchors.multipoint)
-
         # appending lines and polygons
-        for a in attr_list:
+        for a in self.layers:
             if not hasattr(self, a):
                 value = self._combine_objects(None, getattr(s, a))
             elif not hasattr(s, a):
@@ -847,59 +808,49 @@ class Structure(Entity):
                 value = self._combine_objects(getattr(self, a), getattr(s, a))
             setattr(self, a, value)
 
+        # appending skeletones
+        self.skeletone.add_line(s.skeletone.lines, ignore_crossing=True, chaining=False)
+
+        # updating anchor labels in the appending structure
+        if upd_alabels:
+            for label_old, label_new in upd_alabels:
+                s.anchors.modify(label_old, new_name=label_new)
+
         # remove or not to remove anchor after appending
         if remove_anchor is True:
-            self.remove_anchor(anchoring)
+            self.remove_anchor(anchoring[0])
+            s.remove_anchor(anchoring[1])
         elif isinstance(remove_anchor, str):
             self.remove_anchor(remove_anchor)
+            s.remove_anchor(remove_anchor)
+        self.add_anchor(s.anchors.multipoint)
 
         return self
 
 
     def _combine_objects(self,
-                         obj1: LineString | Polygon| MultiLineString | MultiPolygon | None,
-                         obj2: LineString | Polygon| MultiLineString | MultiPolygon | None):
+                         obj1: Polygon| MultiPolygon | None,
+                         obj2: Polygon| MultiPolygon | None):
         """ Merge two geometries and return the result
 
         Args:
         ----
-        obj1 (LineString | Polygon | MultiLineString | MultiPolygon | None): first geometry.
-        obj2 (LineString | Polygon | MultiLineString | MultiPolygon | None): second geometry.
+        obj1 (Polygon | MultiPolygon | None): first geometry.
+        obj2 (Polygon | MultiPolygon | None): second geometry.
 
         Raises:
         ------
         TypeError: Raised if the appending object
-                   is not [LineString, Polygon, MultiLineString, MultiPolygon].
+                   is not [Polygon, MultiPolygon].
         ValueError: Raised if error with merging the geometries.
                     Call _errors to inspect the problem.
         """
-        merged = self._empty_multigeometry(obj1, obj2)
+        merged = MultiPolygon()
         if obj1:
             merged = self._append_geometry(merged, obj1)
         if obj2:
             merged = self._append_geometry(merged, obj2)
         return merged
-
-
-    def _empty_multigeometry(self, obj1, obj2):
-        """ Returns an empty multi-geometry object based on the types of input geometries
-
-        Args:
-        ----
-        obj1: The first geometry object.
-        obj2: The second geometry object.
-
-        Raises:
-        ------
-        TypeError: If geometry types are not from the supported list
-                   or do not match between each other
-        """
-        # TODO: add support for anchors
-        if (type(obj1) in LINE_CLASSES) or (type(obj2) in LINE_CLASSES):
-            return MultiLineString()
-        if (type(obj1) in PLG_CLASSES) or (type(obj2) in PLG_CLASSES):
-            return MultiPolygon()
-        raise TypeError("Incorrect shapely object types")
 
 
     def _append_geometry(self, core_objs, appending_objs):
@@ -963,11 +914,25 @@ class GeomCollection(Structure):
     def __init__(self, layers: dict=None):
         super().__init__()
         if layers:
-            for k, item in layers.items():
-                setattr(self, k, item)
+            for items in layers.items():
+                match items:
+                    case ("skeletone", LineString()) | ("skeletone", MultiLineString()):
+                        self.skeletone.lines = items[1]
+                    case ("skeletone", Skeletone()):
+                        self.skeletone = items[1]
+                    case ("skeletone", GeometryCollection()):
+                        warn(message="imported skeletone contains GeometryCollection object. It will be ignored.")
+                    case ("anchors", MultiAnchor()):
+                        self.anchors = items[1]
+                    case ("anchors", MultiPoint()):
+                        for i, pt in enumerate(items[1].geoms):
+                            self.anchors.add(Anchor(pt, 0, "anchor" + str(i)))
+                    case _:
+                        self.layers.append(items[0])
+                        setattr(self, *items)
 
         if not hasattr(self, "anchors"):
-            self.anchors = MultiAnchor([])
+            self.anchors = MultiAnchor()
 
         if not hasattr(self, "skeletone"):
-            self.skeletone = LineString()
+            self.skeletone = Skeletone()
