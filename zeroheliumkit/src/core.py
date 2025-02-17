@@ -140,6 +140,15 @@ class _Base:
             print(f"Layer '{lname}' not found in layers.")
 
 
+    def has_layer(self, lname: str) -> bool:
+        """ Check if a layer exists in the class.
+
+        Args:
+        ----
+        lname (str): The name of the layer.
+        """
+        return lname in self.layers
+
 
 class Entity(_Base):
     """ Collection of shapely objects organized by layers and linked together
@@ -798,14 +807,14 @@ class Structure(Entity):
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
             s.moveby(offset)
 
-        # appending lines and polygons
+        # appending polygons
         for a in self.layers:
             if not hasattr(self, a):
-                value = self._combine_objects(None, getattr(s, a))
+                value = self._append_geometry(MultiPolygon(), getattr(s, a))
             elif not hasattr(s, a):
-                value = self._combine_objects(getattr(self, a), None)
+                value = self._append_geometry(getattr(self, a), MultiPolygon())
             else:
-                value = self._combine_objects(getattr(self, a), getattr(s, a))
+                value = self._append_geometry(getattr(self, a), getattr(s, a))
             setattr(self, a, value)
 
         # appending skeletones
@@ -828,29 +837,29 @@ class Structure(Entity):
         return self
 
 
-    def _combine_objects(self,
-                         obj1: Polygon| MultiPolygon | None,
-                         obj2: Polygon| MultiPolygon | None):
-        """ Merge two geometries and return the result
+    # def _combine_objects(self,
+    #                      obj1: Polygon| MultiPolygon | None,
+    #                      obj2: Polygon| MultiPolygon | None):
+    #     """ Merge two geometries and return the result
 
-        Args:
-        ----
-        obj1 (Polygon | MultiPolygon | None): first geometry.
-        obj2 (Polygon | MultiPolygon | None): second geometry.
+    #     Args:
+    #     ----
+    #     obj1 (Polygon | MultiPolygon | None): first geometry.
+    #     obj2 (Polygon | MultiPolygon | None): second geometry.
 
-        Raises:
-        ------
-        TypeError: Raised if the appending object
-                   is not [Polygon, MultiPolygon].
-        ValueError: Raised if error with merging the geometries.
-                    Call _errors to inspect the problem.
-        """
-        merged = MultiPolygon()
-        if obj1:
-            merged = self._append_geometry(merged, obj1)
-        if obj2:
-            merged = self._append_geometry(merged, obj2)
-        return merged
+    #     Raises:
+    #     ------
+    #     TypeError: Raised if the appending object
+    #                is not [Polygon, MultiPolygon].
+    #     ValueError: Raised if error with merging the geometries.
+    #                 Call _errors to inspect the problem.
+    #     """
+    #     merged = MultiPolygon()
+    #     if obj1:
+    #         merged = self._append_geometry(merged, obj1)
+    #     if obj2:
+    #         merged = self._append_geometry(merged, obj2)
+    #     return merged
 
 
     def _append_geometry(self, core_objs, appending_objs):

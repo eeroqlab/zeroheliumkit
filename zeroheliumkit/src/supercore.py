@@ -1,20 +1,66 @@
 """
 This file contains the implementation of a SuperStructure class, which is a subclass of the Structure class.
 The SuperStructure class provides additional methods for routing and adding structures along a skeleton line.
+The ContinuousLineBuilder class is also implemented in this file, which is used to build a structure by defining a continuous line.
 """
 
 import numpy as np
 
+from dataclasses import dataclass
 from shapely import (line_locate_point, line_interpolate_point, intersection_all,
                      distance, difference, intersection, unary_union)
 from shapely import LineString, Polygon
 
+from .anchors import Anchor, MultiAnchor, Skeletone
 from .core import Structure, Entity
+from .geometries import ArcLine
 from .utils import (fmodnew, flatten_lines, create_list_geoms,
                     round_polygon, buffer_line_with_variable_width)
 from .functions import get_normals_along_line
 from .routing import create_route
 from .errors import WrongSizeError
+
+
+def get_endpoint_indices(x: tuple=(1,0)) -> tuple:
+    if x == (1, 0):
+        return (None, -1)
+    elif x == (0, 1):
+        return (1, None)
+    else:
+        raise ValueError("Provide a valid tuple of (1, 0) or (0, 1).")
+
+
+@dataclass(slots=True)
+class RoutingConfig:
+    """
+    Represents the configuration for routing.
+    Attr:
+    -----
+        radius (float, optional): The radius of the routing. Defaults to 50.
+        num_segments (int, optional): The number of segments in the routing. Defaults to 13.
+    """
+    radius: float = 50
+    num_segments: int = 13
+
+
+@dataclass(slots=True)
+class ObjsAlongConfig:
+    """
+    Configuration class for objects evenly placed along a line.
+    Attr:
+    -----
+        structure (object): The structure to be added along the skeleton line.
+        spacing (float, optional): The spacing between the added objects. Defaults to 100.
+        endpoints (tuple or bool, optional): The endpoints of the skeleton line where the objects should be added. 
+            If a tuple is provided, it should contain the indices of the desired endpoints. 
+            If True, the objects will be added along the entire skeleton line.
+            Defaults to True.
+        additional_rotation (float, optional): Additional rotation to be applied to the added objects. Defaults to 0.
+    """
+    structure: Structure
+    spacing: float = 100
+    endpoints: tuple | bool = True
+    additional_rotation: float = 0
 
 
 class SuperStructure(Structure):
@@ -75,7 +121,7 @@ class SuperStructure(Structure):
                             structure: Structure | Entity,
                             locs: list=None,
                             num: int=1,
-                            endpoints: bool=False,
+                            endpoints: bool|tuple=False,
                             normalized: bool=False,
                             additional_rotation: float | int=0,
                             line_idx: int=None) -> None:
@@ -88,7 +134,9 @@ class SuperStructure(Structure):
         locs (list, optional): List of locations along the skeleton line where the structures will be added. 
             If not provided, the structures will be evenly distributed between the two anchor points.
         num (int, optional): Number of structures to be added. Ignored if locs is provided.
-        endpoints (bool, optional): Whether to include the endpoints of the skeleton line as locations for adding structures. Default is False.
+        endpoints (bool|tuple, optional): Whether to include the endpoints of the skeleton line as locations for adding structures. 
+            tuple = (1,0): includes start point and exclides end point. Tuple = (0,1) is vice versa.
+            Default is False.
         normalized (bool, optional): Whether the locations are normalized along the skeleton line. Default is False.
 
         Raises:
@@ -119,7 +167,10 @@ class SuperStructure(Structure):
         
         extra_rotation = 0
         if locs is None:
-            if endpoints:
+            if isinstance(endpoints, tuple):
+                i1, i2 = get_endpoint_indices(endpoints)
+                locs = np.linspace(start_point, end_point, num=num+1, endpoint=True)[i1:i2]
+            elif endpoints == True:
                 locs = np.linspace(start_point, end_point, num=num, endpoint=True)
             else:
                 locs = np.linspace(start_point, end_point, num=num+2, endpoint=True)[1:-1]
@@ -336,3 +387,263 @@ class SuperStructure(Structure):
             rounded = round_polygon(rounded, radius, **kwargs)
             rounded = intersection(rounded, area)
             setattr(self, l, unary_union([base, rounded]))
+
+
+
+class ContinuousLineBuilder():
+    """ Class for building continuous lines and structures.
+
+    Attr:
+    -----
+        routing (RoutingConfig): The routing configuration.
+        layers (dict): A dictionary containing layer names as keys and buffer widths as values.
+        objs_along (ObjsAlongConfig): The configuration for adding objects along the skeleton line.
+    
+    Example:
+    -------
+        >>> s = Structure()
+        >>> s.add_layer("l1", Square(10))
+        >>> clb = ContinuousLineBuilder(routing=RoutingConfig(radius=10, num_segments=10),
+        >>>                             layers={"l1": 2, "l2": 4},
+        >>>                             objs_along=ObjsAlongConfig(structure=s, spacing=40))
+        >>> a = Anchor((100,0), 0, "b")
+        >>> clb.start(Anchor((1,2), 30, "a")).turn(-60,14).go(23,65).routeto(a).go(30,110).forward(36).build_all()
+    """
+
+    __slots__ = ("routing", "layers", "objs_along",
+                 "absolute_angle", "skeletone", "anchors",
+                 "starting_coords", "structure")
+
+    def __init__(self,
+                 routing: RoutingConfig=None,
+                 layers: dict=None,
+                 objs_along: ObjsAlongConfig=None):
+        self.routing = routing
+        self.layers = layers
+        self.objs_along = objs_along
+        self.absolute_angle = 0
+
+
+    def __repr__(self):
+        name = f"<CONTINUOUSLINEBUILDER {self.layers}>"
+        max_length = 75
+        if len(name) > max_length:
+            return f"{name[: max_length - 3]}...>"
+
+        return name
+
+
+    def start(self, anchor: Anchor):
+        """ Adds the given anchor to the set of anchors and initializes the starting coordinates and absolute angle.
+
+        Args:
+        -----
+            anchor (Anchor): The anchor object to be added. It should have 'direction' and 'coords' attributes.
+            
+        Example:
+        -----
+        >>> anchor = Anchor(coords=(10,20), direction=90, "a")
+        >>> instance = ContinuousLineBuilder()
+        >>> instance.start(anchor)
+        <MyClass object at 0x...>
+        """
+        self.skeletone = Skeletone()
+        self.anchors = MultiAnchor()
+        self.structure = Structure()
+
+        self.anchors.add(anchor)
+        self.absolute_angle = anchor.direction
+        self.starting_coords = anchor.coords
+        return self
+
+
+    def forward(self, length: float=1):
+        """ Creates a line and adds to a skeletone.
+        
+        Args:
+        -----
+            length (float): The length of the line. Default is 1.
+        """
+
+        new_line = LineString([(0,0), (length,0)])
+        self.skeletone.add_line(line = new_line,
+                                direction = self.absolute_angle,
+                                ignore_crossing = True,
+                                chaining = True)
+        if self.starting_coords:
+            self.skeletone.move(*self.starting_coords)
+            self.starting_coords = None
+        return self
+
+
+    def turn(self, angle: float=90, radius: float=1, num_segments: int=13):
+        """ Creates an arcline and appends to a skeletone.
+        
+        Args:
+        -----
+            angle (float): turn angle of the arcline. Default is 90.
+            radius (float): radius of the arcline. Default is 1.
+            num_segments (int): number of segments of the arcline. Default is 13.
+        """
+        new_line = ArcLine(centerx = 0,
+                           centery = np.sign(angle) * radius,
+                           radius = radius,
+                           start_angle = -np.sign(angle) * 90,
+                           end_angle = -np.sign(angle) * 90 + angle,
+                           numsegments = num_segments)
+        self.skeletone.add_line(line = new_line,
+                                direction = self.absolute_angle,
+                                ignore_crossing = True,
+                                chaining = True)
+        self.absolute_angle = fmodnew(self.absolute_angle + angle)
+        return self
+
+
+    def add_anchor(self, name: str, angle: float=None, type: str=None):
+        """ Adds an Anchor at the location of the skeletone end point with given angle and type.
+        
+        Args:
+        -----
+            name (str): The name of the anchor.
+            angle (float, optional): The angle of the anchor. Defaults to None.
+            type (str, optional): The type of angle calculation. Can be "absolute", "relative", or None. Defaults to None.
+        """
+        _, end_p = self.skeletone.boundary
+        if type == "absolute":
+            angle = angle
+        elif type == "relative":
+            angle = fmodnew(self.absolute_angle + angle)
+        else:
+            angle = self.absolute_angle 
+        self.anchors.add(Anchor(end_p, angle, name))
+        return self
+
+
+    def end(self, name: str):
+        """ Adds an anchor at the end of the skeletone"""
+        self.add_anchor(name)
+
+
+    def go(self, length: float=1, angle: float=90):
+        """ Combines the forward and turn methods in one action.
+            routing should be set before using this method.
+        
+        Args:
+        -----
+            length (float): The length of the straight section. Default is 1.
+            angle (float): The angle of the turn. Default is 90.
+
+        Error:
+        -----
+            Raises ValueError if routing config is not set.
+        """
+        if not self.routing:
+            raise ValueError("Routing config is not set. Provide dict with keys 'radius' and 'num_segments'")
+        self.forward(length)
+        self.turn(angle, self.routing.radius, self.routing.num_segments)
+        return self
+
+
+    def routeto(self, anchor: Anchor, **kwargs):
+        """ Routes the last point in the skeletone with given anchor.
+            routing should be set before using this method.
+        
+        Args:
+        -----
+            anchor (Anchor): the anchor point to which the route will be created.
+            **kwargs: additional parameters to be passed to create_route method.
+
+        Error:
+        -----
+            Raises ValueError if routing config is not set.
+        """
+        if not self.routing:
+            raise ValueError("Routing config is not set. Provide dict with keys 'radius' and 'num_segments'")
+        self.add_anchor("temp")
+        new_line = create_route(self.anchors.point("temp"),
+                                anchor,
+                                self.routing.radius,
+                                self.routing.num_segments,
+                                **kwargs)
+        self.skeletone.add_line(line = new_line,
+                                direction = None,
+                                ignore_crossing = True,
+                                chaining = False)
+        self.skeletone.fix()
+        self.absolute_angle = anchor.direction
+        return self
+
+
+    def build_layers(self, layers: dict=None, **kwargs):
+        """ Build layers for the structure.
+
+        Args:
+        -----
+            layers (dict, optional): A dictionary containing layer names as keys and buffer widths as values.
+                If not provided, the layers from the object's attribute `layers` will be used.
+            **kwargs: Additional keyword arguments to be passed to the `buffer` method.
+        """
+
+        if not layers:
+            layers = self.layers
+
+        for lname, buffer_width in layers.items():
+            poly = self.skeletone.buffer(buffer_width/2, join_style="mitre", **kwargs)
+            if self.structure.has_layer(lname):
+                self.structure.add_polygon(lname, poly)
+            else:
+                self.structure.add_layer(lname, poly)
+
+        return self
+
+
+    def add_along_skeletone(self, **kwargs):
+        """ Add objects along the skeleton line.
+
+        Args:
+        -----
+            structure (object): The structure to be added along the skeleton line.
+            spacing (float): The spacing between the added objects.
+            endpoints (tuple or bool): The endpoints of the skeleton line where the objects should be added. 
+                If a tuple is provided, it should contain the indices of the desired endpoints. 
+                If True, the objects will be added along the entire skeleton line.
+            additional_rotation (float): Additional rotation to be applied to the added objects.
+        """
+
+        for k,v in kwargs.items():
+            setattr(self.objs_along, k, v)
+
+        num = int(self.skeletone.length / self.objs_along.spacing)
+
+        p1, p2 = self.skeletone.boundary
+        start_point = line_locate_point(self.skeletone.lines, p1, normalized=True)
+        end_point = line_locate_point(self.skeletone.lines, p2, normalized=True)
+
+        if isinstance(self.objs_along.endpoints, tuple):
+            i1, i2 = get_endpoint_indices(self.objs_along.endpoints)
+            locs = np.linspace(start_point, end_point, num=num, endpoint=True)[i1:i2]
+        elif self.objs_along.endpoints == True:
+            locs = np.linspace(start_point, end_point, num=num, endpoint=True)
+        else:
+            locs = np.linspace(start_point, end_point, num=num, endpoint=True)[1:-1]
+
+
+        pts = line_interpolate_point(self.skeletone.lines, locs, normalized=True).tolist()
+        normal_angles = get_normals_along_line(self.skeletone.lines, locs)   # figure out why extra_rotation is added
+
+        for point, angle in zip(pts, normal_angles):
+            s = self.objs_along.structure.copy()
+            s.rotate(angle + self.objs_along.additional_rotation + 90)
+            s.moveby(xy=(point.x, point.y))
+            self.structure.append(s)
+
+        return self
+
+
+    def build_all(self):
+        """ Build all the layers and add objects along the skeleton line.
+        """
+        self.build_layers()
+        if self.objs_along:
+            self.add_along_skeletone()
+        return self

@@ -572,7 +572,7 @@ class Skeletone():
                  line: LineString,
                  direction: float=None,
                  ignore_crossing=False,
-                 chaining=True) -> None:
+                 chaining=True):
         """ Appends a LineString to the skeleton.
 
         Args:

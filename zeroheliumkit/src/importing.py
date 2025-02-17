@@ -3,11 +3,18 @@ import numbers
 import gdspy
 import ezdxf
 import pickle
+import xml.etree.ElementTree as ET
 
 from ezdxf.colors import BYLAYER
 from shapely import Polygon, MultiPolygon, union
+from svgpathtools import parse_path, Line, CubicBezier, QuadraticBezier
 
 from .errors import *
+
+
+def sample_bezier(bezier, num_points=20):
+    """Sample points along a Bezier curve."""
+    return [(bezier.point(t).real, bezier.point(t).imag) for t in [i / num_points for i in range(num_points + 1)]]
 
 
 class Exporter_GDS():
@@ -225,3 +232,84 @@ class Exporter_Pickle():
             print("Geometries saved successfully.")
         except Exception as e:
             print(f"Error occurred while saving geometries: {e}")
+
+
+class Reader_SVG():
+    """
+    A class to read and convert SVG files into Shapely polygons.
+    contributor: https://github.com/yneter
+
+    Attributes:
+    ----------
+    svg_file : str
+        The path to the SVG file to be read.
+    geometries : dict
+        A dictionary containing the extracted geometries from the SVG file.
+    Methods:
+    -------
+    __init__(self, svg_file: str, bezier_samples: int=20)
+        Initializes the Reader_SVG with the given SVG file and samples for Bezier curves.
+    svg_to_shapely_polygons(self, bezier_samples=20)
+        Extracts multiple polygons from an SVG file.
+    extract_points_from_path(self, path_data, bezier_samples=20)
+        Extracts points from a single path, handling lines and Bezier curves.
+    """
+
+    __slots__ = "svg_file", "geometries"
+
+    def __init__(self, svg_file: str, bezier_samples: int=20):
+        self.svg_file = svg_file
+        self.geometries = {"L1": self.svg_to_shapely_polygons(bezier_samples)}
+
+    def svg_to_shapely_polygons(self, bezier_samples=20):
+        """Extract multiple polygons from an SVG file."""
+        tree = ET.parse(self.svg_file)
+        root = tree.getroot()
+
+        namespace = {'svg': 'http://www.w3.org/2000/svg'}
+        polygons = []
+
+        # Find all <path> elements and extract points from them
+        for path_element in root.findall('.//svg:path', namespace):
+            path_data = path_element.attrib['d']
+            points = self.extract_points_from_path(path_data, bezier_samples)
+            polygons.append(Polygon(points))
+
+        # Find all <polygon> elements
+        for polygon_element in root.findall('.//svg:polygon', namespace):
+            points_data = polygon_element.attrib['points']
+            points = [tuple(map(float, point.split(','))) for point in points_data.split()]
+            polygons.append(Polygon(points))
+
+        # Find all <polyline> elements (similar to <polygon>, but not closed)
+        for polyline_element in root.findall('.//svg:polyline', namespace):
+            points_data = polyline_element.attrib['points']
+            points = [tuple(map(float, point.split(','))) for point in points_data.split()]
+            if points[0] != points[-1]:
+                points.append(points[0])  # Close the polyline to make a polygon
+            polygons.append(Polygon(points))
+
+        return MultiPolygon(polygons)
+
+
+    def extract_points_from_path(self, path_data, bezier_samples=20):
+        """Extract points from a single path (handling lines and Bezier curves)."""
+        svg_path = parse_path(path_data)
+        points = []
+
+        for segment in svg_path:
+            if isinstance(segment, Line):
+                # For lines, just add the start point
+                points.append((segment.start.real, segment.start.imag))
+            elif isinstance(segment, (CubicBezier, QuadraticBezier)):
+                # For Bezier curves, sample points along the curve
+                bezier_points = sample_bezier(segment, num_points=bezier_samples)
+                points.extend(bezier_points)
+            else:
+                raise NotImplementedError(f"Segment type {type(segment)} is not handled")
+
+        # Ensure the path is closed by adding the first point to the end if necessary
+        if points[0] != points[-1]:
+            points.append(points[0])
+
+        return points

@@ -47,7 +47,11 @@ def adjust_lightness(color, amount=0.5):
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 
-def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK, alpha=1, **kwargs):
+def segments(curve):
+    return list(map(LineString, zip(curve.coords[:-1], curve.coords[1:])))[::-1]
+
+
+def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK, alpha=1, show_line_idx=False, **kwargs):
     """ Plots a geometry object on the given axes.
 
     Args:
@@ -71,9 +75,11 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK
                      alpha=alpha, 
                      edgecolor=edgecolor)
         if show_idx:
-            plot_plg_idx(geometry, ax=ax, color=color)
+            plot_polygon_idx(geometry, ax=ax, color=color)
         if alpha!=1:
             plot_line(geometry.boundary, ax=ax, color=BLACK, add_points=False, lw=1.5)
+        if show_line_idx:
+            plot_line_idx_in_polygon(geometry, ax=ax, color=color)
 
     elif type(geometry) in LINE_CLASSES:
         plot_line(geometry, ax=ax, color=color, add_points=False, ls="dashed", lw=1)
@@ -82,7 +88,7 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK
         plot_points_withlabel(geometry, ax=ax, color=color, marker=".")
     
 
-def plot_plg_idx(geometry: Polygon | MultiPolygon, ax=None, color=None):
+def plot_polygon_idx(geometry: Polygon | MultiPolygon, ax=None, color=None):
     """ Plots the index of each polygon in the given geometry on the specified axes.
 
     Args:
@@ -104,6 +110,23 @@ def plot_plg_idx(geometry: Polygon | MultiPolygon, ax=None, color=None):
         ax.annotate("0",
                     center_xy[0],
                     color=adjust_lightness(color, 0.5),
+                    clip_on=True,
+                    bbox=dict(facecolor='white', edgecolor=BLACK, alpha=1))
+
+
+def plot_line_idx_in_polygon(poly: Polygon | MultiPolygon, ax=None, color=None):
+    """ Plots the index of each line in the given polygon on the specified axes.
+
+    Args:
+    ----
+    poly: A Polygon object representing the geometry.
+    ax: The axes on which to plot the index. If None, the current axes will be used.
+    color: The color of the index annotation. If None, a default color will be used.
+    """
+    for idx, segment in enumerate(segments(poly.boundary)):
+        ax.annotate(idx,
+                    list(segment.centroid.coords)[0],
+                    color=color,
                     clip_on=True,
                     bbox=dict(facecolor='white', edgecolor=BLACK, alpha=1))
 

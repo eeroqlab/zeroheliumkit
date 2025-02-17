@@ -101,7 +101,7 @@ class CPW_params():
         length = resonator_type * self.phase_velocity / resonator_frequency
         parameters = {
                         "f0, GHz": round(resonator_frequency/GHz, 3),
-                        "length, mm": round(length/mm, 2),
+                        "length, mm": round(length/mm, 3),
                         "width, um": round(self.width/um, 2),
                         "gap, um": round(self.gap/um, 2),
                         "eps ": round(self.eps_substrate),

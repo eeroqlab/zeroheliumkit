@@ -31,8 +31,10 @@ Classes:
 import numpy as np
 import matplotlib.pyplot as plt
 
+from typing import Callable
 from numpy import ma
 from numpy.typing import ArrayLike
+from scipy.ndimage import gaussian_filter
 from shapely import Polygon, Point
 from ..src.settings import GRAY
 
@@ -81,24 +83,28 @@ def _default_ax():
     return ax
 
 
-def crop_matrix(x: ArrayLike, y: ArrayLike, U: ArrayLike, xrange: tuple, yrange: tuple) -> tuple:
+def crop_xlist(x: ArrayLike, xrange: tuple) -> tuple:
+    """Crops the xlist to the boundaries specified by xrange."""
+    xmin_idx, xmax_idx = find_nearest(x, xrange[0]), find_nearest(x, xrange[1])
+    return x[xmin_idx:xmax_idx + 1], (xmin_idx, xmax_idx)
+
+
+def crop_matrix(U: ArrayLike, x_idxs: tuple, y_idxs: tuple) -> ArrayLike:
     """Crops the matrix to the boundaries specified by xrange and yrange. 
 
     Args:
     ----
-        x (ArrayLike): one dimensional array of x-points
-        y (ArrayLike): one dimensional array of y-points
         U (ArrayLike): two dimensional array to be cropped.
-        xrange (tuple): tuple of two floats that indicate the min and max range for the x-coordinate.
-        yrange (tuple): tuple of two floats that indicate the min and max range for the y-coordinate.
+        x_idxs (tuple): tuple of two ints that indicate the min and max range for the x-coordinate.
+        y_idxs (tuple): tuple of two int that indicate the min and max range for the y-coordinate.
 
     Returns:
-        tuple: cropped x array, cropped y array, cropped potential array
+        ArrayLike: cropped array
     """
-    xmin_idx, xmax_idx = find_nearest(x, xrange[0]), find_nearest(x, xrange[1])
-    ymin_idx, ymax_idx = find_nearest(y, yrange[0]), find_nearest(y, yrange[1])
+    (x1,x2) = x_idxs
+    (y1,y2) = y_idxs
 
-    return x[xmin_idx:xmax_idx], y[ymin_idx:ymax_idx], U[xmin_idx:xmax_idx, ymin_idx:ymax_idx]
+    return U[x1 : x2 + 1, y1 : y2 + 1]
 
 
 def fmt(x):
@@ -106,6 +112,28 @@ def fmt(x):
     if s.endswith("0"):
         s = f"{x:.0f}"
     return rf"{s} " if plt.rcParams["text.usetex"] else f"{s} "
+
+
+def action_on_data(data_item: dict | np.ndarray, action: Callable, **kwargs) -> dict | np.ndarray:
+    """ Applies a function to each item in the data dictionary.
+
+    Args:
+    _____
+    data_item (dict | np.ndarray): The data to apply the function to.
+    action (Callable): The function to apply.
+    **kwargs: Additional keyword arguments to pass to the function.
+
+    Returns:
+    _______
+    dict | np.ndarray: The data with the function applied to each item.
+    """
+    if isinstance(data_item, dict):
+        new_dict = {}
+        for (k, v) in data_item.items():
+            new_dict[k] = action(v, **kwargs)
+        return new_dict
+    elif isinstance(data_item, np.ndarray):
+        return action(data_item, **kwargs)
 
 
 def init_data_collecting(line: str, dtype: str) -> tuple:
@@ -248,11 +276,12 @@ class FieldAnalyzer():
                    (couplingConst['ylist'][0], couplingConst['ylist'][-1]))
 
 
-    def plot_potential2D(self,
+    def plot_potential_2D(self,
                          couplingConst: list,
                          voltage_list: list,
                          ax=None,
                          zero_line=None,
+                         zlevel_key=None,
                          **kwargs):
         """ Plots the 2D potential distribution based on the coupling constants and voltages.
 
@@ -269,7 +298,7 @@ class FieldAnalyzer():
         """
         if ax is None:
             ax = _default_ax()
-        data = self.potential(couplingConst, voltage_list)
+        data = self.potential(couplingConst, voltage_list, zlevel_key)
         im = ax.contourf(data[0], data[1], np.transpose(data[2]), 17, **kwargs)
         if zero_line:
             if isinstance(zero_line,bool):
@@ -298,10 +327,10 @@ class FieldAnalyzer():
         X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
         if xy_cut == 'x':
             idx = find_nearest(Y, loc)
-            return X, -Phi[:, idx]
+            return X, Phi[:, idx]
         elif xy_cut == 'y':
             idy = find_nearest(X, loc)
-            return Y, -Phi[idy, :]
+            return Y, Phi[idy, :]
         else:
             raise ValueError("xy_cut must be either 'x' or 'y'.")
 
@@ -341,6 +370,7 @@ class FieldAnalyzer():
                           loc: float,
                           ax=None,
                           zlevel_key=None,
+                          scale=1e3,
                           **kwargs):
         """ Plots the 1D potential distribution along a specified cut in the XY plane.
             Returns ax: The matplotlib axes object.
@@ -360,9 +390,9 @@ class FieldAnalyzer():
             ax = _default_ax()
 
         x, y = self.get_potential_1D(couplingConst, voltages, xy_cut, loc, zlevel_key)
-        ax.plot(x, y*1e3, **kwargs)
+        ax.plot(x, y*scale, **kwargs)
         ax.set_xlabel(r'$x$ or $y$ (um)')
-        ax.set_ylabel(r'potential $-\phi(x)$ (mV)')
+        ax.set_ylabel(r'potential $-\phi$ (V*scale)')
         return ax
 
 
@@ -436,19 +466,19 @@ class FieldAnalyzer():
         """
         
         data = getattr(self, attr_name)
+        crd_x, (i1, i2) = crop_xlist(data['xlist'], xrange)
+        crd_y, (j1, j2) = crop_xlist(data['ylist'], yrange)
         cropped = {}
         for (k, v) in data.items():
             if k not in ('xlist', 'ylist'):
-                crd_x, crd_y, crd_phi = crop_matrix(data['xlist'], data['ylist'], v, 
-                                                    xrange=xrange, yrange=yrange)
-                cropped[k] = crd_phi
+                cropped[k] = action_on_data(v, crop_matrix, x_idxs=(i1, i2), y_idxs=(j1, j2))
         cropped['xlist'] = crd_x
         cropped['ylist'] = crd_y
         setattr(self, new_attr_name, cropped)
 
 
-    def make_symmetric(self, attr_name: str, symmetric_electrodes: list, mirror_electrodes: list[tuple], symmetry_axis: str, name: str) -> None:
-        """ Make the data in 'attr_name' symmetric based on the given symmetry axis and store it in a new attribute with the name 'name'.
+    def make_symmetric(self, attr_name: str, symmetric_electrodes: list, mirror_electrodes: list[tuple], symmetry_axis: str, newname: str) -> None:
+        """ Make the data in 'attr_name' symmetric based on the given symmetry axis and store it in a new attribute with the name 'newname'.
         
         Args:
         -----
@@ -456,7 +486,7 @@ class FieldAnalyzer():
         - symmetric_electrodes (list): The list of electrodes to make symmetric.
         - mirror_electrodes (list[tuple]): The list of electrode pairs which are mirror to each other.
         - symmetry_axis (str): The axis of symmetry ('x' or 'y').
-        - name (str): The name of the new attribute where symmetric data will be stored.
+        - newname (str): The name of the new attribute where symmetric data will be stored.
         """
 
         data = getattr(self, attr_name)
@@ -501,4 +531,25 @@ class FieldAnalyzer():
         new_dict['xlist'] = data['xlist']
         new_dict['ylist'] = data['ylist']
 
-        setattr(self, name, new_dict)
+        setattr(self, newname, new_dict)
+
+
+    def make_smooth(self, attr_name: str, gaussian_power: int, newname: str):
+        """ Smooths the coupling constants of the fieldreader object using a Gaussian filter.
+        
+        Args:
+        -----
+        - attr_name (str): The name of the attribute containing the coupling constants.
+        - gaussian_power (int): The power of the Gaussian filter.
+        - newname (str): The name of the new attribute to store the smoothed coupling constants.
+        """
+
+        smoothed = {}
+        coupling_constants = getattr(self, attr_name)
+        for (k, v) in coupling_constants.items():
+            if k == 'xlist' or k == 'ylist':
+                smoothed[k] = v
+            else:
+                smoothed[k] = gaussian_filter(v, gaussian_power)
+
+        setattr(self, newname, smoothed)

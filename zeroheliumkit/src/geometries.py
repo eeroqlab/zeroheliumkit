@@ -129,7 +129,7 @@ def CircleSegment(radius: float=1,
         >>> print(segment)
         POLYGON ((3.535533905932737 3.535533905932737, 4.045084971874737 4.045084971874737, ...))
     """
-    coords = []
+    coords = [(0,0)]
     iteration_angle = (end_angle - start_angle) / (num_edges - 1)
 
     for i in range(num_edges):
@@ -374,6 +374,89 @@ def PinchGate(arm_w: float,
     return Polygon(pts)
 
 
+def LineExtrudedRectangle(point: tuple | Point | Anchor,
+                          width: float,
+                          length: float,
+                          direction: float=0) -> Polygon:
+    """ Returns a rectangle that is extruded from a point in specific direction.
+
+    Args:
+    ----
+    point (tuple | Point | Anchor): The starting point of the extrusion.
+        Can be a tuple, Point object, or Anchor object.
+    width (float): The width of the rectangle.
+    length (float): The length of the rectangle.
+    direction (float): The direction of the extrusion in degrees. Default is 0.
+
+    Example:
+    -------
+        >>> LineExtrudedRectangle(Anchor((10,5), 60, "a"), 2, 20)
+    """
+    rect = Rectangle(length, width, (length/2, 0))
+    if isinstance(point, (tuple, Point)):
+        rect = affinity.rotate(rect, direction, origin=(0,0))
+        if isinstance(point, Point):
+            point = (point.x, point.y)
+        rect = affinity.translate(rect, *point)
+    elif isinstance(point, Anchor):
+        rect = affinity.rotate(rect, point.direction, origin=(0,0))
+        rect = affinity.translate(rect, *point.coords)
+    else:
+        raise ValueError("point should be a tuple, Point, or Anchor object")
+    return rect
+
+
+def CornerCutterPolygon(radius: float=10, num_segments: int=7):
+    """ Generates a polygon which is used to cut for corner rounding.
+
+    Args:
+    ----
+        radius (float): The radius of the rounded corners. Default is 10.
+        num_segments (int): The number of segments used to approximate the rounded corners. 
+                            Must be greater than 2. Default is 7.
+    """
+
+    if num_segments < 2:
+        raise ValueError("Number of segments must be greater than 2")
+    coords = [(0,0), (0,radius)]
+    start_angle = 180
+    iteration_angle = 90 / (num_segments - 1)
+
+    for i in range(num_segments - 2):
+        x = radius * (1 + np.cos(np.deg2rad(start_angle + (i + 1) * iteration_angle)))
+        y = radius * (1 + np.sin(np.deg2rad(start_angle + (i + 1) * iteration_angle)))
+        coords.append((x, y))
+    coords.append((radius, 0))
+    return Polygon(coords)
+
+
+def CornerRounder(corner: tuple | Point | Anchor, radius: float=10, angle: float=0, num_segments: int=7, margin: float=0.1):
+    """ Creates a Polygon to Round a corner (use for cuts). Works only with 90 degree corners.
+
+    Args:
+    ----
+        corner (tuple | Point | Anchor): The corner to be rounded.
+        radius (float): The radius of the rounded corner. Default is 10.
+        angle (float): The angle of the corner. Default is 0.
+        num_segments (int): The number of segments used to approximate the rounded corner. 
+                            Must be greater than 2. Default is 7.
+        margin (float): The margin to be added to the corner. Default is 0.1.
+    """
+
+    if isinstance(corner, tuple):
+        corner = Point(corner)
+    if isinstance(corner, Anchor):
+        corner = corner.point
+    width = margin * radius
+    corner_polygon = CornerCutterPolygon(radius, num_segments)
+    cutter = unary_union([corner_polygon,
+                          box(-width, -width, radius+width, 0),
+                          box(-width, -width, 0, radius+width)])
+    cutter = affinity.rotate(cutter, angle, origin=(0,0))
+    cutter = affinity.translate(cutter, xoff=corner.x, yoff=corner.y)
+    return cutter
+
+
 # -------------------------------------
 # Multi-layer Geometry Classes
 # -------------------------------------
@@ -409,7 +492,8 @@ class StraightLine(Structure):
                  lendir: tuple=None,
                  layers: dict=None,
                  alabel: tuple=None,
-                 cap_style: str='square'):
+                 cap_style: str='square',
+                 **kwargs):
 
         super().__init__()
         if cap_style not in ["square", "round", "flat"]:
@@ -433,7 +517,7 @@ class StraightLine(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.buffer_line(name=k, offset=width/2, cap_style=cap_style)
+                self.buffer_line(name=k, offset=width/2, cap_style=cap_style, **kwargs)
 
         # create anchors
         if alabel:

@@ -609,3 +609,27 @@ def buffer_line_with_variable_width(line: LineString,
         polygon = buffer_along_path(points, widths)
             
     return polygon
+
+
+def mirror(object: Polygon | LineString | MultiLineString | MultiPolygon,
+           aroundaxis: str,
+           origin: tuple=(0,0)) -> Polygon | LineString | MultiLineString | MultiPolygon:
+    """ Returns a mirrored object along a given axis "x" or "y".
+
+    Args:
+    ----
+    object (Polygon | LineString | MultiLineString | MultiPolygon): The object to be mirrored.
+    axis (LineString): The axis of the mirror.
+    origin (tuple, optional): The origin of the mirror. Defaults to (0, 0).
+
+    Example:
+    -------
+        >>> object = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
+        >>> mirrored_object = mirror(object, "x")
+    """
+    if aroundaxis == "x":
+        return affinity.scale(object, xfact=1, yfact=-1, origin=origin)
+    elif aroundaxis == "y":
+        return affinity.scale(object, xfact=-1, yfact=1, origin=origin)
+    else:
+        raise ValueError("Invalid axis. Choose 'x' or 'y'")

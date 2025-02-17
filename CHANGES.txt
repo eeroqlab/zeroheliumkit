@@ -1,0 +1,37 @@
+Changes
+=======
+
+0.4.3
+----------------
+
+New features:
+- Added new class 'ContunousLineBuilder' which allows to create a continuous path/line and create buffered polygons along.
+- Added additional RouteConfig and ObjsAlongConfig dataclasses to store the configuration for ContunousLineBuilder.
+
+
+0.4.2
+----------------
+
+New features:
+
+- Added 'show_line_idx' option to the 'quickplot' method to display line numbers of the polygon boundary.
+- Added .svg file reader class Reader_SVG. Reads only into single layer L1.
+- Added "mirror" function into util.py.
+- Added CornerCutterPolygon and CornerRounder into geometries.py.
+- Added heliumsurface.py which allows to create 2D meshes and calculate surface displacement of the liquid helium.
+    formed in the microchannel structures using 2DFreeFEM.
+- Added FEM extraction option of the coupling constants along calculated helium surface displacement.
+- Added curved_surface.ipynb into examples demonstaring how to calculate surface displacement and integrate with FreeFEM.
+- Small bug and fixes.
+
+Improvements:
+
+- Improved "add_along_skeletone" method in Superstructure class:
+    "endpoints" arg can take (1,0) and (0,1) as arguments to add points at the beginning and end of the skeleton.
+
+Notes:
+
+- In order to run 2D fem from jupyter notebook, please install https://github.com/neoh54/pyFreeFem (forked package 
+    from https://github.com/odevauchelle/pyFreeFem).
+- The heliumsurface.py is still under development and may have some bugs. Please report any issues.
+- Reader_SVG requires svgpathtools package to be installed. Please install it using 'pip install svgpathtools'.

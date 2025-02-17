@@ -97,7 +97,10 @@ class GMSHmaker():
         self.fragmentation(flatten(list(vols.values())))
         
         self.physicalVolumes = self.create_PhysicalVolumes(vols)
-        self.physicalSurfaces = self.create_PhysicalSurfaces()
+        if electrodes_config:
+            self.physicalSurfaces = self.create_PhysicalSurfaces()
+        else:
+            self.physicalSurfaces = {}
         
         self.define_mesh(mesh_params)
         

@@ -4,7 +4,7 @@
 #
 # --------------------------------------------------------------------------------------
 
-__version__ = '0.4.0'
+__version__ = '0.4.2'
 
 from .src import *
 
@@ -20,5 +20,5 @@ __all__ = [
     "Meander", "MeanderHalf", "PinchGate",
     "StraightLine", "ArbitraryLine", "Taper", "MicroChannels",
     "SpiralInductor", "IDC", "Fillet", "CircleSegment",
-    "Ring", "RingSector"
+    "Ring", "RingSector", "LineExtrudedRectangle", "CornerRounder"
     ]
