@@ -35,6 +35,7 @@ from typing import Callable
 from numpy import ma
 from numpy.typing import ArrayLike
 from scipy.ndimage import gaussian_filter
+from dataclasses import dataclass
 from shapely import Polygon, Point
 from ..src.settings import GRAY
 
@@ -148,6 +149,31 @@ def init_data_collecting(line: str, dtype: str) -> tuple:
     t = line.split()
     dict_key = t[1]
     return dict_key, empty_array, dtype
+
+
+@dataclass
+class SymmetryConfig:
+    axis: str
+    mid: tuple
+
+    def __post_init__(self):
+        if self.axis not in ["x", "y"]:
+            raise ValueError("Invalid symmetry axis. Must be either 'x' or 'y'.")
+
+
+def symmetrise_symmetric(data: np.ndarray, config: SymmetryConfig) -> np.ndarray:
+    if config.axis == 'y':
+        data = data.T
+        idx = config.mid[1]
+    else:
+        idx = config.mid[0]
+    symm_array = np.zeros(data.shape)
+    # averaging over positive and negative y
+    averaged_half = (data[:,idx + 1:] + data[:,:idx][:,::-1])/2
+    symm_array[:,idx + 1:] = averaged_half
+    symm_array[:,:idx] = averaged_half[:,::-1]
+    symm_array[:,idx] = data[:,idx]
+    return symm_array if config.axis == 'x' else symm_array.T
 
 
 def read_ff_output(filename: str, ff_type: str) -> dict:
@@ -371,6 +397,7 @@ class FieldAnalyzer():
                           ax=None,
                           zlevel_key=None,
                           scale=1e3,
+                          add_offset=0,
                           **kwargs):
         """ Plots the 1D potential distribution along a specified cut in the XY plane.
             Returns ax: The matplotlib axes object.
@@ -390,7 +417,7 @@ class FieldAnalyzer():
             ax = _default_ax()
 
         x, y = self.get_potential_1D(couplingConst, voltages, xy_cut, loc, zlevel_key)
-        ax.plot(x, y*scale, **kwargs)
+        ax.plot(x, y * scale + add_offset, **kwargs)
         ax.set_xlabel(r'$x$ or $y$ (um)')
         ax.set_ylabel(r'potential $-\phi$ (V*scale)')
         return ax
@@ -534,7 +561,7 @@ class FieldAnalyzer():
         setattr(self, newname, new_dict)
 
 
-    def make_smooth(self, attr_name: str, gaussian_power: int, newname: str):
+    def make_smooth(self, attr_name: str, gaussian_power: int, newname: str, **kwargs) -> None:
         """ Smooths the coupling constants of the fieldreader object using a Gaussian filter.
         
         Args:
@@ -550,6 +577,6 @@ class FieldAnalyzer():
             if k == 'xlist' or k == 'ylist':
                 smoothed[k] = v
             else:
-                smoothed[k] = gaussian_filter(v, gaussian_power)
+                smoothed[k] = gaussian_filter(v, gaussian_power, **kwargs)
 
         setattr(self, newname, smoothed)

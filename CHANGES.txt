@@ -1,6 +1,21 @@
 Changes
 =======
 
+0.4.4
+----------------
+New features:
+- Added functions in utils.py: 
+    oriented_angle                  Calculate the oriented angle
+    find_nearest_point_index        Finds the index of the closest point in a Shapely polygon to a given point.
+    round_polygon_corner            Rounds one corner of a Shapely polygon.
+    replace_closest_polygon         Replaces the closest polygon in a MultiPolygon with a new polygon.
+    round_corner                    Rounds the corner of the closest polygon in a MultiPolygon around a given points
+- Added method "round_corner" to the Superstructure class.
+
+Deprecated:
+- round_sharp_corners in Superstructure is deprecated. Use round_corner instead.
+
+
 0.4.3
 ----------------
 

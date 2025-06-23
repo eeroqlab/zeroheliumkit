@@ -109,6 +109,7 @@ class _Base:
         if lname in self.layers:
             self.layers.remove(lname)
             delattr(self, lname)
+        return self
 
 
     def rename_layer(self, old_name: str, new_name: str) -> None:
@@ -124,6 +125,7 @@ class _Base:
             self.layers[self.layers.index(old_name)] = new_name
         else:
             print(f"Layer '{old_name}' not found in layers.")
+        return self
 
 
     def simplify_layer(self, lname: str, tolerance: float=0.1):
@@ -138,6 +140,7 @@ class _Base:
             setattr(self, lname, getattr(self, lname).simplify(tolerance))
         else:
             print(f"Layer '{lname}' not found in layers.")
+        return self
 
 
     def has_layer(self, lname: str) -> bool:
@@ -267,7 +270,7 @@ class Entity(_Base):
         return self
 
 
-    def mirror(self, aroundaxis: str, update_labels: bool=False, keep_original: bool=False):
+    def mirror(self, aroundaxis: str, keep_original: bool=True, update_labels: bool=True):
         """Mirror all objects.
 
         Args:
@@ -464,6 +467,23 @@ class Entity(_Base):
         """
         for lname in self.layers:
             self.cut_polygon(lname, polygon)
+        return self
+
+
+    def cut_polygon_at_loc(self, layer: str,
+                           geom: Polygon | MultiPolygon,
+                           loc: tuple[float, float]) -> None:
+        """ Cut the given polygon at the specified location
+        
+        Args:
+        ----
+        layer (str): The name of the layer.
+        geom (Polygon | MultiPolygon): The polygon to be cut.
+        loc (tuple[float, float]): The location where the polygon will be cut.
+        """
+        translated_geometry = affinity.translate(geom, xoff = loc[0], yoff = loc[1])
+        self.cut_polygon(layer, translated_geometry)
+        del translated_geometry
         return self
 
 

@@ -274,8 +274,11 @@ class MultiAnchor():
 
     __slots__ = "multipoint"
 
-    def __init__(self, multipoint: list=[]):
-        self.multipoint = multipoint if multipoint else []
+    def __init__(self, multipoint: list=None):
+        if multipoint is None:
+            self.multipoint = []
+        else:
+            self.multipoint = multipoint
 
     def __repr__(self):
         name = f"<MULTIANCHOR {self.labels}>"
@@ -292,16 +295,17 @@ class MultiAnchor():
 
     # TODO: Add __getitem__ method to access anchors by index
 
-    def label_exist(self, label: str) -> bool:
+    def label_exist(self, label: str | list) -> bool:
         """ Checks if a label exists in the list of labels.
 
         Args:
         ----
         label (str): The label to check.
         """
-        if label in self.labels:
-            return True
-        return False
+        if isinstance(label, str):
+            label = [label]
+        label_set = set(label)
+        return label_set.issubset(set(self.labels))
 
 
     def copy(self):
@@ -353,7 +357,7 @@ class MultiAnchor():
         return self
 
 
-    def mirror(self, aroundaxis: str=None, update_labels: bool=False, keep_original: bool=False):
+    def mirror(self, aroundaxis: str=None, update_labels: bool=True, keep_original: bool=False):
         """ Mirrors the multipoint anchors around a specified axis.
 
         Args:

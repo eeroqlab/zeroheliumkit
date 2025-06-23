@@ -8,7 +8,7 @@ from shapely import affinity, unary_union, box
 
 from .core import Entity, Structure
 from .anchors import Anchor
-from .utils import azimuth, buffer_along_path
+from .utils import azimuth, buffer_along_path, round_polygon
 from .functions import extract_coords_from_point
 from .routing import get_fillet_params, make_fillet_line, normalize_anchors
 from .settings import GRID_SIZE
@@ -21,7 +21,9 @@ from .settings import GRID_SIZE
 def Rectangle(width: float,
               height: float,
               location: tuple | Point=None,
-              direction: float=None) -> Polygon:
+              direction: float=None,
+              round_radius: float=None,
+              **kwargs) -> Polygon:
     """ Returns a rectangle Polygon
 
     Args:
@@ -42,11 +44,13 @@ def Rectangle(width: float,
     if location:
         if isinstance(location, Point):
             location = (location.x, location.y)
-        return affinity.translate(poly, *location)
+        poly = affinity.translate(poly, *location)
+    if round_radius:
+        poly = round_polygon(poly, round_radius, **kwargs)
     return  poly
 
 
-def Square(size: float, location: tuple | Point=None, direction: float=None) -> Polygon:
+def Square(size: float, location: tuple | Point=None, direction: float=None, round_radius: float=None, **kwargs) -> Polygon:
     """ Returns a square Polygon
 
     Args:
@@ -57,7 +61,7 @@ def Square(size: float, location: tuple | Point=None, direction: float=None) -> 
     -------
         >>> Square(3)
     """
-    return Rectangle(size, size, location, direction)
+    return Rectangle(size, size, location, direction, round_radius, **kwargs)
 
 
 def RegularPolygon(edge_size: float=None,
@@ -287,7 +291,7 @@ def Meander(length: float=100,
         e.add_line(LineString([(0,0), (0,length/2)]))
 
     if mirror:
-        e.mirror(aroundaxis=mirror)
+        e.mirror(aroundaxis=mirror, keep_original=False)
     if direction:
         e.rotate(direction, origin=(0,0))
 
@@ -334,7 +338,7 @@ def MeanderHalf(length: float=100,
         e.add_line(LineString([(0,0), (0,-length/2)]))
     
     if mirror:
-        e.mirror(aroundaxis=mirror)
+        e.mirror(aroundaxis=mirror, keep_original=False)
     if direction:
         e.rotate(direction, origin=(0,0))
 

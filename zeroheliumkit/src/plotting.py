@@ -51,7 +51,7 @@ def segments(curve):
     return list(map(LineString, zip(curve.coords[:-1], curve.coords[1:])))[::-1]
 
 
-def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK, alpha=1, show_line_idx=False, **kwargs):
+def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK, alpha=1, show_line_idx=False, add_points=False, **kwargs):
     """ Plots a geometry object on the given axes.
 
     Args:
@@ -71,7 +71,7 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK
         plot_polygon(geometry, 
                      ax=ax, 
                      color=color, 
-                     add_points=False, 
+                     add_points=add_points, 
                      alpha=alpha, 
                      edgecolor=edgecolor)
         if show_idx:

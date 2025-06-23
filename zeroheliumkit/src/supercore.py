@@ -4,17 +4,18 @@ The SuperStructure class provides additional methods for routing and adding stru
 The ContinuousLineBuilder class is also implemented in this file, which is used to build a structure by defining a continuous line.
 """
 
+import warnings
 import numpy as np
 
 from dataclasses import dataclass
 from shapely import (line_locate_point, line_interpolate_point, intersection_all,
                      distance, difference, intersection, unary_union)
-from shapely import LineString, Polygon
+from shapely import LineString, Polygon, Point
 
 from .anchors import Anchor, MultiAnchor, Skeletone
 from .core import Structure, Entity
 from .geometries import ArcLine
-from .utils import (fmodnew, flatten_lines, create_list_geoms,
+from .utils import (fmodnew, flatten_lines, create_list_geoms, round_corner,
                     round_polygon, buffer_line_with_variable_width)
 from .functions import get_normals_along_line
 from .routing import create_route
@@ -81,6 +82,7 @@ class SuperStructure(Structure):
         self._route_config = route_config
         super().__init__()
 
+    
     def route(self,
               anchors: tuple,
               layers: dict=None,
@@ -91,25 +93,123 @@ class SuperStructure(Structure):
               rm_route: bool=False,
               cap_style: str="flat",
               **kwargs) -> None:
-        """ Routes between anchors.
-            This method routes between two anchors based on the provided parameters.
+        """ Routes between anchors and
+            adding airbridge when a crossing with the skeleton is expected.
 
         Args:
         ----
-        anchors (tuple): Two anchors between which a route is constructed.
-        layers (dict): Layer information.
-        airbridge (Entity | Structure): Airbridge structure.
-        extra_rotation (float): Extra rotation angle.
-        print_status (bool): Flag indicating if the status should be printed.
+        anchors (tuple): The anchors to route between. Provide labels.
+        layers (dict): The layer width information.
+        airbridge (Entity | Structure): The airbridge structure.
+            Should contain 'in' and 'out' anchors. Defaults to None
+        extra_rotation (float, optional): Additional rotation angle for the airbridge. Defaults to 0.
+        print_status (bool, optional): Whether to print the status of the route creation. Defaults to False.
         rm_anchor (bool or str, optional): If True, removes the anchor points after appending. 
                                            If a string is provided, removes the specified anchor point. 
                                            Defaults to False.
-        rm_route (bool, optional): If True, removes the route line after appending route polygons. Defaults to False.
+        rm_route (bool, optional): Whether to remove created route line. Defaults to False.
+        cap_style (str, optional): The cap style for the buffered line. Defaults to "flat".
+
+        Examples:
+        --------
+            >>> ss = SuperStructure(route_config={...})
+            >>> ss.route_with_intersection(anchors=('A', 'B'),
+            >>> layers={'layer1': 0.1}, airbridge=airbridge_structure)
         """
+        #start and end points
+        p_start = self.get_anchor(anchors[0]).point
+        p_end = self.get_anchor(anchors[-1]).point
 
-        self.route_with_intersection(anchors, layers, airbridge, extra_rotation, print_status, rm_route, cap_style, **kwargs)
+        if airbridge:
+            if not airbridge.anchors.label_exist(['in', 'out']):
+                raise TypeError("airbridge anchors could be only 'in' and 'out'")
+        
+        # getting route line along the anchor points
+        route_line = LineString()
+        for labels in zip(anchors, anchors[1:]):
+            line = create_route(a1=self.get_anchor(labels[0]),
+                                a2=self.get_anchor(labels[1]),
+                                radius=self._route_config.get("radius"),
+                                num_segments=self._route_config.get("num_segments"),
+                                print_status=print_status,
+                                **kwargs)
+            route_line = flatten_lines(route_line, line)
 
-        # remove or not to remove anchor
+        # get all intersection points with route line and skeletone
+        intersections = intersection_all([route_line, self.skeletone.lines])
+
+        # get valid intesections
+        if not intersections.is_empty:
+            # create a list of points
+            list_of_intersection_points = create_list_geoms(intersections)
+            # getting airbridge locations (i.e. removing start and end points)
+            ab_locs = [p for p in list_of_intersection_points if p not in [p_start, p_end]]
+
+        ###################################
+        #### buffering along the route ####
+        ###################################
+
+        if (intersections.is_empty) or (ab_locs==[]) or (airbridge is None):
+            # in case of (no intersections) or (no ab_locs) or (no airbridge) - make a simple route structure
+            self.bufferize_routing_line(route_line, layers, keep_line=False, cap_style=cap_style)
+            # remove or not to remove route line
+            if not rm_route:
+                self.add_line(route_line, chaining=False, ignore_crossing=True)
+
+        else:
+            # getting list of distances of airbridge locations from starting point
+            list_distances = np.asarray(list(map(distance, ab_locs, [p_start]*len(ab_locs))))
+            sorted_distance_indicies = np.argsort(list_distances)
+
+            ab_locs_on_skeletone = line_locate_point(self.skeletone.lines, ab_locs, normalized=True)
+            ab_angles = get_normals_along_line(self.skeletone.lines, ab_locs_on_skeletone)
+
+            # create route anchor list with temporary anchor list, which will be deleted in the end
+            route_anchors = [anchors[0]]
+            temporary_anchors = []
+
+            # adding airbridges to superstructure
+            for i, idx in enumerate(sorted_distance_indicies):
+                ab_coords = (ab_locs[idx].x, ab_locs[idx].y)
+                ab_angle = fmodnew(ab_angles[idx] + 90 + extra_rotation)
+
+                ab = airbridge.copy()
+                ab.rotate(angle=ab_angle)
+                ab.moveby(xy=ab_coords)
+
+                # correcting the orientation of the airbridge if 'in' and 'out' are swapped
+                distance2in  = distance(ab.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
+                distance2out = distance(ab.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
+                if distance2out < distance2in:
+                    ab.rotate(180, origin=ab_coords)
+
+                for label in ['in', 'out']:
+                    temporary_name = str(i) + label
+                    ab.modify_anchor(label=label,
+                                     new_name=temporary_name)
+                    route_anchors.append(temporary_name)
+                    temporary_anchors.append(temporary_name)
+                self.append(ab)
+            route_anchors.append(anchors[1])
+
+            # adding all routes between airbridge anchors
+            for labels in zip(route_anchors[::2], route_anchors[1::2]):
+                route_line = create_route(a1=self.get_anchor(labels[0]),
+                                          a2=self.get_anchor(labels[1]),
+                                          radius=self._route_config.get("radius"),
+                                          num_segments=self._route_config.get("num_segments"),
+                                          print_status=print_status,
+                                          **kwargs)
+                self.bufferize_routing_line(route_line, layers, keep_line=False)
+                # remove or not to remove route line
+                if not rm_route:
+                    self.add_line(route_line, chaining=False)
+
+            # remove temporary anchors
+            self.remove_anchor(temporary_anchors)
+
+        # finally!
+        # remove or not to remove anchors used for routing
         if rm_anchor==True:
             self.remove_anchor(anchors)
         elif isinstance(rm_anchor, (str, tuple)):
@@ -186,129 +286,6 @@ class SuperStructure(Structure):
             s.moveby(xy=(point.x, point.y))
             self.append(s)
 
-    
-    def route_with_intersection(self,
-                                anchors: tuple,
-                                layers: dict,
-                                airbridge: Entity | Structure=None,
-                                extra_rotation: float=0,
-                                print_status: bool=False,
-                                remove_line: bool=False,
-                                cap_style: str="flat",
-                                **kwargs) -> None:
-        """ Creates a route connecting specified anchors and
-            adding airbridge when a crossing with the skeleton is expected.
-
-        Args:
-        ----
-        anchors (tuple): The anchors to route between. Provide labels.
-        layers (dict): The layer width information.
-        airbridge (Entity | Structure): The airbridge structure.
-            Should contain 'in' and 'out' anchors. Defaults to None
-        extra_rotation (float, optional): Additional rotation angle for the airbridge. Defaults to 0.
-        print_status (bool, optional): Whether to print the status of the route creation. Defaults to False.
-        remove_line (bool, optional): Whether to remove created route line. Defaults to False.
-
-        Examples:
-        --------
-            >>> ss = SuperStructure(route_config={...})
-            >>> ss.route_with_intersection(anchors=('A', 'B'),
-            >>>                                layers={'layer1': 0.1}, airbridge=airbridge_structure)
-        """
-        #start and end points
-        p_start = self.get_anchor(anchors[0]).point
-        p_end = self.get_anchor(anchors[-1]).point
-
-        if airbridge:
-            ab_labels = ['in', 'out']
-            if ((ab_labels[0] not in airbridge.anchors.labels) or
-                (ab_labels[1] not in airbridge.anchors.labels)):
-                raise TypeError("airbridge anchors could be only 'in' and 'out'")
-        
-        # getting route line along the anchor points
-        route_line = LineString()
-        for labels in zip(anchors, anchors[1:]):
-            line = create_route(a1=self.get_anchor(labels[0]),
-                                a2=self.get_anchor(labels[1]),
-                                radius=self._route_config.get("radius"),
-                                num_segments=self._route_config.get("num_segments"),
-                                print_status=print_status,
-                                **kwargs)
-            route_line = flatten_lines(route_line, line)
-
-        # get all intersection points with route line and skeletone
-        intersections = intersection_all([route_line, self.skeletone.lines])
-
-        # get valid intesections
-        if not intersections.is_empty:
-            # create a list of points
-            list_of_intersection_points = create_list_geoms(intersections)
-            # getting airbridge locations (i.e. removing start and end points)
-            ab_locs = [p for p in list_of_intersection_points if p not in [p_start, p_end]]
-
-        ###################################
-        #### buffering along the route ####
-        ###################################
-
-        if intersections.is_empty or ab_locs==[]:
-            # in case of no intersections or no ab_locs make a simple route structure
-            self.bufferize_routing_line(route_line, layers, keep_line=False, cap_style=cap_style)
-            # remove or not to remove route line
-            if not remove_line:
-                self.add_line(route_line, chaining=False)
-
-        else:
-            # getting list of distances of airbridge locations from starting point
-            list_distances = np.asarray(list(map(distance, ab_locs, [p_start]*len(ab_locs))))
-            sorted_distance_indicies = np.argsort(list_distances)
-
-            ab_locs_on_skeletone = line_locate_point(self.skeletone.lines, ab_locs, normalized=True)
-            ab_angles = get_normals_along_line(self.skeletone.lines, ab_locs_on_skeletone)
-
-            # create route anchor list with temporary anchor list, which will be deleted in the end
-            route_anchors = [anchors[0]]
-            temporary_anchors = []
-
-            # adding airbridges to superstructure
-            for i, idx in enumerate(sorted_distance_indicies):
-                ab_coords = (ab_locs[idx].x, ab_locs[idx].y)
-                ab_angle = fmodnew(ab_angles[idx] + 90 + extra_rotation)
-
-                ab = airbridge.copy()
-                ab.rotate(angle=ab_angle)
-                ab.moveby(xy=ab_coords)
-
-                # correcting the orientation of the airbridge if 'in' and 'out' are swapped
-                distance2in  = distance(ab.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
-                distance2out = distance(ab.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
-                if distance2out < distance2in:
-                    ab.rotate(180, origin=ab_coords)
-
-                for label in ab_labels:
-                    temporary_name = str(i) + label
-                    ab.modify_anchor(label=label,
-                                     new_name=temporary_name)
-                    route_anchors.append(temporary_name)
-                    temporary_anchors.append(temporary_name)
-                self.append(ab)
-            route_anchors.append(anchors[1])
-
-            # adding all routes between airbridge anchors
-            for labels in zip(route_anchors[::2], route_anchors[1::2]):
-                route_line = create_route(a1=self.get_anchor(labels[0]),
-                                          a2=self.get_anchor(labels[1]),
-                                          radius=self._route_config.get("radius"),
-                                          num_segments=self._route_config.get("num_segments"),
-                                          print_status=print_status,
-                                          **kwargs)
-                self.bufferize_routing_line(route_line, layers, keep_line=False)
-                # remove or not to remove route line
-                if not remove_line:
-                    self.add_line(route_line, chaining=False)
-
-            # remove anchors
-            self.remove_anchor(temporary_anchors)
-
 
     def bufferize_routing_line(self,
                                line: LineString,
@@ -378,6 +355,7 @@ class SuperStructure(Structure):
             >>> # Round the sharp corners for multiple layers
             >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
         """
+        warnings.warn("round_sharp_corners is deprecated, use round_corner instead", DeprecationWarning, stacklevel=2)
         if isinstance(layer, str):
             layer = [layer]
         for l in layer:
@@ -387,6 +365,26 @@ class SuperStructure(Structure):
             rounded = round_polygon(rounded, radius, **kwargs)
             rounded = intersection(rounded, area)
             setattr(self, l, unary_union([base, rounded]))
+
+
+    def round_corner(self, layer: str, around_point: tuple | Point, radius: float, **kwargs):
+        """ Rounds the corner of the polygon closest to a given Point in a specific layer.
+
+        Args:
+        ----
+            layer (str | list[str]): The layer(s) on which the operation should be performed.
+            around_point (tuple | Point): The point around which the corner should be rounded.
+            radius (float): The radius to be applied for rounding the corners.
+            **kwargs: Additional keyword arguments to be passed to the rounding function.
+        """
+        if isinstance(around_point, tuple):
+            around_point = Point(around_point)
+        original = getattr(self, layer)
+        rounded = round_corner(original, around_point, radius, **kwargs)
+        setattr(self, layer, rounded)
+
+        return self
+
 
 
 
@@ -571,10 +569,11 @@ class ContinuousLineBuilder():
                                 chaining = False)
         self.skeletone.fix()
         self.absolute_angle = anchor.direction
+        self.anchors.remove("temp")
         return self
 
 
-    def build_layers(self, layers: dict=None, **kwargs):
+    def build_layers(self, layers: dict=None, cap_style: str='round', **kwargs):
         """ Build layers for the structure.
 
         Args:
@@ -588,7 +587,7 @@ class ContinuousLineBuilder():
             layers = self.layers
 
         for lname, buffer_width in layers.items():
-            poly = self.skeletone.buffer(buffer_width/2, join_style="mitre", **kwargs)
+            poly = self.skeletone.buffer(buffer_width/2, join_style="mitre", cap_style=cap_style, **kwargs)
             if self.structure.has_layer(lname):
                 self.structure.add_polygon(lname, poly)
             else:
@@ -613,7 +612,7 @@ class ContinuousLineBuilder():
         for k,v in kwargs.items():
             setattr(self.objs_along, k, v)
 
-        num = int(self.skeletone.length / self.objs_along.spacing)
+        num = int(self.skeletone.length / self.objs_along.spacing) + 1
 
         p1, p2 = self.skeletone.boundary
         start_point = line_locate_point(self.skeletone.lines, p1, normalized=True)
@@ -647,3 +646,8 @@ class ContinuousLineBuilder():
         if self.objs_along:
             self.add_along_skeletone()
         return self
+
+
+    def taper(self, length: float|int, layers: dict):
+        # TODO: Implement tapering
+        pass

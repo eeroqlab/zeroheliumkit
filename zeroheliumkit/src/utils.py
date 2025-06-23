@@ -1,9 +1,11 @@
 import numpy as np
+import warnings
 from typing import Tuple, List
 from math import fmod
 
 from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
 from shapely import ops, affinity, unary_union
+from shapely import get_num_interior_rings
 from shapely import (centroid, line_interpolate_point, intersection,
                      is_empty, crosses, remove_repeated_points)
 
@@ -504,8 +506,8 @@ def round_polygon(polygon: Polygon, round_radius: float, **kwargs) -> Polygon:
 
     Args:
     ----
-    polygon (Polygon): The input polygon to round.
-    round_radius (float): The radius of the rounding.
+        polygon (Polygon): The input polygon to round.
+        round_radius (float): The radius of the rounding.
     """
     return polygon.buffer(round_radius,**kwargs).buffer(-2*round_radius,**kwargs).buffer(round_radius,**kwargs)
 
@@ -515,12 +517,12 @@ def buffer_along_path(points: List[tuple | Point], widths: list | float) -> Poly
 
     Args:
     ----
-    points (List[Union[tuple, Point]]): The points along which the polygon structure is constructed.
-    widths (Union[list, float]): The widths of the polygon defined by a list or a single value (uniform widths).
+        points (List[Union[tuple, Point]]): The points along which the polygon structure is constructed.
+        widths (Union[list, float]): The widths of the polygon defined by a list or a single value (uniform widths).
 
     Raises:
     ------
-    ValueError: If the number of points and widths do not match.
+        ValueError: If the number of points and widths do not match.
 
     Example:
     -------
@@ -633,3 +635,203 @@ def mirror(object: Polygon | LineString | MultiLineString | MultiPolygon,
         return affinity.scale(object, xfact=-1, yfact=1, origin=origin)
     else:
         raise ValueError("Invalid axis. Choose 'x' or 'y'")
+
+
+def oriented_angle(p1: list[float,float], p2: list[float,float], p3: list[float,float]) -> float:
+    """
+    Calculate the oriented angle between vectors p1->p2 and p2->p3.
+
+    Args:
+        p1, p2, p3: NumPy arrays representing points (x, y).
+
+    Returns:
+        The oriented angle in radians.
+    """
+    v1 = np.asarray(p1) - np.asarray(p2)
+    v2 = np.asarray(p3) - np.asarray(p2)
+    dot_product = v1[0] * v2[0] + v1[1] * v2[1]
+    determinant = v1[0] * v2[1] - v1[1] * v2[0]
+    angle = np.arctan2(determinant, dot_product)
+    if angle < 0:
+        angle += 2 * np.pi
+    return angle
+
+
+def find_nearest_point_index(polygon: Polygon, point: Point) -> int:
+    """
+    Finds the index of the closest point in a Shapely polygon to a given point.
+
+    Args:
+        polygon (Polygon): The input Shapely polygon.
+        point (Point): The Shapely point to compare.
+
+    Returns:
+        int: The index of the closest point in the polygon's exterior.
+    """
+    if not isinstance(polygon, Polygon):
+        raise ValueError("Input must be a Shapely Polygon.")
+    if not isinstance(point, Point):
+        raise ValueError("Input must be a Shapely Point.")
+    
+    # Get the exterior coordinates of the polygon
+    coords = list(polygon.exterior.coords)
+    
+    # Calculate distances and find the index of the minimum
+    distances = [point.distance(Point(coord)) for coord in coords]
+    closest_index = distances.index(min(distances))
+    
+    return closest_index
+
+
+def round_polygon_corner(polygon: Polygon, corner_index: int, radius: float=1, quad_segs: int=8) -> Polygon:
+    """
+    Rounds one corner of a Shapely polygon.
+
+    Args:
+        polygon (Polygon): The input Shapely polygon.
+        corner_index (int): The index of the corner to round (0-based).
+        radius (float): The radius of the rounded corner.
+        quad_segs (int): Number of segments for the rounded corner arc.
+
+    Returns:
+        Polygon: A new polygon with the specified corner rounded.
+    """
+    if not isinstance(polygon, Polygon):
+        raise ValueError("Input must be a Shapely Polygon.")
+    
+    coords = list(polygon.exterior.coords)
+    if corner_index < 0 or corner_index >= len(coords) - 1:
+        raise ValueError("Invalid corner index.")
+    
+    # Get the corner point and its adjacent points
+    if coords[0] == coords[-1] and corner_index == 0:
+        prev_point = coords[corner_index - 2]
+    else:
+        prev_point = coords[corner_index - 1]
+    corner_point = coords[corner_index]
+    next_point = coords[(corner_index + 1) % len(coords)]
+
+    theta = oriented_angle(prev_point, corner_point, next_point)
+    if theta > np.pi:
+        sign = -1
+    else:
+        sign = 1
+    
+    # rounding procedure
+    line = LineString([prev_point, corner_point, next_point])
+    line2 = line.offset_curve(-sign * radius, join_style=1, quad_segs=quad_segs)
+    line3 = line2.offset_curve(sign * radius, join_style=1, quad_segs=quad_segs)
+
+    # Get the arc points
+    arc_points = list(line3.coords)
+
+    # Replace the corner with the arc
+    if corner_index == 0:
+        new_coords = arc_points[1:-1] + coords[1:-1]
+    else:
+        new_coords = coords[:corner_index] + arc_points[1: -1] + coords[corner_index + 1:]
+    return Polygon(new_coords)
+
+
+def replace_closest_polygon(multipolygon: MultiPolygon, point: Point, new_polygon: Polygon) -> MultiPolygon:
+    """
+    Replaces the closest polygon in a MultiPolygon with a new polygon.
+
+    Args:
+        multipolygon (MultiPolygon): The input Shapely MultiPolygon.
+        point (Point): The Shapely point to compare.
+        new_polygon (Polygon): The new polygon to replace the closest one.
+
+    Returns:
+        MultiPolygon: A new MultiPolygon with the closest polygon replaced.
+    """
+    
+    # Find the closest polygon
+    closest_polygon = None
+    min_distance = float('inf')
+    for polygon in multipolygon.geoms:
+        distance = point.distance(polygon)
+        if distance < min_distance:
+            min_distance = distance
+            closest_polygon = polygon
+    
+    # Replace the closest polygon with the new polygon
+    updated_polygons = [
+        new_polygon if polygon == closest_polygon else polygon
+        for polygon in multipolygon.geoms
+    ]
+    
+    return MultiPolygon(updated_polygons)
+
+
+def round_corner(multipolygon: MultiPolygon, around_point: Point, radius: float, **kwargs) -> MultiPolygon:
+    """
+    Rounds the corner of the closest polygon in a MultiPolygon around a given point with a specified radius.
+
+    Args:
+        multipolygon (MultiPolygon): The MultiPolygon object containing multiple polygons.
+        around_point (Point): The point around which the corner needs to be rounded.
+        radius (float): The radius of the rounded corner.
+        **kwargs: Additional keyword arguments to be passed to the round_polygon_corner function.
+
+    Returns:
+        MultiPolygon: A new MultiPolygon object with the rounded corner.
+    """
+    if isinstance(multipolygon, Polygon):
+        multipolygon = MultiPolygon([multipolygon])
+
+    # Find the closest polygon in Multipolygon
+    closest_polygon = None
+    min_distance = float('inf')
+    for polygon in multipolygon.geoms:
+        distance = around_point.distance(polygon)
+        if distance < min_distance:
+            min_distance = distance
+            closest_polygon = polygon
+    
+     # Find the closest polygon in Polugon Exterior and Interiors
+    num_holes = get_num_interior_rings(closest_polygon)
+    if num_holes > 0:
+        closest_hole = None
+        min_distance_hole = float('inf')
+        id_hole = 0
+        for i in range(num_holes):
+            hole = closest_polygon.interiors[i]
+            distance = around_point.distance(hole)
+            if distance < min_distance_hole:
+                min_distance_hole = distance
+                closest_hole = hole
+                id_hole = i
+        
+        # check the around_point is closer to the hole or exterior
+        distance_exterior = around_point.distance(closest_polygon.exterior)
+        if min_distance_hole < distance_exterior:
+            polygon_to_be_rounded = Polygon(closest_hole)
+            closer_to_hole = True
+        else:
+            polygon_to_be_rounded = closest_polygon
+            closer_to_hole = False
+    else:
+        polygon_to_be_rounded = closest_polygon
+
+    # Rounding of the corner happens here
+    corner_point_id = find_nearest_point_index(polygon_to_be_rounded, around_point)
+    rounded_polygon = round_polygon_corner(polygon_to_be_rounded, corner_index=corner_point_id, radius=radius, **kwargs)
+
+    if num_holes > 0:
+        if closer_to_hole:
+            holes = list(closest_polygon.interiors)
+            holes[id_hole] = rounded_polygon.exterior
+            fixed_polygon = Polygon(shell=closest_polygon.exterior, holes=holes)
+        else:
+            fixed_polygon = Polygon(shell=rounded_polygon.exterior, holes=closest_polygon.interiors)
+    else:
+        fixed_polygon = rounded_polygon
+
+    # Replace the closest polygon with the new polygon
+    updated_polygons = [
+        fixed_polygon if polygon == closest_polygon else polygon
+        for polygon in multipolygon.geoms
+    ]
+
+    return MultiPolygon(updated_polygons)

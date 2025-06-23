@@ -1,6 +1,6 @@
 import numpy as np
 
-from scipy import pi, sinh
+from math import pi, sinh
 from scipy.special import ellipk
 
 from tabulate import tabulate
