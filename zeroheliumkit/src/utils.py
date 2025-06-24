@@ -79,7 +79,7 @@ def flatten_lines(line1: LineString, line2: LineString, bypass_alignment: bool=F
             LINESTRING (0 0, 1 1, 2 2, 3 3)
     """
     if not bypass_alignment:
-        if line1.coordinates[1] != line2.coordinates[0]:
+        if line1.coordinates[-1] != line2.coordinates[0]:
             raise ValueError("The last point of the first line and the first point of the second line are not the same.")
 
     if line1.is_empty:
@@ -672,7 +672,7 @@ def round_polygon(polygon: Polygon, round_radius: float, **kwargs) -> Polygon:
         polygon (Polygon): The input polygon to round.
         round_radius (float): The radius of the rounding.
         **kwargs: Additional keyword arguments to pass to the buffer method.
-            https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html
+            [shapely buffer](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html)
 
     Returns:
     -------

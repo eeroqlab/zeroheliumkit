@@ -100,7 +100,7 @@ class _Base:
     #### Operations on layers ####
     ################################
 
-    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon()):
+    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon()): 
         """
         Adds a layer to the class with the given name and geometry.
 
@@ -508,7 +508,8 @@ class Entity(_Base):
             name (str): new layer/attribute name
             offset (float): buffering skeleton by offset
             **kwargs: additional keyword arguments to be passed to the buffer method
-                See Shapely 'buffer' function for additional keyword arguments
+                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer)
+                for additional keyword arguments
 
         Returns:
         -------
@@ -635,7 +636,7 @@ class Entity(_Base):
         del translated_geometry
         return self
 
-#----
+#---- replacing cut_polygon, delete cut_polygon_at_loc (check that it isn't called)
     def cut_polygon_new(self, lname: str, 
                         geom: Polygon | MultiPolygon,
                         loc: tuple[float, float]=(0,0)):
@@ -736,8 +737,9 @@ class Entity(_Base):
             self.crop_layer(lname, polygon)
         return self
 
-
-    def modify_polygon_points(self, lname: str, obj_idx: int, points: dict, interior: bool):
+    ## figure out how to plot the polygon with point labels to test 
+    ## expand the plotting capabilities to incude labels by number 
+    def modify_polygon_points(self, lname: str, obj_idx: int, points: dict, interior: bool=False):
         """
         Updates the point coordinates of an object in a layer.
 
@@ -770,7 +772,8 @@ class Entity(_Base):
         polygon_list[obj_idx] = set_coordinates(polygon, coords)
         setattr(self, lname, MultiPolygon(polygon_list))
 
-
+    ## write the limitation about how it is cut with the ycoord 
+    ## just note that it has that length
     def remove_holes_from_polygons(self, lname: str):
         """
         Removes any holes from a multipolygon in a layer by vertically 
@@ -874,7 +877,7 @@ class Entity(_Base):
             filename (str): The name of the gds file to be exported.
             layer_cfg (dict): A dictionary containing the layer configuration.
                 {"layer1": {"layer": int, "datatype": int}, ...}
-                https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype
+                See [gdspy docs](https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype) for more information.
         """
         zhkdict = self.get_zhk_dict(flatten_polygon=True)
         exp = Exporter_GDS(filename, zhkdict, layer_cfg)
@@ -899,6 +902,7 @@ class Entity(_Base):
     #### Plotting operations ####
     #############################
 
+    ## - labels for the points
     def plot(self,
             ax=None,
             layer: list=None,
