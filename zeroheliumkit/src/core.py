@@ -737,7 +737,6 @@ class Entity(_Base):
         return self
 
 
-    #thinking about how to handle cases when we want to update the interior
     def modify_polygon_points(self, lname: str, obj_idx: int, points: dict):
         """
         Updates the point coordinates of an object in a layer.

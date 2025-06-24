@@ -14,6 +14,14 @@ from .settings import GRID_SIZE
 from .fonts import _glyph, _indentX, _indentY
 
 
+def check_point_equality(p1: tuple | Point, p2: tuple | Point) -> None:
+    if isinstance(p1, Point) and isinstance(p2, Point):
+        if p1.x == p2.x and p1.y == p2.y:
+            raise ValueError("p1 and p2 are the same value.")
+    elif p1 == p2:
+        raise ValueError("p1 and p2 are the same value.")
+
+
 def fmodnew(angle: float | int) -> float:
     """
     Returns a Modified modulo calculations for angles in degrees.
@@ -42,7 +50,7 @@ def fmodnew(angle: float | int) -> float:
     return angle % 360
 
 
-def flatten_lines(line1: LineString, line2: LineString) -> LineString:
+def flatten_lines(line1: LineString, line2: LineString, bypass_alignment: bool=False) -> LineString:
     """ 
     Appends line2 to line1 and returning a new LineString object.
     The last point of line1 and the first point of line2 are assumed to be the same.
@@ -51,10 +59,16 @@ def flatten_lines(line1: LineString, line2: LineString) -> LineString:
     ----
         line1 (LineString): The first LineString object.
         line2 (LineString): The second LineString object.
+        bypass_alignment (bool): If True, the function will not check that 
+            the last point of line1 and the first point of line2 are the same. Defaults to False.
 
     Returns:
     -------
         LineString: A new LineString object formed by flattening line1 with line2.
+
+    Raises:
+    ------
+        ValueError: If the last point of the first line and the first point of the second line are not the same
 
     Example:
     -------
@@ -64,6 +78,10 @@ def flatten_lines(line1: LineString, line2: LineString) -> LineString:
         >>> print(result)
             LINESTRING (0 0, 1 1, 2 2, 3 3)
     """
+    if not bypass_alignment:
+        if line1.coordinates[1] != line2.coordinates[0]:
+            raise ValueError("The last point of the first line and the first point of the second line are not the same.")
+
     if line1.is_empty:
         return line2
     elif line2.is_empty:
@@ -196,8 +214,7 @@ def azimuth(p1: tuple | Point, p2: tuple | Point) -> float:
         >>> print(result)
             -45.0
     """
-    if p1 == p2 | p1.x == p1.y:
-        raise ValueError("Points cannot be equal to one another.")
+    check_point_equality(p1, p2)
 
     if isinstance(p1, Point):
         p1 = (p1.x, p1.y)
@@ -259,8 +276,7 @@ def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
         >>> result = get_abc_line(p1, p2)    
             (-2, 2, 2)
     """
-    if p1 == p2 | p1.x == p1.y:
-        raise ValueError("Points cannot be equal to one another.")
+    check_point_equality(p1, p2)
 
     if not isinstance(p1, Point):
         p1 = Point(p1)
@@ -416,6 +432,8 @@ def midpoint(p1: Point, p2: Point, alpha: float=0.5) -> Point:
         >>> print(result)
             POINT (1.0 2.0)
     """
+
+
     return Point(p1.x + alpha * (p2.x - p1.x), p1.y + alpha * (p2.y - p1.y))
 
 
@@ -471,6 +489,7 @@ def has_interior(p: Polygon) -> bool:
 def flatten_polygon(p: Polygon) -> MultiPolygon:
     """
     Creates a cut line along the centroid of each hole and dissects the polygon.
+    1e6 is the length of the cut line. ## (is this a weird way to say it?)
 
     Args:
     ----
@@ -488,7 +507,7 @@ def flatten_polygon(p: Polygon) -> MultiPolygon:
         >>> print(result)
             MULTIPOLYGON ...
     """
-    YCOORD = 1e6    # defines the length of the cut line
+    YCOORD = 1e6 
 
     multipolygon = MultiPolygon([p])
 
@@ -653,6 +672,7 @@ def round_polygon(polygon: Polygon, round_radius: float, **kwargs) -> Polygon:
         polygon (Polygon): The input polygon to round.
         round_radius (float): The radius of the rounding.
         **kwargs: Additional keyword arguments to pass to the buffer method.
+            https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html
 
     Returns:
     -------
