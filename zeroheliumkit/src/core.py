@@ -28,7 +28,7 @@ from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, create_list_geoms, polygonize_text
+from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior
 
 
 
@@ -737,7 +737,7 @@ class Entity(_Base):
         return self
 
 
-    def modify_polygon_points(self, lname: str, obj_idx: int, points: dict):
+    def modify_polygon_points(self, lname: str, obj_idx: int, points: dict, interior: bool):
         """
         Updates the point coordinates of an object in a layer.
 
@@ -749,13 +749,17 @@ class Entity(_Base):
                 Keys: corrresponds to the point idx in polygon exterior coord list.
                 Value: list of new [x,y] coordinates
         """
-
         mpolygon = getattr(self, lname)
         if isinstance(mpolygon, Polygon):
             mpolygon = MultiPolygon([mpolygon])
         polygon_list = list(mpolygon.geoms)
         polygon = polygon_list[obj_idx]
         coords = get_coordinates(polygon)
+
+        if interior:
+            #verify that it has an interior
+            if has_interior(polygon):
+
 
         # updating coordinates of the polygon
         points_to_be_changed = list(points.keys())
@@ -769,7 +773,8 @@ class Entity(_Base):
 
     def remove_holes_from_polygons(self, lname: str):
         """
-        Converts polygons with holes into a set of polygons without any holes.
+        Removes any holes from a multipolygon in a layer by vertically 
+        cutting along the centroid of each hole and piecing together the remaining Polygon geometries.
 
         Args:
         ----
