@@ -28,7 +28,7 @@ from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior
+from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos
 
 
 
@@ -758,9 +758,9 @@ class Entity(_Base):
         polygon = polygon_list[obj_idx]
         coords = get_coordinates(polygon)
 
-        if interior:
-            #verify that it has an interior
-            if has_interior(polygon):
+        # if interior:
+        #     #verify that it has an interior
+        #     if has_interior(polygon):
 
 
         # updating coordinates of the polygon
@@ -910,6 +910,7 @@ class Entity(_Base):
             color=None,
             alpha=1,
             draw_direction=True,
+            draw_labels: bool=True,
             **kwargs):
         """
         Plots the Entity object on a given axis with specified layers and colors.
@@ -922,6 +923,7 @@ class Entity(_Base):
             color (str or list, optional): The color(s) to use for plotting. Defaults to None.
             alpha (float, optional): The transparency of the plot. Defaults to 1.
             draw_direction (bool, optional): Whether to draw arrows. Defaults to True.
+            draw_labels (bool, optional): Whether to draw labels on each Point. Defaults to False.
             **kwargs: Additional keyword arguments to pass to the plot_geometry function.
         """
         if ax is None:
@@ -944,6 +946,25 @@ class Entity(_Base):
             elif l == "skeletone":
                 self.skeletone.plot(ax=ax, color=c)
 
+        if draw_labels:
+            label_distance = 0.5
+            for polygon in geometry.geoms:
+                centroid = polygon.centroid
+                label = 1
+                for x, y in polygon.exterior.coords:
+                    label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
+
+                    if label != len(polygon.exterior.coords):
+                        ax.plot(x, y, 'ro')
+                        ax.text(label_x, label_y, str(label), color='red')
+                        label += 1
+                if has_interior(polygon):
+                    for x, y in polygon.interior.coords:
+                        label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
+
+                        if label != len(polygon.interior.coords):
+                            ax.plot(x, y)
+                            ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
 
     def quickplot(self, plot_config: dict, zoom: tuple=None,
                   ax=None, show_idx: bool=False, **kwargs) -> None:

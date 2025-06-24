@@ -1,7 +1,7 @@
 import numpy as np
 import warnings
 from typing import Tuple, List
-from math import fmod
+from math import fmod, sqrt
 
 from shapely import Polygon, MultiPolygon, LineString, Point, MultiLineString
 from shapely import ops, affinity, unary_union
@@ -50,7 +50,7 @@ def fmodnew(angle: float | int) -> float:
     return angle % 360
 
 
-def flatten_lines(line1: LineString, line2: LineString, bypass_alignment: bool=False) -> LineString:
+def flatten_lines(line1: LineString, line2: LineString, bypass_alignment: bool=True) -> LineString:
     """ 
     Appends line2 to line1 and returning a new LineString object.
     The last point of line1 and the first point of line2 are assumed to be the same.
@@ -78,8 +78,11 @@ def flatten_lines(line1: LineString, line2: LineString, bypass_alignment: bool=F
         >>> print(result)
             LINESTRING (0 0, 1 1, 2 2, 3 3)
     """
+    # doesn't consider line points that are EXTREMELY close to one another - ask Niyaz if there should be features in place to "bypass" this
     if not bypass_alignment:
-        if line1.coordinates[-1] != line2.coordinates[0]:
+        print(line1.coords[-1])
+        print(line2.coords[0])
+        if line1.coords[-1] != line2.coords[0]:
             raise ValueError("The last point of the first line and the first point of the second line are not the same.")
 
     if line1.is_empty:
@@ -1019,3 +1022,16 @@ def round_corner(multipolygon: MultiPolygon, around_point: Point, radius: float,
     ]
 
     return MultiPolygon(updated_polygons)
+
+def calculate_label_pos(x: float, y: float, centroid: Point, label_distance: float=0.5) -> tuple:
+    dist_x = x - centroid.x 
+    dist_y = y - centroid.y
+
+    length = sqrt(dist_x**2 + dist_y**2)
+
+    unit_x = dist_x / length
+    unit_y = dist_y / length
+    label_x = (unit_x * label_distance) + x
+    label_y = (unit_y * label_distance) + y
+
+    return (label_x, label_y)
