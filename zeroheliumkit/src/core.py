@@ -6,8 +6,10 @@ This file contains the core classes and methods for the ZeroHeliumKit library.
 Classes:
 -------
     `_Base`: Base class with default methods for managing shapely objects.
-    `Entity`: A subclass of _Base which represents a collection of shapely objects linked together and provides methods for geometrical operations.
-    `Structure`: A subclass of Entity that represents layers with collections of geometries (Points, LineStrings, Polygons, etc.).
+    `Entity`: A subclass of _Base which represents a collection of shapely objects 
+        linked together and provides methods for geometrical operations.
+    `Structure`: A subclass of Entity that represents layers with 
+        ollections of geometries (Points, LineStrings, Polygons, etc.).
     `GeomCollection`: A subclass of Structure that represents a collection of geometries.
 """
 
@@ -196,9 +198,11 @@ class Entity(_Base):
     Attributes:
     ----------
         skeletone (Skeletone):
-            Represents the path of the Entity, which is a collection of LineStrings.
+            Represents a collection of lines linked to the Entity, which is an 
+            instance of the Skeletone class.
         anchors (MultiAnchor):
-            Represents the anchor points of the Entity, which are instances of Anchor.
+            Represents the anchor points of the Entity, 
+            which are instances of MultiAnchor.
 
     Methods:
     -------
@@ -504,14 +508,11 @@ class Entity(_Base):
             name (str): new layer/attribute name
             offset (float): buffering skeleton by offset
             **kwargs: additional keyword arguments to be passed to the buffer method
+                See Shapely 'buffer' function for additional keyword arguments
 
         Returns:
         -------
             Updated instance (self) of the class with the new buffered line added as an attribute.
-
-        Notes:
-        ----
-            See Shapely 'buffer' function for additional keyword arguments
         """
         self.layers.append(name)
         setattr(self, name, self.skeletone.lines.buffer(offset, **kwargs))
@@ -634,6 +635,29 @@ class Entity(_Base):
         del translated_geometry
         return self
 
+#----
+    def cut_polygon_new(self, lname: str, 
+                        geom: Polygon | MultiPolygon,
+                        loc: tuple[float, float]=(0,0)):
+        """
+        Cuts the given polygon from a layer with an optional location.
+        
+        Args:
+        ----
+            lname (str): The name of the layer.
+            geom (Polygon | MultiPolygon): The polygon to be cut.
+            loc (tuple[float, float], optional): The location where the polygon will be cut.
+                Defaults to (0, 0).
+
+        Returns:
+        -------
+            Updated instance (self) of the class with the cut polygon.
+        """
+        cut_geom = affinity.translate(geom, xoff = loc[0], yoff = loc[1])
+        
+        setattr(self, lname, difference(getattr(self, lname), cut_geom))
+        return self
+#----
 
     def crop_layer(self, lname: str, polygon: Polygon):
         """
@@ -661,7 +685,40 @@ class Entity(_Base):
             cropped_geoms = MultiPolygon(polygon_list)
         setattr(self, lname, cropped_geoms)
         return self
-    
+
+
+#-------
+    #ask niyaz what it might look like with optional location offsets
+    def crop_layer_new(self, lname: str, polygon: Polygon, 
+                            loc: tuple[float, float]=(0,0)):
+        """
+        Crops objects in a layer by a given polygon.
+
+        Args:
+        ----
+            lname (str): The name of the layer.
+            polygon (Polygon): The polygon used for cropping.
+
+        Returns:
+        -------
+            Updated instance (self) of the class with polygons in the specified layer cropped by the given polygon.
+        """
+        geoms = getattr(self, lname)
+
+        polygon = affinity.translate(polygon, xoff = loc[0], yoff = loc[1]) #support for translating polygon or geom?
+
+        # Crop geoms by polygon
+        cropped_geoms = intersection(polygon, geoms)
+
+        if isinstance(cropped_geoms, (Point, MultiPoint, LineString, MultiLineString)):
+            cropped_geoms = MultiPolygon()
+        elif isinstance(cropped_geoms, GeometryCollection):
+            # Select only polygons
+            polygon_list = [geom for geom in list(cropped_geoms.geoms) if isinstance(geom, Polygon)]
+            cropped_geoms = MultiPolygon(polygon_list)
+        setattr(self, lname, cropped_geoms)
+        return self
+#-------
 
     def crop_all(self, polygon: Polygon):
         """
@@ -680,6 +737,7 @@ class Entity(_Base):
         return self
 
 
+    #thinking about how to handle cases when we want to update the interior
     def modify_polygon_points(self, lname: str, obj_idx: int, points: dict):
         """
         Updates the point coordinates of an object in a layer.
@@ -812,7 +870,7 @@ class Entity(_Base):
             filename (str): The name of the gds file to be exported.
             layer_cfg (dict): A dictionary containing the layer configuration.
                 {"layer1": {"layer": int, "datatype": int}, ...}
-                See gdspy docs for 'datatype' details.
+                https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype
         """
         zhkdict = self.get_zhk_dict(flatten_polygon=True)
         exp = Exporter_GDS(filename, zhkdict, layer_cfg)
@@ -930,7 +988,6 @@ class Structure(Entity):
     -------
         append(structure, anchoring=None, direction_snap=False, remove_anchor=False, upd_alabels=None):
             Appends an Entity or Structure to the Structure.
-        _append_geometry(core_objs, appending_objs): Appends single or multiple shapely geometries.
         return_mirrored(aroundaxis, **kwargs): Returns a mirrored copy of the Structure class.
     """
 

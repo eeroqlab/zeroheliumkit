@@ -184,6 +184,10 @@ def azimuth(p1: tuple | Point, p2: tuple | Point) -> float:
     -------
         float: The azimuth angle in degrees, measured clockwise from the positive x-axis.
 
+    Raises:
+    -------
+        ValueError: If p1 and p2 are the same Point object or have the same values.
+
     Example:
     -------
         >>> p1 = (0, 0)
@@ -192,6 +196,9 @@ def azimuth(p1: tuple | Point, p2: tuple | Point) -> float:
         >>> print(result)
             -45.0
     """
+    if p1 == p2 | p1.x == p1.y:
+        raise ValueError("Points cannot be equal to one another.")
+
     if isinstance(p1, Point):
         p1 = (p1.x, p1.y)
     if isinstance(p2, Point):
@@ -241,6 +248,10 @@ def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
     -------
         tuple: A tuple (a, b, c) representing the coefficients of the line equation.
 
+    Raises:
+    ------
+        ValueError: If p1 and p2 are the same Point object or have the same values.
+
     Example:
     -------
         >>> p1 = (1, 2)
@@ -248,6 +259,9 @@ def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
         >>> result = get_abc_line(p1, p2)    
             (-2, 2, 2)
     """
+    if p1 == p2 | p1.x == p1.y:
+        raise ValueError("Points cannot be equal to one another.")
+
     if not isinstance(p1, Point):
         p1 = Point(p1)
     if not isinstance(p2, Point):
@@ -303,13 +317,13 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
         p3 (Point): The starting point of the second line segment.
         p4 (Point): The ending point of the second line segment.
 
-    Raises:
-    ------
-        TopologyError: If the constructed lines (p1,p2) and (p3,p4) do not intersect.
-
     Returns:
     -------
         Point: The intersection point of the two line segments.
+
+    Raises:
+    ------
+        TopologyError: If the constructed lines (p1,p2) and (p3,p4) do not intersect.
 
     Example:
     -------
@@ -663,13 +677,13 @@ def buffer_along_path(points: List[tuple | Point], widths: list | float) -> Poly
         points (List[Union[tuple, Point]]): The points along which the polygon structure is constructed.
         widths (Union[list, float]): The widths of the polygon defined by a list or a single value (uniform widths).
 
-    Raises:
-    ------
-        ValueError: If the number of points and widths do not match.
-
     Returns:
     -------
         Polygon: A polygon object representing the buffer along the path.
+
+    Raises:
+    ------
+        ValueError: If the number of points and widths do not match.
 
     Example:
     -------
