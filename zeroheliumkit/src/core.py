@@ -737,7 +737,6 @@ class Entity(_Base):
         return self
 
     ## figure out how to plot the polygon with point labels to test 
-    ## expand the plotting capabilities to incude labels by number 
     def modify_polygon_points(self, lname: str, obj_idx: int, points: dict, interior: bool=False):
         """
         Updates the point coordinates of an object in a layer.
@@ -947,8 +946,8 @@ class Entity(_Base):
 
         if draw_labels:
             label_distance = 0.5
-            for polygon in geometry.geoms:
-                centroid = polygon.centroid
+            geoms_list = create_list_geoms(geometry)
+            for polygon in geoms_list:
                 label = 1
                 for x, y in polygon.exterior.coords:
                     label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
@@ -958,12 +957,15 @@ class Entity(_Base):
                         ax.text(label_x, label_y, str(label), color='red')
                         label += 1
                 if has_interior(polygon):
-                    for x, y in polygon.interior.coords:
-                        label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
+                    for int in polygon.interiors:
+                        label = 1
+                        for x, y in int.coords:
+                            label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
 
-                        if label != len(polygon.interior.coords):
-                            ax.plot(x, y)
-                            ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
+                            if label != len(int.coords):
+                                ax.plot(x, y, 'ro')
+                                ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
+                                label += 1
 
     def quickplot(self, plot_config: dict, zoom: tuple=None,
                   ax=None, show_idx: bool=False, **kwargs) -> None:
