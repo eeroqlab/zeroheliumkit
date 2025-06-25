@@ -675,7 +675,7 @@ def round_polygon(polygon: Polygon, round_radius: float, **kwargs) -> Polygon:
         polygon (Polygon): The input polygon to round.
         round_radius (float): The radius of the rounding.
         **kwargs: Additional keyword arguments to pass to the buffer method.
-            [shapely buffer](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html)
+            See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html) for additional keyword arguments.
 
     Returns:
     -------

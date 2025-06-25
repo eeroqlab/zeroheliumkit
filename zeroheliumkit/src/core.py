@@ -53,7 +53,7 @@ class _Base:
         has_layer(lname): Checks if a layer exists in the class.
     """
     layers = []
-    errors = None #not sure if these two lines are needed if they're attributes already
+    errors = None 
 
     def __init__(self):
         """
@@ -508,8 +508,7 @@ class Entity(_Base):
             name (str): new layer/attribute name
             offset (float): buffering skeleton by offset
             **kwargs: additional keyword arguments to be passed to the buffer method
-                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer)
-                for additional keyword arguments
+                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer) for additional keyword arguments
 
         Returns:
         -------
@@ -877,7 +876,7 @@ class Entity(_Base):
             filename (str): The name of the gds file to be exported.
             layer_cfg (dict): A dictionary containing the layer configuration.
                 {"layer1": {"layer": int, "datatype": int}, ...}
-                See [gdspy docs](https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype) for more information.
+                See [gdspy docs](https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype) for 'datatype' details.
         """
         zhkdict = self.get_zhk_dict(flatten_polygon=True)
         exp = Exporter_GDS(filename, zhkdict, layer_cfg)
