@@ -1024,6 +1024,20 @@ def round_corner(multipolygon: MultiPolygon, around_point: Point, radius: float,
     return MultiPolygon(updated_polygons)
 
 def calculate_label_pos(x: float, y: float, centroid: Point, label_distance: float=0.5) -> tuple:
+    """
+    Calculates the position of the label in respect to the centroid of the polygon.
+
+    Args:
+    ----
+        x (float): x coordinate of the point.
+        y (float): y coordinate of the point.
+        centroid (Point): Point object representing the centroid of the polygon.
+        label_distance (float, optional): desired distance from the point to the label. Defaults to 0.5.
+
+    Returns:
+    -------
+        tuple: Calculated (x, y) coordinates for this label.
+    """
     dist_x = x - centroid.x 
     dist_y = y - centroid.y
 
@@ -1035,3 +1049,53 @@ def calculate_label_pos(x: float, y: float, centroid: Point, label_distance: flo
     label_y = (unit_y * label_distance) + y
 
     return (label_x, label_y)
+
+def get_label_mappings(coords: list):
+    """
+    Determines the label mappings from a list of coordinates. Combines duplicate points and goes in order.
+
+    Args:
+    ----
+        coords (list): list of coordinates in the form of a NumPy-style array.
+
+    Returns:
+    -------
+        dict: Ordered, unique mapping of labels to point coordinates.
+    """
+    res = {}
+    count = 1
+
+    for coord in coords:
+        print(coord)
+        if coord not in res.values():
+            res[count] = coord
+            count += 1
+    
+    return res
+
+def map_duplicate_coords(coords: list, start_idx: int):
+    """
+    Maps duplicate coordinates to their indices using an index offset from a larger coords list.
+
+    Args:
+    ----
+        coords (list): List of coordinates to sort through.
+        start_idx (int): starting index to count positions from.
+
+    Returns:
+    -------
+        dict: Mapping of coordinates to the indices they show up at in the coordinates list.
+            Keys (tuple): coordinate pairs.
+            Values (list): indices appeared at. 
+    """
+    res = {}
+
+    curr_index = start_idx
+    for coord in coords:
+        x, y = coord
+        if (x, y) not in res:
+            res[(x, y)] = [curr_index]
+        elif (x, y) in res:
+            res[(x, y)] += [curr_index]
+        curr_index += 1
+    return res

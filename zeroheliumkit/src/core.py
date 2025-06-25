@@ -28,7 +28,7 @@ from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos
+from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos, get_label_mappings, map_duplicate_coords
 
 
 
@@ -736,8 +736,7 @@ class Entity(_Base):
             self.crop_layer(lname, polygon)
         return self
 
-    ## figure out how to plot the polygon with point labels to test 
-    def modify_polygon_points(self, lname: str, obj_idx: int, points: dict, interior: bool=False):
+    def modify_polygon_points(self, lname: str, obj_idx: int, ext_points: dict, int_points: dict=None, int_idx: int=0):
         """
         Updates the point coordinates of an object in a layer.
 
@@ -745,9 +744,14 @@ class Entity(_Base):
         ----
             layer (str): layer name
             obj_idx (int): polygon index in multipolygon list
-            points (dict): point index in a polygon. 
+            ext_points (dict): point indices to change in a polygon. 
                 Keys: corrresponds to the point idx in polygon exterior coord list.
-                Value: list of new [x,y] coordinates
+                Value: tuple of new [x,y] coordinates
+            int_points (dict, optional): point indices to change in a polygon. 
+                Keys: corrresponds to the point idx in polygon interiors coord list.
+                Value: tuple of new [x,y] coordinates
+                Defaults to None. 
+            int_idx (int, optional): interior index in the polygon's interiors list. Defaults to 0.
         """
         mpolygon = getattr(self, lname)
         if isinstance(mpolygon, Polygon):
@@ -756,18 +760,48 @@ class Entity(_Base):
         polygon = polygon_list[obj_idx]
         coords = get_coordinates(polygon)
 
-        # if interior:
-        #     #verify that it has an interior
-        #     if has_interior(polygon):
+        exterior_mapping = get_label_mappings(polygon.exterior.coords)
+        #exterior_duplicates = map_duplicate_coords(ext_coords, 0)
+        print("2:" + str(polygon.exterior.coords))
+
+        # updating exterior coords of the polygon
+        # if ext_points:
+        #     points_to_be_changed = list(ext_points.keys())
+        #     for point in points_to_be_changed:
+
+        #         point_coords = exterior_mapping[point]
+        #         referenced_indices = exterior_duplicates[point_coords]
+            
+        #         for idx in referenced_indices:
+        #             coords[idx, 0] = coords[idx, 0] + ext_points[idx][0] 
+        #             coords[idx, 1] = coords[idx, 1] + ext_points[idx][1]
 
 
-        # updating coordinates of the polygon
-        points_to_be_changed = list(points.keys())
-        for point in points_to_be_changed:
-            coords[point, 0] = coords[point, 0] + points[point]['x']
-            coords[point, 1] = coords[point, 1] + points[point]['y']
+        # #updating interior coordinates of the polygon
+        # if int_points and has_interior(polygon) and int_points:
+        #     int_coords = polygon.interiors[int_idx].coords
+        #     interior_mapping = get_label_mappings(int_coords)
+        #     interior_duplicates = map_duplicate_coords(int_coords, 12)
 
-        polygon_list[obj_idx] = set_coordinates(polygon, coords)
+        #     # int_coords_start = (ext_coords_len + 1) * (int_idx + 1)
+        #     # int_coords_end = int_coords_start + (int_coords_len - 1)
+        #     # points_to_be_changed = list(int_points.keys())
+
+        #     # for point in points_to_be_changed:
+        #     #     point_offset = int_coords_start + (point - 1)
+                
+        #     #     coords[point_offset, 0] = coords[point_offset, 0] + int_points[point][0] 
+        #     #     coords[point_offset, 1] = coords[point_offset, 1] + int_points[point][1]
+                
+
+        #     #     if point == int_coords_len - 1:
+        #     #         coords[int_coords_start, 0] = coords[int_coords_start, 0] + int_points[point][0] 
+        #     #         coords[int_coords_start, 1] = coords[int_coords_start, 1] + int_points[point][1]
+        #     #     elif point == 0:
+        #     #         coords[int_coords_end, 0] = coords[int_coords_end, 0] + int_points[point][0] 
+        #     #         coords[int_coords_end, 1] = coords[int_coords_end, 1] + int_points[point][1]
+
+        #polygon_list[obj_idx] = set_coordinates(polygon, coords)
         setattr(self, lname, MultiPolygon(polygon_list))
 
     ## write the limitation about how it is cut with the ycoord 
@@ -948,24 +982,26 @@ class Entity(_Base):
             label_distance = 0.5
             geoms_list = create_list_geoms(geometry)
             for polygon in geoms_list:
-                label = 1
-                for x, y in polygon.exterior.coords:
+                exterior_mapping = get_label_mappings(polygon.exterior.coords)
+                print("1:" + str(polygon.exterior.coords))
+                for label in exterior_mapping:
+                    x, y = exterior_mapping[label]
                     label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
 
                     if label != len(polygon.exterior.coords):
                         ax.plot(x, y, 'ro')
                         ax.text(label_x, label_y, str(label), color='red')
-                        label += 1
+
                 if has_interior(polygon):
-                    for int in polygon.interiors:
-                        label = 1
-                        for x, y in int.coords:
+                    for inter in polygon.interiors:
+                        interior_mapping = get_label_mappings(inter.coords)
+                        for label in interior_mapping:
+                            x, y = interior_mapping[label]
                             label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
 
-                            if label != len(int.coords):
+                            if label != len(polygon.exterior.coords):
                                 ax.plot(x, y, 'ro')
-                                ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
-                                label += 1
+                                ax.text(label_x, label_y, str(label), color='red')
 
     def quickplot(self, plot_config: dict, zoom: tuple=None,
                   ax=None, show_idx: bool=False, **kwargs) -> None:
