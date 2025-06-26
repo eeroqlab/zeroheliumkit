@@ -21,14 +21,14 @@ from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
 from shapely import (affinity, unary_union,
                      difference, set_precision, intersection,
-                     set_coordinates, get_coordinates)
+                     set_coordinates, get_coordinates, remove_repeated_points)
 
 from .plotting import plot_geometry, interactive_widget_handler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos, get_label_mappings, map_duplicate_coords
+from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos
 
 
 
@@ -92,6 +92,8 @@ class _Base:
                 self.errors = value
                 print("Something went wrong with setting precision.")
                 print("The error is:", e)
+            
+            value = remove_repeated_points(value, tolerance=0.0001)
         else:
             self.__dict__[name] = value
 
@@ -578,65 +580,9 @@ class Entity(_Base):
         """
         setattr(self, lname, unary_union([getattr(self, lname), polygon])) ## place to add exception handling for non-existent layer
         return self
+    
 
-
-    def cut_polygon(self, lname: str, polygon: Polygon):
-        """
-        Cuts the specified polygon from a layer.
-
-        Args:
-        ----
-            lname (str): The name of the attribute where the main polygon is located.
-            polygon (Polygon): The polygon used for cutting.
-
-        Returns:
-        ------
-            Updated instance (self) of the class with the specified polygon cut from the layer.
-        """
-        setattr(self, lname, difference(getattr(self, lname), polygon))
-        return self
-
-
-    def cut_all(self, polygon: Polygon):
-        """
-        Cuts the specified polygon from polygons in all layers.
-
-        Args:
-        ----
-            polygon (Polygon): The polygon used for cutting
-        
-        Returns:
-        -------
-            Updated instance (self) of the class with the specified polygon cut from all layers.
-        """
-        for lname in self.layers:
-            self.cut_polygon(lname, polygon)
-        return self
-
-
-    def cut_polygon_at_loc(self, layer: str,
-                           geom: Polygon | MultiPolygon,
-                           loc: tuple[float, float]) -> None:
-        """
-        Cuts the given polygon at the specified location.
-        
-        Args:
-        ----
-            layer (str): The name of the layer.
-            geom (Polygon | MultiPolygon): The polygon to be cut.
-            loc (tuple[float, float]): The location where the polygon will be cut.
-
-        Returns:
-        -------
-            Updated instance (self) of the class with the specified polygon cut at the given location.
-        """
-        translated_geometry = affinity.translate(geom, xoff = loc[0], yoff = loc[1])
-        self.cut_polygon(layer, translated_geometry)
-        del translated_geometry
-        return self
-
-#---- replacing cut_polygon, delete cut_polygon_at_loc (check that it isn't called)
-    def cut_polygon_new(self, lname: str, 
+    def cut_polygon(self, lname: str, 
                         geom: Polygon | MultiPolygon,
                         loc: tuple[float, float]=(0,0)):
         """
@@ -657,39 +603,26 @@ class Entity(_Base):
         
         setattr(self, lname, difference(getattr(self, lname), cut_geom))
         return self
-#----
+    
 
-    def crop_layer(self, lname: str, polygon: Polygon):
+    def cut_all(self, polygon: Polygon):
         """
-        Crops objects in a layer by a given polygon.
+        Cuts the specified polygon from polygons in all layers.
 
         Args:
         ----
-            lname (str): The name of the layer.
-            polygon (Polygon): The polygon used for cropping.
-
+            polygon (Polygon): The polygon used for cutting
+        
         Returns:
         -------
-            Updated instance (self) of the class with polygons in the specified layer cropped by the given polygon.
+            Updated instance (self) of the class with the specified polygon cut from all layers.
         """
-        geoms = getattr(self, lname)
-
-        # Crop geoms by polygon
-        cropped_geoms = intersection(polygon, geoms)
-
-        if isinstance(cropped_geoms, (Point, MultiPoint, LineString, MultiLineString)):
-            cropped_geoms = MultiPolygon()
-        elif isinstance(cropped_geoms, GeometryCollection):
-            # Select only polygons
-            polygon_list = [geom for geom in list(cropped_geoms.geoms) if isinstance(geom, Polygon)]
-            cropped_geoms = MultiPolygon(polygon_list)
-        setattr(self, lname, cropped_geoms)
+        for lname in self.layers:
+            self.cut_polygon(lname, polygon)
         return self
+    
 
-
-#-------
-    #ask niyaz what it might look like with optional location offsets
-    def crop_layer_new(self, lname: str, polygon: Polygon, 
+    def crop_layer(self, lname: str, polygon: Polygon, 
                             loc: tuple[float, float]=(0,0)):
         """
         Crops objects in a layer by a given polygon.
@@ -705,7 +638,7 @@ class Entity(_Base):
         """
         geoms = getattr(self, lname)
 
-        polygon = affinity.translate(polygon, xoff = loc[0], yoff = loc[1]) #support for translating polygon or geom?
+        polygon = affinity.translate(polygon, xoff = loc[0], yoff = loc[1]) 
 
         # Crop geoms by polygon
         cropped_geoms = intersection(polygon, geoms)
@@ -718,7 +651,7 @@ class Entity(_Base):
             cropped_geoms = MultiPolygon(polygon_list)
         setattr(self, lname, cropped_geoms)
         return self
-#-------
+
 
     def crop_all(self, polygon: Polygon):
         """
@@ -736,9 +669,11 @@ class Entity(_Base):
             self.crop_layer(lname, polygon)
         return self
 
+
     def modify_polygon_points(self, lname: str, obj_idx: int, ext_points: dict, int_points: dict=None, int_idx: int=0):
         """
         Updates the point coordinates of an object in a layer.
+        Can optionally modify a single interior's coordinates. Moves first and last points together.
 
         Args:
         ----
@@ -760,56 +695,48 @@ class Entity(_Base):
         polygon = polygon_list[obj_idx]
         coords = get_coordinates(polygon)
 
-        exterior_mapping = get_label_mappings(polygon.exterior.coords)
-        #exterior_duplicates = map_duplicate_coords(ext_coords, 0)
-        print("2:" + str(polygon.exterior.coords))
+        #updating exterior coords of the polygon
+        if ext_points:
+            points_to_be_changed = list(ext_points.keys())
+            for point in points_to_be_changed:
+                coords[point, 0] = coords[point, 0] + ext_points[point][0] 
+                coords[point, 1] = coords[point, 1] + ext_points[point][1]
 
-        # updating exterior coords of the polygon
-        # if ext_points:
-        #     points_to_be_changed = list(ext_points.keys())
-        #     for point in points_to_be_changed:
-
-        #         point_coords = exterior_mapping[point]
-        #         referenced_indices = exterior_duplicates[point_coords]
-            
-        #         for idx in referenced_indices:
-        #             coords[idx, 0] = coords[idx, 0] + ext_points[idx][0] 
-        #             coords[idx, 1] = coords[idx, 1] + ext_points[idx][1]
+                if point == (len(polygon.exterior.coords) - 1):
+                    coords[0, 0] = coords[0, 0] + ext_points[point][0] 
+                    coords[0, 1] = coords[0, 1] + ext_points[point][1]
+                elif point == 0:
+                    last_point = (len(polygon.exterior.coords) - 1)
+                    coords[last_point, 0] = coords[last_point, 0] + ext_points[point][0] 
+                    coords[last_point, 1] = coords[last_point, 1] + ext_points[point][1]
 
 
-        # #updating interior coordinates of the polygon
-        # if int_points and has_interior(polygon) and int_points:
-        #     int_coords = polygon.interiors[int_idx].coords
-        #     interior_mapping = get_label_mappings(int_coords)
-        #     interior_duplicates = map_duplicate_coords(int_coords, 12)
+        #updating interior coordinates of the polygon
+        if int_points and has_interior(polygon) and int_points:
+            int_coords = polygon.interiors[int_idx].coords
+            int_coords_start = len(polygon.exterior.coords) * (int_idx + 1)
 
-        #     # int_coords_start = (ext_coords_len + 1) * (int_idx + 1)
-        #     # int_coords_end = int_coords_start + (int_coords_len - 1)
-        #     # points_to_be_changed = list(int_points.keys())
-
-        #     # for point in points_to_be_changed:
-        #     #     point_offset = int_coords_start + (point - 1)
+            points_to_be_changed = list(int_points.keys())
+            for point in points_to_be_changed:
+                point_offset = int_coords_start + point
                 
-        #     #     coords[point_offset, 0] = coords[point_offset, 0] + int_points[point][0] 
-        #     #     coords[point_offset, 1] = coords[point_offset, 1] + int_points[point][1]
-                
+                coords[point_offset, 0] = coords[point_offset, 0] + int_points[point][0] 
+                coords[point_offset, 1] = coords[point_offset, 1] + int_points[point][1]
 
-        #     #     if point == int_coords_len - 1:
-        #     #         coords[int_coords_start, 0] = coords[int_coords_start, 0] + int_points[point][0] 
-        #     #         coords[int_coords_start, 1] = coords[int_coords_start, 1] + int_points[point][1]
-        #     #     elif point == 0:
-        #     #         coords[int_coords_end, 0] = coords[int_coords_end, 0] + int_points[point][0] 
-        #     #         coords[int_coords_end, 1] = coords[int_coords_end, 1] + int_points[point][1]
+                if point == len(int_coords) - 1:
+                    coords[int_coords_start, 0] = coords[int_coords_start, 0] + int_points[point][0] 
+                    coords[int_coords_start, 1] = coords[int_coords_start, 1] + int_points[point][1]
 
-        #polygon_list[obj_idx] = set_coordinates(polygon, coords)
+        polygon_list[obj_idx] = set_coordinates(polygon, coords)
         setattr(self, lname, MultiPolygon(polygon_list))
 
-    ## write the limitation about how it is cut with the ycoord 
+
     ## just note that it has that length
     def remove_holes_from_polygons(self, lname: str):
         """
         Removes any holes from a multipolygon in a layer by vertically 
         cutting along the centroid of each hole and piecing together the remaining Polygon geometries.
+            Vertical cut is made with a default length of 1e6. 
 
         Args:
         ----
@@ -934,7 +861,6 @@ class Entity(_Base):
     #### Plotting operations ####
     #############################
 
-    ## - labels for the points
     def plot(self,
             ax=None,
             layer: list=None,
@@ -982,26 +908,23 @@ class Entity(_Base):
             label_distance = 0.5
             geoms_list = create_list_geoms(geometry)
             for polygon in geoms_list:
-                exterior_mapping = get_label_mappings(polygon.exterior.coords)
-                print("1:" + str(polygon.exterior.coords))
-                for label in exterior_mapping:
-                    x, y = exterior_mapping[label]
+                label = 1
+                for x, y in polygon.exterior.coords:
                     label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
-
                     if label != len(polygon.exterior.coords):
                         ax.plot(x, y, 'ro')
                         ax.text(label_x, label_y, str(label), color='red')
-
+                        label += 1
                 if has_interior(polygon):
-                    for inter in polygon.interiors:
-                        interior_mapping = get_label_mappings(inter.coords)
-                        for label in interior_mapping:
-                            x, y = interior_mapping[label]
+                    for int in polygon.interiors:
+                        label = 1
+                        for x, y in int.coords:
                             label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
 
-                            if label != len(polygon.exterior.coords):
+                            if label != len(int.coords):
                                 ax.plot(x, y, 'ro')
-                                ax.text(label_x, label_y, str(label), color='red')
+                                ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
+                                label += 1
 
     def quickplot(self, plot_config: dict, zoom: tuple=None,
                   ax=None, show_idx: bool=False, **kwargs) -> None:
