@@ -17,6 +17,12 @@ import copy
 import matplotlib.pyplot as plt
 from warnings import warn
 
+#this is for the color config stuff
+from itertools import cycle
+
+#not really needed but could be useful to type alias the colors?:
+from typing import TypeAlias
+
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
 from shapely import (affinity, unary_union,
@@ -25,11 +31,13 @@ from shapely import (affinity, unary_union,
 
 from .plotting import plot_geometry, interactive_widget_handler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
-from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
+from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY, COLORS
 
 from .anchors import Anchor, MultiAnchor, Skeletone
 from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos
 
+
+color_cycle = cycle(COLORS)
 
 
 class _Base:
@@ -53,6 +61,7 @@ class _Base:
         has_layer(lname): Checks if a layer exists in the class.
     """
     layers = []
+    colors = {}
     errors = None 
 
     def __init__(self):
@@ -60,6 +69,7 @@ class _Base:
         Initializes a new Base class instance.
         """
         self.layers = []
+        self.colors = {}
         self.errors = None
 
     def copy(self):
@@ -102,7 +112,7 @@ class _Base:
     #### Operations on layers ####
     ################################
 
-    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon()): 
+    def add_layer(self, lname: str, geometry: Polygon | MultiPolygon=Polygon(), color: str=None, alpha: int=1.0): 
         """
         Adds a layer to the class with the given name and geometry.
 
@@ -116,6 +126,12 @@ class _Base:
             Updated instance (self) of the class with the new layer added.
         """
         self.layers.append(lname)
+        
+        if color is None: color = next(color_cycle)
+        self.colors[lname] = (color, alpha)
+        print(f'adding {color} to {lname}')
+        print(self.colors)
+
         setattr(self, lname, geometry)
         return self
 
@@ -926,20 +942,23 @@ class Entity(_Base):
                                 ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
                                 label += 1
 
-    def quickplot(self, plot_config: dict, zoom: tuple=None,
+    def quickplot(self, color_config: dict=None, zoom: tuple=None,
                   ax=None, show_idx: bool=False, **kwargs) -> None:
         """
         Plots the Entity object with predefined colors for each layer.
 
         Args:
         ----
-            plot_config (dict): dict of ordered layers (keys) with predefined colors as dict values
+            plot_config (dict): dict of ordered layers (keys) with tuples of the color and alpha of the layer (values)
             zoom (tuple, optional): ((x0, y0), zoom_scale, aspect_ratio). Defaults to None.
 
         Returns:
         -------
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
+        plot_config = color_config if color_config else self.colors
+        print(plot_config)
+
         if "anchors" not in plot_config:
             plot_config["anchors"] = RED
         if "skeletone" not in plot_config:
@@ -947,7 +966,8 @@ class Entity(_Base):
 
         all_plot_objects = self.layers + ["anchors", "skeletone"]
         plot_layers = [k for k in plot_config.keys() if k in all_plot_objects]
-        plot_colors = [plot_config[k] for k in plot_layers]
+        plot_colors = [plot_config[k][0] for k in plot_layers]
+        print(plot_colors)
 
         if ax is None:
             interactive_widget_handler()
