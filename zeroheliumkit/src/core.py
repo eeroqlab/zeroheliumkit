@@ -580,7 +580,7 @@ class Entity(_Base):
         return self
 
 
-    def buffer_line(self, name: str, offset: float, **kwargs) -> None:
+    def buffer_line(self, name: str, offset: float, color: str=None, alpha: float=1.0, **kwargs) -> None:
         """
         Create a new layer (attribute) by buffering the skeleton.
 
@@ -596,6 +596,9 @@ class Entity(_Base):
             Updated instance (self) of the class with the new buffered line added as an attribute.
         """
         self.layers.append(name)
+        if color is None: color = next(color_cycle)
+        self.colors[name] = (color, alpha)
+
         setattr(self, name, self.skeletone.lines.buffer(offset, **kwargs))
         return self
 

@@ -778,6 +778,14 @@ def buffer_line_with_variable_width(line: LineString,
         join_style (str, optional): The style of joining the buffered polygons. 
             Valid options are 'flat' and 'round'. Defaults to 'flat'.
 
+    Returns:
+    -------
+        polygon (Polygon): Buffered line with variable widths along its length.
+
+    Raises:
+    ------
+        ValueError: If join_style is not either 'flat' or 'round'.
+
     Example:
     -------
         >>> line = LineString([(0, 0), (1, 1), (2, 0)])
@@ -787,6 +795,14 @@ def buffer_line_with_variable_width(line: LineString,
         >>> join_style = 'flat'
         >>> polygon = buffer_line_with_variable_width(line, distance, widths, normalized, join_style)
     """
+    match join_style:
+        case 'flat':
+            pass
+        case 'round':
+            pass
+        case _:
+            raise ValueError("Join style is not valid. Only 'flat' and 'round' are accepted.")
+
     points = line_interpolate_point(line, distance, normalized=normalized)
     polygon = Polygon()
     if join_style == 'round':
