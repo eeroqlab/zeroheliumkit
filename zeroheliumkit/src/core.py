@@ -13,15 +13,10 @@ Classes:
     `GeomCollection`: A subclass of Structure that represents a collection of geometries.
 """
 
-import copy
+import copy, re
 import matplotlib.pyplot as plt
 from warnings import warn
-
-#this is for the color config stuff
 from itertools import cycle
-
-#not really needed but could be useful to type alias the colors?:
-from typing import TypeAlias
 
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
@@ -47,6 +42,7 @@ class _Base:
     Attributes:
     ----------
         layers: List of layer names.
+        colors: Mapping of layer names to their desired color and transparancy level. 
         errors: Stores all errors that occur during attribute assignment.
 
     Methods:
@@ -129,8 +125,6 @@ class _Base:
         
         if color is None: color = next(color_cycle)
         self.colors[lname] = (color, alpha)
-        print(f'adding {color} to {lname}')
-        print(self.colors)
 
         setattr(self, lname, geometry)
         return self
@@ -151,6 +145,14 @@ class _Base:
         if lname in self.layers:
             self.layers.remove(lname)
             delattr(self, lname)
+        else:
+            print(f"Layer '{lname}' not found in layers.")
+        
+        if lname in self.colors:
+            del self.colors[lname]
+        else:
+            print(f"Layer '{lname}' not found in colors.")
+
         return self
 
 
@@ -172,6 +174,12 @@ class _Base:
             self.layers[self.layers.index(old_name)] = new_name
         else:
             print(f"Layer '{old_name}' not found in layers.")
+
+        if old_name in self.colors:
+            self.colors[new_name] = self.colors.pop(old_name)
+        else:
+            print(f"Layer '{old_name}' not found in layers.")
+
         return self
 
 
@@ -206,6 +214,61 @@ class _Base:
             bool: True if the layer exists, False otherwise.
         """
         return lname in self.layers
+    
+
+    def change_color(self, lname: str, new_color: str):
+        """
+        Updates the color of a layer in the colors attribute.
+
+        Args:
+        ----
+            lname (str): The name of the layer to update.
+            new_color (str): Hexadecimal color code or predefined color from Settings.
+                See .settings module for information on the preset colors.
+
+        Returns:
+        -------
+            Updated instance (self) of the class with the specified layer's color changed. 
+
+        Raises:
+        ------
+            ValueError: If the given color is anot a valid hexadecimal color code.
+        """
+        color_format = r'^#(?:[0-9a-fA-F]{3}){1,2}$'
+        if not bool(re.match(color_format, new_color)):
+            raise ValueError("Input color is not a valid hexadecimal color code.")
+        
+        if lname in self.layers:
+            self.colors[lname][0] = new_color
+
+        return self
+
+
+    def change_transparancy(self, lname: str, new_alpha: float):
+        """
+        Updates the transparancy of a layer in the colors attribute.
+
+        Args:
+        ----
+            lname (str): The name of the layer to update.
+            new_alpha (str): New alpha value between 0.0 and 1.0.
+                0.0 represents full transparancy, 1.0 represents full opacity.
+
+        Returns:
+        -------
+            Updated instance (self) of the class with the specified layer's transparancy changed. 
+
+        Raises:
+        ------
+            ValueError: If the given transparancy is not a valid alpha value.
+        """
+        if new_alpha < 0 or new_alpha > 1.0:
+            raise ValueError("Input transparancy is not a valid alpha value (0.0-1.0).")
+        
+        if lname in self.layers:
+            self.colors[lname][1] = new_alpha
+
+        return self
 
 
 class Entity(_Base):
@@ -884,7 +947,7 @@ class Entity(_Base):
             color=None,
             alpha=1,
             draw_direction=True,
-            draw_labels: bool=True,
+            draw_labels: bool=False,
             **kwargs):
         """
         Plots the Entity object on a given axis with specified layers and colors.
@@ -957,17 +1020,15 @@ class Entity(_Base):
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
         plot_config = color_config if color_config else self.colors
-        print(plot_config)
 
         if "anchors" not in plot_config:
-            plot_config["anchors"] = RED
+            plot_config["anchors"] = (RED, 1.0)
         if "skeletone" not in plot_config:
-            plot_config["skeletone"] = DARKGRAY
+            plot_config["skeletone"] = (DARKGRAY, 1.0)
 
         all_plot_objects = self.layers + ["anchors", "skeletone"]
         plot_layers = [k for k in plot_config.keys() if k in all_plot_objects]
         plot_colors = [plot_config[k][0] for k in plot_layers]
-        print(plot_colors)
 
         if ax is None:
             interactive_widget_handler()
@@ -1031,11 +1092,12 @@ class Structure(Entity):
                 A list of tuples with the old and new anchor labels: (old_label, new_label) 
                 Defaults to None.
         """
-
         s = structure.copy()
         attr_list_device = self.layers
         attr_list_structure = s.layers
         self.layers = list(set(attr_list_device + attr_list_structure))
+
+        self.colors = self.colors | s.colors
 
         # snapping direction
         if direction_snap:
