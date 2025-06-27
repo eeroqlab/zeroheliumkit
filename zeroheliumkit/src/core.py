@@ -595,11 +595,7 @@ class Entity(_Base):
         -------
             Updated instance (self) of the class with the new buffered line added as an attribute.
         """
-        self.layers.append(name)
-        if color is None: color = next(color_cycle)
-        self.colors[name] = (color, alpha)
-
-        setattr(self, name, self.skeletone.lines.buffer(offset, **kwargs))
+        self.add_layer(name, self.skeletone.lines.buffer(offset, **kwargs), color, alpha)
         return self
 
 
@@ -971,6 +967,7 @@ class Entity(_Base):
             ax = fig.add_subplot(111)
 
         for l, c in zip(layer, color):
+            print(f'plotting layer {l} with color {c}')
             if l in self.layers:
                 geometry = getattr(self, l)
                 if isinstance(c, tuple):
@@ -1023,6 +1020,9 @@ class Entity(_Base):
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
         plot_config = color_config if color_config else self.colors
+
+        print(self.colors)
+        print(self.layers)
 
         if "anchors" not in plot_config:
             plot_config["anchors"] = (RED, 1.0)
