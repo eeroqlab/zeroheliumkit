@@ -2,7 +2,7 @@
 anchors.py
 
 This file contains the Anchor, MultiAnchor, and Skeletone classes for ZeroHeliumKit.
-Uses the SHapely library for geometric operations and the Tabulate library for tabular representation.
+Uses the Shapely library for geometric operations and the Tabulate library for tabular representation.
 
 Classes:
 -------
