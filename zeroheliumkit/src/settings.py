@@ -28,7 +28,7 @@ CYAN        = '#5FCFA7'
 ORANGE      = '#FFA275'
 LIGHTGRAY   = '#F1F1F1'
 
-COLORS = [BLUE, YELLOW2, GRAY, GREEN, DARKGRAY, RED, BLACK]
+COLORS = [BLUE, YELLOW2, GRAY, GREEN, VIOLET, CYAN, ORANGE]
 
 # grouped geometry types
 LINE_CLASSES  = [LineString, MultiLineString]
