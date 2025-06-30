@@ -48,8 +48,6 @@ class _Base:
     Methods:
     -------
         copy(): Returns a deep copy of the class.
-        __setattr__(name, value): Modifies attribute assignment to set the grid size 
-            precision upon creation or modification of shapely objects.
         add_layer(lname, geometry): Adds a new layer to the class.
         remove_layer(lname): Removes a layer from the class.
         rename_layer(old_name, new_name): Renames a layer in the class.
@@ -967,7 +965,6 @@ class Entity(_Base):
             ax = fig.add_subplot(111)
 
         for l, c in zip(layer, color):
-            print(f'plotting layer {l} with color {c}')
             if l in self.layers:
                 geometry = getattr(self, l)
                 if isinstance(c, tuple):
@@ -1020,9 +1017,6 @@ class Entity(_Base):
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
         plot_config = color_config if color_config else self.colors
-
-        print(self.colors)
-        print(self.layers)
 
         if "anchors" not in plot_config:
             plot_config["anchors"] = (RED, 1.0)
