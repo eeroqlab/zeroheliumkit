@@ -587,7 +587,7 @@ class Entity(_Base):
             name (str): new layer/attribute name
             offset (float): buffering skeleton by offset
             **kwargs: additional keyword arguments to be passed to the buffer method
-                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer) for additional keyword arguments
+                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer) for additional keyword arguments.
 
         Returns:
         -------
