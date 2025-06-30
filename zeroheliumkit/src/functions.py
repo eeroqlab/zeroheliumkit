@@ -8,19 +8,25 @@ from .utils import get_normals_along_line
 
 
 def get_distance(p1: tuple | Point | Anchor, p2: tuple | Point | Anchor) -> float:
-    """ Returns the Euclidean distance between two points.
+    """ 
+    Returns the Euclidean distance between two points.
 
     Args:
     ----
-    p1 (tuple | Point | Anchor): The coordinates of the first point.
-    p2 (tuple | Point | Anchor): The coordinates of the second point.
+        p1 (tuple | Point | Anchor): The coordinates of the first point.
+        p2 (tuple | Point | Anchor): The coordinates of the second point.
+
+    Returns:
+    -------
+        float: The Euclidean distance between the two points.
 
     Example:
     -------
         >>> p1 = (0, 0)
         >>> p2 = (3, 4)
         >>> distance = get_distance(p1, p2)
-        >>> print(distance)  # Output: 5.0
+        >>> print(distance)
+            5.0
     """
     if isinstance(p1, tuple):
         p1 = Point(p1)
@@ -33,16 +39,21 @@ def get_distance(p1: tuple | Point | Anchor, p2: tuple | Point | Anchor) -> floa
     return distance(p1, p2)
 
 
-def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
-    """ Returns coordinates from a point of any type.
+def extract_coords_from_point(point_any_type: tuple | Point | Anchor) -> tuple:
+    """ 
+    Returns coordinates from a point of any type.
 
     Args:
     ----
-    point_any_type: A point of type tuple, Point, or Anchor.
+        point_any_type: A point of type tuple, Point, or Anchor.
+
+    Returns:
+    -------
+        tuple: The coordinates of the point.
 
     Raises:
     ------
-    TypeError: If the provided point is not of type tuple, Point, or Anchor.
+        TypeError: If the provided point is not of type tuple, Point, or Anchor.
     """
     if isinstance(point_any_type, Anchor):
         return point_any_type.coords
@@ -54,18 +65,28 @@ def extract_coords_from_point(point_any_type: tuple | Point | Anchor):
 
 
 def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
-    """ Returns anchors on the boundary of the polygon with normal to the surface
-        orientation and given offset
+    """ 
+    Returns anchors on the boundary of the polygon with normal to the surface
+        orientation and given offset.
 
     Args:
     ----
-    polygon (Polygon): anchors will be located on the boundary of this polygon
-    locs_cfg (list): item - (label, xy coordinate, direction, offset)
-        label - anchor label
-        xy - depending on the direction this will create a vertical/horizontal line
-            which will intersect with boundary line, and intersection point is anchor location
-        direction - 'top', 'bottom', 'left', 'right'
-        offset - how far from the boundary the anchor will be located
+        polygon (Polygon): anchors will be located on the boundary of this polygon
+        locs_cfg (list): Configuration list containing the following specifications in order:
+            - item: label, xy coordinate, direction, offset
+            - label: anchor label
+            - xy: depending on the direction this will create a vertical/horizontal line
+                which will intersect with boundary line, and intersection point is anchor location
+            - direction: 'top', 'bottom', 'left', 'right'
+            - offset: how far from the boundary the anchor will be located
+
+    Returns:
+    -------
+        list: A list of Anchor objects, each containing the point, normal angle, and label
+
+    Raises:
+    ------
+        TypeError: If the direction in locs_cfg is not one of the allowed directions.
     """
 
     allowed_dirs = ["top", "bottom", "right", "left"] # allowed locs_cfg
