@@ -1,3 +1,10 @@
+"""
+functions.py
+
+This file contains utility functions for geometric operations, such as calculating distances,
+    creating boundary anchors, and extracting coordinates from points.
+"""
+
 from numpy import cos, sin, pi
 
 from shapely import Point, LineString, Polygon
