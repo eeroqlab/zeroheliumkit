@@ -15,6 +15,7 @@ Classes:
 
 import copy, re
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from warnings import warn
 from itertools import cycle
 
