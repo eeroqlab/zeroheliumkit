@@ -214,15 +214,14 @@ class _Base:
         return lname in self.layers
     
 
-    def change_color(self, lname: str, new_color: str):
+    def change_color(self, lname: str, new_color: str | tuple | float):
         """
         Updates the color of a layer in the colors attribute.
 
         Args:
         ----
             lname (str): The name of the layer to update.
-            new_color (str): Hexadecimal color code or predefined color from Settings.
-                See .settings module for information on the preset colors.
+            new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
 
         Returns:
         -------
@@ -230,41 +229,21 @@ class _Base:
 
         Raises:
         ------
-            ValueError: If the given color is anot a valid hexadecimal color code.
+            ValueError: If the new_color parameter is not a tuple, string, or float.
+            ValueError: If the given color is anot a valid color code.
         """
-        color_format = r'^#(?:[0-9a-fA-F]{3}){1,2}$'
-        if not bool(re.match(color_format, new_color)):
-            raise ValueError("Input color is not a valid hexadecimal color code.")
+        if isinstance(new_color, tuple):
+            if lname in self.layers
+                self.colors[lname] = new_color
+        elif isinstance(new_color, float):
+            if lname in self.layers:
+                self.colors[lname][1] = new_color
+        elif isinstance(new_color, str):
+            if not bool(mcolors.is_color_like(new_color)):
+                raise ValueError("Input color is not a valid color.")
         
-        if lname in self.layers:
-            self.colors[lname][0] = new_color
-
-        return self
-
-
-    def change_transparancy(self, lname: str, new_alpha: float):
-        """
-        Updates the transparancy of a layer in the colors attribute.
-
-        Args:
-        ----
-            lname (str): The name of the layer to update.
-            new_alpha (str): New alpha value between 0.0 and 1.0.
-                0.0 represents full transparancy, 1.0 represents full opacity.
-
-        Returns:
-        -------
-            Updated instance (self) of the class with the specified layer's transparancy changed. 
-
-        Raises:
-        ------
-            ValueError: If the given transparancy is not a valid alpha value.
-        """
-        if new_alpha < 0 or new_alpha > 1.0:
-            raise ValueError("Input transparancy is not a valid alpha value (0.0-1.0).")
-        
-        if lname in self.layers:
-            self.colors[lname][1] = new_alpha
+            if lname in self.layers:
+                self.colors[lname][0] = new_color
 
         return self
 
