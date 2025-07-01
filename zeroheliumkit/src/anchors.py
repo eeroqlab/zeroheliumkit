@@ -21,6 +21,7 @@ from shapely import Point, LineString, MultiLineString, Polygon
 from shapely import set_precision, distance, affinity, unary_union
 from shapely.plotting import plot_line
 from shapely.ops import linemerge
+import matpotlib.axes.Axes as mpl_axes
 
 from .utils import fmodnew, append_line
 from .settings import GRID_SIZE, BLACK, RED, DARKGRAY
