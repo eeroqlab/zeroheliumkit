@@ -234,7 +234,7 @@ class _Base:
             ValueError: If the given color is anot a valid color code.
         """
         if isinstance(new_color, tuple):
-            if lname in self.layers
+            if lname in self.layers:
                 self.colors[lname] = new_color
         elif isinstance(new_color, float):
             if lname in self.layers:
