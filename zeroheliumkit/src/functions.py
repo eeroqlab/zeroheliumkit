@@ -79,13 +79,12 @@ def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
     Args:
     ----
         polygon (Polygon): anchors will be located on the boundary of this polygon
-        locs_cfg (list): Configuration list containing the following specifications in order:
-            - item: label, xy coordinate, direction, offset
-            - label: anchor label
-            - xy: depending on the direction this will create a vertical/horizontal line
-                which will intersect with boundary line, and intersection point is anchor location
-            - direction: 'top', 'bottom', 'left', 'right'
-            - offset: how far from the boundary the anchor will be located
+        locs_cfg (list): list containing config dicts for the new anchors with the following items:
+            label (str): anchor label
+            loc (tuple): xy coordinates for the point of intersection with boundary line
+            dir (str): direction of the anchor
+                options are 'top', 'bottom', 'left', and 'right'
+            offset (float): distance from the boundary of the anchor
 
     Returns:
     -------
@@ -93,10 +92,10 @@ def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
 
     Raises:
     ------
-        TypeError: If the direction in locs_cfg is not one of the allowed directions.
+        TypeError: If the direction is not one of the allowed directions.
     """
 
-    allowed_dirs = ["top", "bottom", "right", "left"] # allowed locs_cfg
+    allowed_dirs = ["top", "bottom", "right", "left"]
 
     # properties
     line = polygon.boundary
