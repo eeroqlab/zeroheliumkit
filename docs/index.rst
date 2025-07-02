@@ -1,8 +1,8 @@
-Welcome to ZeroHeliumKit's documentation!
+ZeroHeliumKit Documentation
 ===========================================
 
 .. toctree::
    :maxdepth: 2
-   :caption: API Reference:
+   :caption: src:
 
    api/modules
