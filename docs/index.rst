@@ -3,6 +3,9 @@ ZeroHeliumKit Documentation
 
 .. toctree::
    :maxdepth: 2
-   :caption: src:
+   :caption: User Guide
 
-   api/modules
+   introduction
+   installation
+   usage
+   reference/index

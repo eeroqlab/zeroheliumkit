@@ -9,13 +9,17 @@ release = '0.1.0'
 
 extensions = [
     'sphinx.ext.autodoc',   
-    'sphinx.ext.napoleon'  
+    'sphinx.ext.napoleon',
+    "sphinx.ext.viewcode"
 ]
 
 templates_path = ['_templates']
 exclude_patterns = []
 
 html_theme = 'sphinx_rtd_theme'
+
+html_logo = "_static/zhk.png"
+html_static_path = ["_static"]
 
 autodoc_default_options = {
     'members': True,
