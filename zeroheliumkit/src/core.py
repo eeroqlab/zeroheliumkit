@@ -177,7 +177,7 @@ class _Base:
         if old_name in self.colors:
             self.colors[new_name] = self.colors.pop(old_name)
         else:
-            print(f"Layer '{old_name}' not found in layers.")
+            print(f"Layer '{old_name}' not found in colors.")
 
         return self
 
@@ -247,6 +247,22 @@ class _Base:
                 self.colors[lname][0] = new_color
 
         return self
+    
+    def update_colors(self):
+        """
+        WIP method to update colors when layers are imported.
+
+        Returns:
+        --------
+            Updated instance (self) with the udpated colors attribute. 
+        """
+        for l in self.layers:
+            if l not in self.colors:
+                color = next(color_cycle)
+                self.colors[l] = (color, 1.0)
+
+        return self
+                
 
 
 class Entity(_Base):
@@ -634,7 +650,8 @@ class Entity(_Base):
         --------
             Updated instance (self) of the class with the new polygon added to the specified layer.
         """
-        setattr(self, lname, unary_union([getattr(self, lname), polygon])) ## place to add exception handling for non-existent layer
+        setattr(self, lname, unary_union([getattr(self, lname), polygon])) 
+
         return self
     
 
