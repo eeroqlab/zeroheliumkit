@@ -1,4 +1,6 @@
 """
+plotting.py
+
 This file contains functions for plotting geometries using matplotlib.
 """
 
@@ -11,7 +13,7 @@ from shapely.plotting import plot_line, plot_polygon
 
 from .settings import *
 
-def interactive_widget_handler():
+def interactive_widget_handler() -> None:
     """
     Closes the current matplotlib figure if it exists.
     """
@@ -21,9 +23,14 @@ def interactive_widget_handler():
         pass
 
 
-def default_ax():
-    """ Returns the default axis object (matplotlib.axes.Axes)
+def default_ax() -> plt.Axes:
+    """ 
+    Gets the default axis object (matplotlib.axes.Axes)
         with grid enabled and equal aspect ratio.
+
+    Returns:
+    -------
+        plt.Axes: The default axes object.
     """
     ax = plt.gca()
     ax.grid(True)
@@ -31,13 +38,18 @@ def default_ax():
     return ax
 
 
-def adjust_lightness(color, amount=0.5):
-    """ Returns the adjusted color as a hexadecimal color code.
+def adjust_lightness(color: str, amount: float=0.5) -> tuple:
+    """ 
+    Adjusts the lightness of a given color and converts it to hexidecimal format.
 
     Args:
     ----
-    color (str): The color to adjust. Can be a named color or a hexadecimal color code.
-    amount (float, optional): The amount by which to adjust the lightness. Defaults to 0.5.
+        color (str): The color to adjust. Can be a named color or a hexadecimal color code.
+        amount (float, optional): The amount by which to adjust the lightness. Defaults to 0.5.
+
+    Returns:
+    -------
+        tuple: The adjusted color in RGB format.
     """
     try:
         c = mc.cnames[color]
@@ -47,22 +59,36 @@ def adjust_lightness(color, amount=0.5):
     return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
 
 
-def segments(curve):
+def segments(curve) -> list:
+    """
+    Returns a list of segments from a given curve.
+    Each segment is represented as a LineString object.
+    
+    Args:
+    ----
+        curve: A LineString or MultiLineString object representing the curve.
+        
+    Returns:
+    -------
+        list: A list of LineString objects representing the segments of the curve.
+    """
     return list(map(LineString, zip(curve.coords[:-1], curve.coords[1:])))[::-1]
 
 
-def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK, alpha=1, show_line_idx=False, add_points=False, **kwargs):
-    """ Plots a geometry object on the given axes.
+def plot_geometry(geometry, ax=None, show_idx=False, color=None, 
+                    edgecolor=BLACK, alpha=1, show_line_idx=False, add_points=False, **kwargs) -> None:
+    """
+    Plots a geometry object on the given axes.
 
     Args:
     ----
-    geometry: The geometry object to be plotted.
-    ax: The axes object on which to plot the geometry. If None, a default axes object will be used.
-    show_idx: Whether to show the index of the geometry object.
-    color: The color of the geometry object.
-    edgecolor: The edge color of the geometry object.
-    alpha: The transparency of the geometry object.
-    **kwargs: Additional keyword arguments to be passed to the plotting functions.
+        geometry: The geometry object to be plotted.
+        ax: The axes object on which to plot the geometry. If None, a default axes object will be used.
+        show_idx: Whether to show the index of the geometry object.
+        color: The color of the geometry object.
+        edgecolor: The edge color of the geometry object.
+        alpha: The transparency of the geometry object.
+        **kwargs: Additional keyword arguments to be passed to the plotting functions.
     """
     if ax is None:
         ax = default_ax()
@@ -88,14 +114,15 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None, edgecolor=BLACK
         plot_points_withlabel(geometry, ax=ax, color=color, marker=".")
     
 
-def plot_polygon_idx(geometry: Polygon | MultiPolygon, ax=None, color=None):
-    """ Plots the index of each polygon in the given geometry on the specified axes.
+def plot_polygon_idx(geometry: Polygon | MultiPolygon, ax=None, color=None) -> None:
+    """ 
+    Plots the index of each polygon in the given geometry on the specified axes.
 
     Args:
     ----
-    geometry: A Polygon or MultiPolygon object representing the geometry.
-    ax: The axes on which to plot the index. If None, the current axes will be used.
-    color: The color of the index annotation. If None, a default color will be used.
+        geometry: A Polygon or MultiPolygon object representing the geometry.
+        ax: The axes on which to plot the index. If None, the current axes will be used.
+        color: The color of the index annotation. If None, a default color will be used.
     """
     if hasattr(geometry, "geoms"):
         for idx, polygon in enumerate(list(geometry.geoms)):
@@ -114,14 +141,15 @@ def plot_polygon_idx(geometry: Polygon | MultiPolygon, ax=None, color=None):
                     bbox=dict(facecolor='white', edgecolor=BLACK, alpha=1))
 
 
-def plot_line_idx_in_polygon(poly: Polygon | MultiPolygon, ax=None, color=None):
-    """ Plots the index of each line in the given polygon on the specified axes.
+def plot_line_idx_in_polygon(poly: Polygon | MultiPolygon, ax=None, color=None) -> None:
+    """ 
+    Plots the index of each line in the given polygon on the specified axes.
 
     Args:
     ----
-    poly: A Polygon object representing the geometry.
-    ax: The axes on which to plot the index. If None, the current axes will be used.
-    color: The color of the index annotation. If None, a default color will be used.
+        poly: A Polygon object representing the geometry.
+        ax: The axes on which to plot the index. If None, the current axes will be used.
+        color: The color of the index annotation. If None, a default color will be used.
     """
     for idx, segment in enumerate(segments(poly.boundary)):
         ax.annotate(idx,
@@ -131,15 +159,16 @@ def plot_line_idx_in_polygon(poly: Polygon | MultiPolygon, ax=None, color=None):
                     bbox=dict(facecolor='white', edgecolor=BLACK, alpha=1))
 
 
-def plot_points_withlabel(geometry, ax=None, color=None, marker="."):
-    """ Plot points with labels on a given axis.
+def plot_points_withlabel(geometry, ax=None, color=None, marker=".") -> None:
+    """ 
+    Plot points with labels on a given axis.
 
     Args:
     ----
-    geometry: The geometry object containing the coordinates of the points.
-    ax: The axis on which to plot the points. If None, a default axis will be used.
-    color: The color of the points and labels.
-    marker: The marker style for the points.
+        geometry: The geometry object containing the coordinates of the points.
+        ax: The axis on which to plot the points. If None, a default axis will be used.
+        color: The color of the points and labels.
+        marker: The marker style for the points.
     """
     if ax is None:
         ax = default_ax()
@@ -153,14 +182,15 @@ def plot_points_withlabel(geometry, ax=None, color=None, marker="."):
     ax.plot(coords[:, 0], coords[:, 1], linestyle="", marker=marker, color=color, alpha=1, zorder=1e9)
 
 
-def set_limits(ax, coor: list | Point, dxdy: list):
-    """ Sets the limits of the given axes object.
+def set_limits(ax, coor: list | Point, dxdy: list) -> None:
+    """ 
+    Sets the limits of the given axes object.
 
     Args:
     ____
-    ax: The axes object to set the limits for.
-    coor: The coordinates of the center point as a list or a Point object.
-    dxdy: The width and height of the axes as a list.
+        ax: The axes object to set the limits for.
+        coor: The coordinates of the center point as a list or a Point object.
+        dxdy: The width and height of the axes as a list.
     """
     dx, dy = dxdy
     if type(coor) is Point:

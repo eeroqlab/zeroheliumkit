@@ -1,17 +1,8 @@
 """
+routing.py
+
 This file contains a collection of functions for routing in a network.
-It provides methods for creating fillet routing lines and Bezier curves between two anchor points.
-
-The main functions in this file are:
-- `ArcLine`: Returns a LineString representing an arc.
-- `get_fillet_params`: Calculates the lengths required for fillet routing and returns fillet parameters.
-- `make_fillet_line`: Returns a fillet shape LineString.
-- `normalize_anchors`: Returns a normalized anchor by moving anchor1 to (0,0) and rotating to dir=0, and transforming anchor2 accordingly.
-- `snap_line_to_anchor`: Snaps a linestring to the anchor position and direction.
-- `create_route`: Returns a fillet routing linestring or a Bezier curve between two anchor points.
-- `make_bezier_line`: Returns a Bezier routing LineString.
-
-Note: This file depends on the following modules: numpy, bezier, shapely.
+Provides methods for creating fillet routing lines and Bezier curves between two anchor points.
 """
 
 import numpy as np
@@ -31,16 +22,21 @@ def ArcLine(centerx: float,
             start_angle: float,
             end_angle: float,
             numsegments: int=10) -> LineString:
-    """ Returns LineString representing an arc.
+    """ 
+    Returns LineString representing an arc.
 
     Args:
     ----
-    centerx (float): center.x of arcline
-    centery (float): center.y of arcline
-    radius (float): radius of the arcline
-    start_angle (float): starting angle
-    end_angle (float): end angle
-    numsegments (int, optional): number of the segments. Defaults to 10.
+        centerx (float): center.x of arcline
+        centery (float): center.y of arcline
+        radius (float): radius of the arcline
+        start_angle (float): starting angle
+        end_angle (float): end angle
+        numsegments (int, optional): number of the segments. Defaults to 10.
+
+    Returns:
+    -------
+        LineString: A LineString representing the arc.
 
     Example:
     -------
@@ -53,17 +49,18 @@ def ArcLine(centerx: float,
 
 
 def get_fillet_params(anchor: Anchor, radius: float) -> tuple:
-    """ Calculate the lengths required for fillet routing and return fillet parameters.
+    """ 
+    Calculate the lengths required for fillet routing and return fillet parameters.
         The origin of fillet line is at (0,0).
 
     Args:
     ----
-    anchor (Anchor): The anchor (second) point for the fillet.
-    radius (float): The radius of the fillet curve.
+        anchor (Anchor): The anchor (second) point for the fillet.
+        radius (float): The radius of the fillet curve.
 
     Returns:
     -------
-    tuple: A tuple containing the calculated lengths and the anchor direction.
+        tuple: A tuple containing the calculated lengths and the anchor direction.
     """
     rad = anchor.direction * np.pi/180
 
@@ -85,15 +82,20 @@ def make_fillet_line(length1: float,
                      direction: float,
                      radius: float,
                      num_segments: int) -> LineString:
-    """ Returns a fillet shape LineString
+    """ 
+    Returns a fillet shape LineString.
 
     Args:
     ----
-    length1 (float): length of the first section
-    length2 (float): length of the second section placed after arcline
-    direction (float): orientation of the endsegment
-    radius (float): radius if the arcline
-    num_segments (int): num of segments in the arcline
+        length1 (float): length of the first section
+        length2 (float): length of the second section placed after arcline
+        direction (float): orientation of the endsegment
+        radius (float): radius if the arcline
+        num_segments (int): num of segments in the arcline
+
+    Returns:
+    -------
+        LineString: A LineString in a fillet shape.
     """
 
     direction = fmodnew(direction)
@@ -117,13 +119,18 @@ def make_fillet_line(length1: float,
 
 
 def normalize_anchors(anchor1: Anchor, anchor2: Anchor) -> Anchor:
-    """ Returns normalizied anchor: 
-        anchor1 moves to (0,0) and rotates to dir=0 and anchor2 transforms accordingly
+    """ 
+    Returns normalizied anchor: 
+        anchor1 moves to (0,0) and rotates to dir=0 and anchor2 transforms accordingly.
 
     Args:
     ----
-    anchor1 (Anchor): first anchor
-    anchor2 (Anchor): second anchor
+        anchor1 (Anchor): first anchor
+        anchor2 (Anchor): second anchor
+
+    Returns:
+    -------
+        Anchor: Normalized anchor with coordinates (0,0) and direction 0.
     """
 
     direction = anchor2.direction - anchor1.direction
@@ -136,12 +143,17 @@ def normalize_anchors(anchor1: Anchor, anchor2: Anchor) -> Anchor:
 
 
 def snap_line_to_anchor(anchor: Anchor, line: LineString) -> LineString:
-    """ Snaps the linestring to the anchor position and direction
+    """ 
+    Snaps the linestring to the anchor position and direction
 
     Args:
     ----
-    anchor (Anchor): line start point will be snapped to this anchor
-    line (LineString): linestring to be snapped
+        anchor (Anchor): line start point will be snapped to this anchor
+        line (LineString): linestring to be snapped
+
+    Returns:
+    -------
+        LineString: A linestring snapped to the anchor position and direction.
     """
 
     line = affinity.rotate(line, anchor.direction, origin=(0,0))
@@ -156,13 +168,26 @@ def create_route(a1: Anchor,
                  num_segments: int=10,
                  print_status: bool=False,
                  bezier_cfg: dict={"extension_fraction": 0.1, "depth_factor": 3}) -> LineString:
-    """ Returns a fillet routing linestring
+    """ 
+    Returns a fillet routing linestring
 
     Args:
     ----
-    anchor (Anchor): _description_
-    radius (float): _description_
-    num_segments (int, optional): _description_. Defaults to 10.
+        anchor (Anchor): _description_
+        radius (float): _description_
+        num_segments (int, optional): _description_. Defaults to 10.
+        print_status (bool, optional): If True, prints the status of the route construction. 
+            Defaults to False.
+        bezier_cfg (dict, optional): Configuration for Bezier curve construction. 
+            Defaults to {"extension_fraction": 0.1, "depth_factor": 3}.
+
+    Returns:
+    -------
+        LineString: A linestring representing the route between two anchors.
+
+    Raises:
+    ------
+        RouteError: If the route cannot be constructed between the two anchors.
     """
 
     # normalizing anchors: a1 moves to (0,0) and rotates to dir=0 and a2 transforms accordingly
@@ -232,17 +257,22 @@ def make_bezier_line(a1: Anchor,
                      num_segments: int=20,
                      extension_fraction: float=0.1,
                      depth_factor: float=3) -> LineString:
-    """ Returns a Bezier routing LineString.
+    """ 
+    Returns a Bezier routing LineString.
 
     Args:
     ----
-    a1 (Anchor): The first anchor.
-    a2 (Anchor): The second anchor.
-    num_segments (int, optional): The number of segments in the arcline. Defaults to 10.
-    extension_fraction (float, optional): The fraction of the length between a1 and a2 excluded from construction of bezier curve. Defaults to 0.1.
-                                        Line segments at the anchors are extended by this fraction to avoid sharp turns at the anchor positions.
-                                        Choose betweer 0 and 1.
-    depth_factor (float, optional): The factor to control the depth of the bezier curve. Defaults to 3. Choose between (2, 4).
+        a1 (Anchor): The first anchor.
+        a2 (Anchor): The second anchor.
+        num_segments (int, optional): The number of segments in the arcline. Defaults to 10.
+        extension_fraction (float, optional): The fraction of the length between a1 and a2 excluded from construction of bezier curve. 
+            Defaults to 0.1. Choose betweer 0 and 1.
+        depth_factor (float, optional): 
+            The factor to control the depth of the bezier curve. Defaults to 3. Choose between (2, 4).
+
+    Returns:
+    -------
+        LineString: A Bezier curve LineString between two anchors.
     """
     
     d = get_distance(a1, a2) * extension_fraction
