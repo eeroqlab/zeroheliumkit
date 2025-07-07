@@ -25,12 +25,12 @@ from shapely import (affinity, unary_union,
                      difference, set_precision, intersection,
                      set_coordinates, get_coordinates, remove_repeated_points)
 
-from .plotting import plot_geometry, interactive_widget_handler
+from .plotting import plot_geometry, interactive_widget_handler, tuplify_colors, draw_labels
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY, COLORS
 
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior, calculate_label_pos
+from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior
 
 
 color_cycle = cycle(COLORS)
@@ -941,7 +941,7 @@ class Entity(_Base):
             color=None,
             alpha=1,
             draw_direction=True,
-            draw_labels: bool=False,
+            labels: bool=False,
             **kwargs):
         """
         Plots the Entity object on a given axis with specified layers and colors.
@@ -977,30 +977,11 @@ class Entity(_Base):
             elif l == "skeletone":
                 self.skeletone.plot(ax=ax, color=c)
 
-        if draw_labels:
-            label_distance = 0.5
-            geoms_list = create_list_geoms(geometry)
-            for polygon in geoms_list:
-                label = 1
-                for x, y in polygon.exterior.coords:
-                    label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
-                    if label != len(polygon.exterior.coords):
-                        ax.plot(x, y, 'ro')
-                        ax.text(label_x, label_y, str(label), color='red')
-                        label += 1
-                if has_interior(polygon):
-                    for int in polygon.interiors:
-                        label = 1
-                        for x, y in int.coords:
-                            label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
-
-                            if label != len(int.coords):
-                                ax.plot(x, y, 'ro')
-                                ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
-                                label += 1
+        if labels:
+            draw_labels(geometry, ax)
 
     def quickplot(self, color_config: dict=None, zoom: tuple=None,
-                  ax=None, show_idx: bool=False, **kwargs) -> None:
+                  ax=None, show_idx: bool=False, labels: bool=False, **kwargs) -> None:
         """
         Plots the Entity object with predefined colors for each layer.
 
@@ -1013,7 +994,7 @@ class Entity(_Base):
         --------
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
-        plot_config = color_config if color_config else self.colors
+        plot_config = tuplify_colors(color_config) if color_config else self.colors
 
         if "anchors" not in plot_config:
             plot_config["anchors"] = (RED, 1.0)
@@ -1027,7 +1008,7 @@ class Entity(_Base):
         if ax is None:
             interactive_widget_handler()
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
-        self.plot(ax=ax, layer=plot_layers, color=plot_colors, show_idx=show_idx, **kwargs)
+        self.plot(ax=ax, layer=plot_layers, color=plot_colors, show_idx=show_idx, labels=labels, **kwargs)
 
         if zoom is not None:
             xmin, xmax = plt.gca().get_xlim()
@@ -1232,3 +1213,5 @@ class GeomCollection(Structure):
 
         if not hasattr(self, "skeletone"):
             self.skeletone = Skeletone()
+
+        self.update_colors()

@@ -6,12 +6,14 @@ This file contains functions for plotting geometries using matplotlib.
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
+import matplotlib.axes 
 import colorsys
 
 from shapely import get_coordinates, Point
 from shapely.plotting import plot_line, plot_polygon
 
 from .settings import *
+from .utils import create_list_geoms, calculate_label_pos, has_interior
 
 def interactive_widget_handler() -> None:
     """
@@ -203,3 +205,58 @@ def set_limits(ax, coor: list | Point, dxdy: list) -> None:
     ax.set_ylim(y0 - dy/2, y0 + dy/2)
     #ax.set_yticks(range(y0, yN+1))
     ax.set_aspect("equal")
+
+
+def tuplify_colors(layer_colors: dict) -> dict:
+    """
+    Converts a dict of layer color specifications into a dict
+    where all values are (color, transparency) tuples.
+
+    Args:
+    -----
+        layer_colors (dict): Keys are layer names. Values are either:
+            - a color value (e.g. string like 'red' or '#ff0000')
+            - or a tuple: (color_value, transparency)
+
+    Returns:
+    -------
+        dict: Same keys, with values as (color_value, transparency) tuples.
+    """
+    standardized = {}
+    for layer, value in layer_colors.items():
+        if isinstance(value, tuple):
+            standardized[layer] = value
+        else:
+            standardized[layer] = (value, 1.0)
+    return standardized
+
+
+def draw_labels(geometry, ax: matplotlib.axes.Axes) -> None:
+    """
+    Draws labels on the given axis for each point in the geometry.
+
+    Args:
+    -----
+        geometry: The geometry object containing the points to label.
+        ax (matplotlib.axes.Axes): The axes on which to draw the labels.
+    """
+    label_distance = 0.5
+    geoms_list = create_list_geoms(geometry)
+    for polygon in geoms_list:
+        label = 1
+        for x, y in polygon.exterior.coords:
+            label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
+            if label != len(polygon.exterior.coords):
+                ax.plot(x, y, 'ro')
+                ax.text(label_x, label_y, str(label), color='red')
+                label += 1
+        if has_interior(polygon):
+            for int in polygon.interiors:
+                label = 1
+                for x, y in int.coords:
+                    label_x, label_y = calculate_label_pos(x, y, polygon.centroid, label_distance)
+
+                    if label != len(int.coords):
+                        ax.plot(x, y, 'ro')
+                        ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
+                        label += 1
