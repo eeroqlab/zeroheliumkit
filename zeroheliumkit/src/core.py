@@ -972,16 +972,13 @@ class Entity(_Base):
                               color=c,
                               alpha=alpha,
                               **kwargs)
-            elif l == "anchors":
-                self.anchors.plot(ax=ax, color=c, draw_direction=draw_direction)
-            elif l == "skeletone":
-                self.skeletone.plot(ax=ax, color=c)
 
         if labels:
             draw_labels(geometry, ax)
 
     def quickplot(self, color_config: dict=None, zoom: tuple=None,
-                  ax=None, show_idx: bool=False, labels: bool=False, **kwargs) -> None:
+                  ax=None, show_idx: bool=False, labels: bool=False, 
+                  draw_anchor_dir: bool=True, **kwargs) -> None:
         """
         Plots the Entity object with predefined colors for each layer.
 
@@ -996,19 +993,29 @@ class Entity(_Base):
         """
         plot_config = tuplify_colors(color_config) if color_config else self.colors
 
-        if "anchors" not in plot_config:
-            plot_config["anchors"] = (RED, 1.0)
-        if "skeletone" not in plot_config:
-            plot_config["skeletone"] = (DARKGRAY, 1.0)
+        if "anchors" in plot_config:
+            anchor_color = plot_config.pop("anchors")[0]
+        else:
+            anchor_color = RED
 
-        all_plot_objects = self.layers + ["anchors", "skeletone"]
-        plot_layers = [k for k in plot_config.keys() if k in all_plot_objects]
-        plot_colors = [plot_config[k][0] for k in plot_layers]
+        if "skeletone" in plot_config:
+            skeletone_color = plot_config.pop("skeletone")[0]
+        else:
+            skeletone_color = DARKGRAY
 
         if ax is None:
             interactive_widget_handler()
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
-        self.plot(ax=ax, layer=plot_layers, color=plot_colors, show_idx=show_idx, labels=labels, **kwargs)
+
+        #plot layers
+        layer_colors = [plot_config[k][0] for k in self.layers]
+        self.plot(ax=ax, layer=self.layers, color=layer_colors, show_idx=show_idx, labels=labels, **kwargs)
+
+        #plot skeletone
+        self.skeletone.plot(ax=ax, color=skeletone_color)
+
+        #plot anchors
+        self.anchors.plot(ax=ax, color=anchor_color, draw_direction=draw_anchor_dir)
 
         if zoom is not None:
             xmin, xmax = plt.gca().get_xlim()
