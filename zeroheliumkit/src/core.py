@@ -939,7 +939,7 @@ class Entity(_Base):
             layer: list=None,
             show_idx=False,
             color=None,
-            alpha=1,
+            alpha=1, 
             labels: bool=False,
             **kwargs):
         """
