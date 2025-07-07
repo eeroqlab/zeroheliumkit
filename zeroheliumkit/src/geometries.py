@@ -562,8 +562,7 @@ class ArbitraryLine(Structure):
         if layers:
             for k, width in layers.items():
                 polygon = buffer_along_path(points, width)
-                self.layers.append(k)
-                setattr(self, k, polygon)
+                self.add_layer(k, polygon)
 
         # create anchors
         if alabel:
