@@ -108,12 +108,6 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None,
             plot_line(geometry.boundary, ax=ax, color=BLACK, add_points=False, lw=1.5)
         if show_line_idx:
             plot_line_idx_in_polygon(geometry, ax=ax, color=color)
-
-    elif type(geometry) in LINE_CLASSES:
-        plot_line(geometry, ax=ax, color=color, add_points=False, ls="dashed", lw=1)
-
-    elif type(geometry) in PTS_CLASSES:
-        plot_points_withlabel(geometry, ax=ax, color=color, marker=".")
     
 
 def plot_polygon_idx(geometry: Polygon | MultiPolygon, ax=None, color=None) -> None:

@@ -940,7 +940,6 @@ class Entity(_Base):
             show_idx=False,
             color=None,
             alpha=1,
-            draw_direction=True,
             labels: bool=False,
             **kwargs):
         """
