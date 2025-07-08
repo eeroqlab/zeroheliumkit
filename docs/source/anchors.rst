@@ -1,7 +1,7 @@
-Utils.py
+Anchors.py
 ===========
 
-.. automodule:: zeroheliumkit.src.utils
+.. automodule:: zeroheliumkit.src.anchors
    :members:
    :undoc-members:
    :show-inheritance:

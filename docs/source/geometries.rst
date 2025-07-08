@@ -1,7 +1,7 @@
-Utils.py
+Geometries.py
 ===========
 
-.. automodule:: zeroheliumkit.src.utils
+.. automodule:: zeroheliumkit.src.geometries
    :members:
    :undoc-members:
    :show-inheritance:

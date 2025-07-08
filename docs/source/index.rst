@@ -1,17 +1,20 @@
-.. ZeroHeliumKit documentation master file, created by
-   sphinx-quickstart on Wed Jul  2 14:54:46 2025.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+.. ZeroHeliumKit documentation master file
 
-ZeroHeliumKit
-===========================
+ZeroHeliumKit - EeroQ
+======================================
 
 Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
 
+.. image:: _static/zhk.png
+  :width: 400
 
 .. toctree::
    :maxdepth: 2
    :caption: User Guide
+
+   installation
+   user_manual
+   examples
 
 
 .. toctree::
@@ -19,5 +22,12 @@ Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
    :caption: API Reference
 
    core
+   anchors
    utils
+   functions
+   geometries
+   plotting
+   routing
+   supercore
+   importing
    

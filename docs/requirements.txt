@@ -1,0 +1,7 @@
+sphinx>=7.2,<8.0
+nbsphinx>=0.9.3,<0.10
+nbconvert>=7.14,<8.0
+ipykernel>=6.29,<7.0
+jupyter-client>=8.6,<9.0
+nbformat>=5.10,<6.0
+sphinx-book-theme==1.1.4

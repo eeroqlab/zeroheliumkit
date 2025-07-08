@@ -1,0 +1,9 @@
+dl.function,
+dl.attribute,
+dl.method {
+    border: 1px solid #ccc;
+    padding: 1em;
+    border-radius: 8px;
+    background-color: #fefefe;
+    box-shadow: 2px 2px 4px rgba(0,0,0,0.05);
+}

@@ -6,10 +6,8 @@ This file contains the core classes and methods for the ZeroHeliumKit library.
 Classes:
 -------
     `_Base`: Base class with default methods for managing shapely objects.
-    `Entity`: A subclass of _Base which represents a collection of shapely objects 
-        linked together and provides methods for geometrical operations.
-    `Structure`: A subclass of Entity that represents layers with 
-        ollections of geometries (Points, LineStrings, Polygons, etc.).
+    `Entity`: A subclass of _Base which represents a collection of shapely objects linked together and provides methods for geometrical operations.
+    `Structure`: A subclass of Entity that represents layers with collections of geometries (Points, LineStrings, Polygons, etc.).
     `GeomCollection`: A subclass of Structure that represents a collection of geometries.
 """
 
@@ -42,9 +40,9 @@ class _Base:
 
     Attributes:
     -----------
-        layers: List of layer names.
-        colors: Mapping of layer names to their desired color and transparancy level. 
-        errors: Stores all errors that occur during attribute assignment.
+        - layers: List of layer names.
+        - colors: Mapping of layer names to their desired color and transparancy level. 
+        - errors: Stores all errors that occur during attribute assignment.
 
     Methods:
     --------

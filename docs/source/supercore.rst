@@ -1,7 +1,7 @@
-Utils.py
+Supercore.py
 ===========
 
-.. automodule:: zeroheliumkit.src.utils
+.. automodule:: zeroheliumkit.src.supercore
    :members:
    :undoc-members:
    :show-inheritance:

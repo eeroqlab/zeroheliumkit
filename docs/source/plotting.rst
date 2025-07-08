@@ -1,7 +1,7 @@
-Utils.py
+Plotting.py
 ===========
 
-.. automodule:: zeroheliumkit.src.utils
+.. automodule:: zeroheliumkit.src.plotting
    :members:
    :undoc-members:
    :show-inheritance:

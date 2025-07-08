@@ -3,46 +3,41 @@ import os
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-
-# Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
-
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-
 project = 'ZeroHeliumKit'
 copyright = '2025, EeroQ'
 author = 'EeroQ'
-
-# -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
     'sphinx.ext.autosummary',
     'sphinx.ext.todo',
-    'sphinx.ext.mathjax']
+    'nbsphinx']
 
 autosummary_generate = True
 
 templates_path = ['_templates']
 exclude_patterns = []
 
+pygments_style = 'sphinx'
 
-
-# -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
-
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_book_theme'
 html_static_path = ['_static']
 
+nbsphinx_execute = 'never'
+nbsphinx_requirejs_path = ''
+
+suppress_warnings = [
+    'ref.python',
+    'docutils',
+    'ref.ref'
+]
+
 html_theme_options = {
-    "navigation_depth": 4,
-    "collapse_navigation": False,
-    "sticky_navigation": True,
-    "includehidden": True,
-    "titles_only": False
+    "path_to_docs": "docs", 
+    "repository_url": "https://github.com/eeroqlab/zeroheliumkit",
+    "use_repository_button": True
 }
+
+def setup(app):
+    app.add_css_file("custom.css")

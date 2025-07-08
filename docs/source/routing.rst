@@ -1,7 +1,7 @@
-Utils.py
+Routing.py
 ===========
 
-.. automodule:: zeroheliumkit.src.utils
+.. automodule:: zeroheliumkit.src.routing
    :members:
    :undoc-members:
    :show-inheritance:

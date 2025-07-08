@@ -1,7 +1,7 @@
-Utils.py
+Functions.py
 ===========
 
-.. automodule:: zeroheliumkit.src.utils
+.. automodule:: zeroheliumkit.src.functions
    :members:
    :undoc-members:
    :show-inheritance:
