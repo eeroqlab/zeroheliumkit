@@ -34,7 +34,7 @@ def get_endpoint_indices(x: tuple=(1,0)) -> tuple:
     
     Args:
     -----
-        x (tuple): A tuple containing two elements, either (1, 0) or (0, 1).
+        - x (tuple): A tuple containing two elements, either (1, 0) or (0, 1).
             Defaults to (1, 0).
         
     Returns:
@@ -60,11 +60,13 @@ class RoutingConfig:
     
     Attributes:
     ----------
-        radius (float, optional): The radius of the routing. Defaults to 50.
-        num_segments (int, optional): The number of segments in the routing. Defaults to 13.
+        - radius (float, optional): The radius of the routing. Defaults to 50.
+        - num_segments (int, optional): The number of segments in the routing. Defaults to 13.
     """
     radius: float = 50
+    """The radius of the routing. Defaults to 50."""
     num_segments: int = 13
+    """The number of segments in the routing. Defaults to 13."""
 
 
 @dataclass(slots=True)
@@ -74,18 +76,22 @@ class ObjsAlongConfig:
 
     Attributes:
     ----------
-        structure (object): The structure to be added along the skeleton line.
-        spacing (float, optional): The spacing between the added objects. Defaults to 100.
-        endpoints (tuple or bool, optional): The endpoints of the skeleton line where the objects should be added. 
+        - structure (object): The structure to be added along the skeleton line.
+        - spacing (float, optional): The spacing between the added objects. Defaults to 100.
+        - endpoints (tuple or bool, optional): The endpoints of the skeleton line where the objects should be added. 
             If a tuple is provided, it should contain the indices of the desired endpoints. 
             If True, the objects will be added along the entire skeleton line.
             Defaults to True.
-        additional_rotation (float, optional): Additional rotation to be applied to the added objects. Defaults to 0.
+        - additional_rotation (float, optional): Additional rotation to be applied to the added objects. Defaults to 0.
     """
     structure: Structure
+    """The structure to be added along the skeleton line."""
     spacing: float = 100
+    """The spacing between the added objects. Defaults to 100."""
     endpoints: tuple | bool = True
+    """The endpoints of the skeleton line where the objects should be added."""
     additional_rotation: float = 0
+    """Additional rotation to be applied to the added objects."""
 
 
 class SuperStructure(Structure):
@@ -123,17 +129,17 @@ class SuperStructure(Structure):
 
         Args:
         ----
-            anchors (tuple): The anchors to route between. Provide labels.
-            layers (dict): The layer width information.
-            airbridge (Entity | Structure): The airbridge structure.
+            - anchors (tuple): The anchors to route between. Provide labels.
+            - layers (dict): The layer width information.
+            - airbridge (Entity | Structure): The airbridge structure.
                 Should contain 'in' and 'out' anchors. Defaults to None
-            extra_rotation (float, optional): Additional rotation angle for the airbridge. Defaults to 0.
-            print_status (bool, optional): Whether to print the status of the route creation. Defaults to False.
-            rm_anchor (bool or str, optional): If True, removes the anchor points after appending. 
+            - extra_rotation (float, optional): Additional rotation angle for the airbridge. Defaults to 0.
+            - print_status (bool, optional): Whether to print the status of the route creation. Defaults to False.
+            - rm_anchor (bool or str, optional): If True, removes the anchor points after appending. 
                 If a string is provided, removes the specified anchor point. 
                 Defaults to False.
-            rm_route (bool, optional): Whether to remove created route line. Defaults to False.
-            cap_style (str, optional): The cap style for the buffered line. Defaults to "flat".
+            - rm_route (bool, optional): Whether to remove created route line. Defaults to False.
+            - cap_style (str, optional): The cap style for the buffered line. Defaults to "flat".
         """
         p_start = self.get_anchor(anchors[0]).point
         p_end = self.get_anchor(anchors[-1]).point
@@ -247,15 +253,15 @@ class SuperStructure(Structure):
 
         Args:
         ----
-            bound_anchors (tuple): Skeleton region contained between two anchors.
-            structure (Structure | Entity): Structure to be added.
-            locs (list, optional): List of locations along the skeleton line where the structures will be added. 
+            - bound_anchors (tuple): Skeleton region contained between two anchors.
+            - structure (Structure | Entity): Structure to be added.
+            - locs (list, optional): List of locations along the skeleton line where the structures will be added. 
                 If not provided, the structures will be evenly distributed between the two anchor points.
-            num (int, optional): Number of structures to be added. Ignored if locs is provided.
-            endpoints (bool|tuple, optional): Whether to include the endpoints of the skeleton line as locations for adding structures. 
+            - num (int, optional): Number of structures to be added. Ignored if locs is provided.
+            - endpoints (bool|tuple, optional): Whether to include the endpoints of the skeleton line as locations for adding structures. 
                 ex. tuple = (1,0): includes start point and excludes end point.
                 Defaults to False.
-            normalized (bool, optional): Whether the locations are normalized along the skeleton line. Defaults to False.
+            - normalized (bool, optional): Whether the locations are normalized along the skeleton line. Defaults to False.
 
         Raises:
         ------
@@ -315,8 +321,8 @@ class SuperStructure(Structure):
 
         Args:
         ----
-            line (LineString): The route line.
-            layers (Union[float, int, list, dict]): The layer information.
+            - line (LineString): The route line.
+            - layers (Union[float, int, list, dict]): The layer information.
                 It can be a single value, a list of values, or a dictionary with distances and widths.
 
         Examples:
@@ -361,12 +367,12 @@ class SuperStructure(Structure):
 
         Args:
         ----
-            area (Polygon): The area within which the corners should be rounded.
-            layer (str | list[str]): The layer(s) on which the operation should be performed.
+            - area (Polygon): The area within which the corners should be rounded.
+            - layer (str | list[str]): The layer(s) on which the operation should be performed.
                 If a single layer is provided as a string, the operation will be applied to that layer only.
                 If multiple layers are provided as a list of strings, the operation will be applied to each layer individually.
-            radius (float | int): The radius to be applied for rounding the corners.
-            **kwargs: Additional keyword arguments to be passed to the rounding function.
+            - radius (float | int): The radius to be applied for rounding the corners.
+            - **kwargs: Additional keyword arguments to be passed to the rounding function.
 
 
         Example:
@@ -395,10 +401,10 @@ class SuperStructure(Structure):
 
         Args:
         ----
-            layer (str | list[str]): The layer(s) on which the operation should be performed.
-            around_point (tuple | Point): The point around which the corner should be rounded.
-            radius (float): The radius to be applied for rounding the corners.
-            **kwargs: Additional keyword arguments to be passed to the rounding function.
+            - layer (str | list[str]): The layer(s) on which the operation should be performed.
+            - around_point (tuple | Point): The point around which the corner should be rounded.
+            - radius (float): The radius to be applied for rounding the corners.
+            - **kwargs: Additional keyword arguments to be passed to the rounding function.
 
         Returns:
         -------
@@ -421,9 +427,9 @@ class ContinuousLineBuilder():
 
     Attr:
     -----
-        routing (RoutingConfig): The routing configuration.
-        layers (dict): A dictionary containing layer names as keys and buffer widths as values.
-        objs_along (ObjsAlongConfig): The configuration for adding objects along the skeleton line.
+        - routing (RoutingConfig): The routing configuration.
+        - layers (dict): A dictionary containing layer names as keys and buffer widths as values.
+        - objs_along (ObjsAlongConfig): The configuration for adding objects along the skeleton line.
     
     Example:
     -------
@@ -445,9 +451,13 @@ class ContinuousLineBuilder():
                  layers: dict=None,
                  objs_along: ObjsAlongConfig=None):
         self.routing = routing
+        """The routing configuration."""
         self.layers = layers
+        """A dictionary containing layer names as keys and buffer widths as values."""
         self.objs_along = objs_along
+        """The configuration for adding objects along the skeleton line."""
         self.absolute_angle = 0
+        """The current absolute angle of the line being built."""
 
 
     def __repr__(self):
@@ -465,7 +475,7 @@ class ContinuousLineBuilder():
 
         Args:
         -----
-            anchor (Anchor): The anchor object to be added. It should have 'direction' and 'coords' attributes.
+            - anchor (Anchor): The anchor object to be added. It should have 'direction' and 'coords' attributes.
 
         Returns:
         -------
@@ -479,12 +489,16 @@ class ContinuousLineBuilder():
             <MyClass object at 0x...>
         """
         self.skeletone = Skeletone()
+        """The Skeletone object representing the skeleton line."""
         self.anchors = MultiAnchor()
+        """The MultiAnchor object containing the set of anchors."""
         self.structure = Structure()
+        """The Structure object representing the built structure."""
 
         self.anchors.add(anchor)
         self.absolute_angle = anchor.direction
         self.starting_coords = anchor.coords
+        """The starting coordinates of the line being built."""
         return self
 
 
@@ -494,7 +508,7 @@ class ContinuousLineBuilder():
         
         Args:
         -----
-            length (float): The length of the line. Default is 1.
+            - length (float): The length of the line. Default is 1.
 
         Returns:
         -------
@@ -518,9 +532,9 @@ class ContinuousLineBuilder():
         
         Args:
         -----
-            angle (float): turn angle of the arcline. Default is 90.
-            radius (float): radius of the arcline. Default is 1.
-            num_segments (int): number of segments of the arcline. Default is 13.
+            - angle (float): turn angle of the arcline. Default is 90.
+            - radius (float): radius of the arcline. Default is 1.
+            - num_segments (int): number of segments of the arcline. Default is 13.
 
         Returns:
         -------
@@ -546,9 +560,9 @@ class ContinuousLineBuilder():
         
         Args:
         -----
-            name (str): The name of the anchor.
-            angle (float, optional): The angle of the anchor. Defaults to None.
-            type (str, optional): The type of angle calculation. Can be "absolute", "relative", or None. Defaults to None.
+            - name (str): The name of the anchor.
+            - angle (float, optional): The angle of the anchor. Defaults to None.
+            - type (str, optional): The type of angle calculation. Can be "absolute", "relative", or None. Defaults to None.
 
         Returns:
         -------
@@ -571,7 +585,7 @@ class ContinuousLineBuilder():
 
         Args:
         -----
-            name (str): The name of the anchor to be added at the end of the skeletone.
+            - name (str): The name of the anchor to be added at the end of the skeletone.
         """
         self.add_anchor(name)
 
@@ -583,8 +597,8 @@ class ContinuousLineBuilder():
         
         Args:
         -----
-            length (float): The length of the straight section. Default is 1.
-            angle (float): The angle of the turn. Default is 90.
+            - length (float): The length of the straight section. Default is 1.
+            - angle (float): The angle of the turn. Default is 90.
 
         Returns:
         -------
@@ -608,8 +622,8 @@ class ContinuousLineBuilder():
         
         Args:
         -----
-            anchor (Anchor): the anchor point to which the route will be created.
-            **kwargs: additional parameters to be passed to create_route method.
+            - anchor (Anchor): the anchor point to which the route will be created.
+            - **kwargs: additional parameters to be passed to create_route method.
 
         Returns:
         -------
@@ -643,9 +657,9 @@ class ContinuousLineBuilder():
 
         Args:
         -----
-            layers (dict, optional): A dictionary containing layer names as keys and buffer widths as values.
+            - layers (dict, optional): A dictionary containing layer names as keys and buffer widths as values.
                 If not provided, the layers from the object's attribute `layers` will be used.
-            **kwargs: Additional keyword arguments to be passed to the `buffer` method.
+            - **kwargs: Additional keyword arguments to be passed to the `buffer` method.
 
         Returns:
         -------
@@ -671,12 +685,12 @@ class ContinuousLineBuilder():
 
         Args:
         -----
-            structure (object): The structure to be added along the skeleton line.
-            spacing (float): The spacing between the added objects.
-            endpoints (tuple or bool): The endpoints of the skeleton line where the objects should be added. 
+            - structure (object): The structure to be added along the skeleton line.
+            - spacing (float): The spacing between the added objects.
+            - endpoints (tuple or bool): The endpoints of the skeleton line where the objects should be added. 
                 If a tuple is provided, it should contain the indices of the desired endpoints. 
                 If True, the objects will be added along the entire skeleton line.
-            additional_rotation (float): Additional rotation to be applied to the added objects.
+            - additional_rotation (float): Additional rotation to be applied to the added objects.
 
         Returns:
         -------

@@ -41,3 +41,8 @@ html_theme_options = {
 
 def setup(app):
     app.add_css_file("custom.css")
+
+autodoc_default_options = {
+    'members': True,
+    'undoc-members': False,
+}

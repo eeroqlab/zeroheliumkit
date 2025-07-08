@@ -23,11 +23,11 @@ Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
 
    core
    anchors
+   supercore
+   geometries
    utils
    functions
-   geometries
    plotting
    routing
-   supercore
    importing
    

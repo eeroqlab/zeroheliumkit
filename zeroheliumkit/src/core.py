@@ -42,20 +42,21 @@ class _Base:
     -----------
         - layers: List of layer names.
         - colors: Mapping of layer names to their desired color and transparancy level. 
-        - errors: Stores all errors that occur during attribute assignment.
 
     Methods:
     --------
-        copy(): Returns a deep copy of the class.
-        add_layer(lname, geometry): Adds a new layer to the class.
-        remove_layer(lname): Removes a layer from the class.
-        rename_layer(old_name, new_name): Renames a layer in the class.
-        simplify_layer(lname, tolerance=0.1): Simplifies polygons in a layer.
-        has_layer(lname): Checks if a layer exists in the class.
+        - copy(): Returns a deep copy of the class.
+        - add_layer(lname, geometry): Adds a new layer to the class.
+        - remove_layer(lname): Removes a layer from the class.
+        - rename_layer(old_name, new_name): Renames a layer in the class.
+        - simplify_layer(lname, tolerance=0.1): Simplifies polygons in a layer.
+        - has_layer(lname): Checks if a layer exists in the class.
     """
-    layers = []
-    colors = {}
-    errors = None 
+    layers = [] 
+    """List of all layer names belonging to the object."""
+    colors = {} 
+    """Mapping of layer names to tuples containing the desired color and transparancy for plotting."""
+    _errors = None
 
     def __init__(self):
         """
@@ -77,14 +78,13 @@ class _Base:
 
     def __setattr__(self, name, value):
         """
-        Changes the behavior of the __setattr__ method.
-        Whenever a new shapely object is created or an existing one is modified,
-            it is set to the precision of the grid size.
+        Changes the behavior of the __setattr__ method. 
+        Whenever a new shapely object is created or an existing one is modified, it is set to the precision of the grid size.
 
         Args:
         -----
-            name (str): The class attribute name.
-            value (obj): The shapely object.
+            - name (str): The class attribute name.
+            - value (obj): The shapely object.
         """
 
         if name in self.layers:
@@ -111,8 +111,8 @@ class _Base:
 
         Args:
         -----
-            lname (str): The name of the layer.
-            geometry (Polygon | MultiPolygon): The geometry of the layer.
+            - lname (str): The name of the layer.
+            - geometry (Polygon | MultiPolygon): The geometry of the layer.
 
         Returns:
         --------
@@ -133,7 +133,7 @@ class _Base:
 
         Args:
         -----
-            lname (str): The name of the layer.
+            - lname (str): The name of the layer.
 
         Returns:
         --------
@@ -159,8 +159,8 @@ class _Base:
 
         Args:
         -----
-            old_name (str): The old name.
-            new_name (str): The new name.
+            - old_name (str): The old name.
+            - new_name (str): The new name.
 
         Returns:
         --------
@@ -185,8 +185,8 @@ class _Base:
 
         Args:
         -----
-            lname (str): The name of the layer.
-            tolerance (float, optional): The tolerance value for simplification. Defaults to 0.1.
+            - lname (str): The name of the layer.
+            - tolerance (float, optional): The tolerance value for simplification. Defaults to 0.1.
 
         Returns:
         --------
@@ -204,7 +204,7 @@ class _Base:
 
         Args:
         -----
-            lname (str): The name of the layer.
+            - lname (str): The name of the layer.
 
         Returns:
         --------
@@ -219,8 +219,8 @@ class _Base:
 
         Args:
         -----
-            lname (str): The name of the layer to update.
-            new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
+            - lname (str): The name of the layer to update.
+            - new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
 
         Returns:
         --------
@@ -270,23 +270,21 @@ class Entity(_Base):
 
     Attributes:
     -----------
-        skeletone (Skeletone):
-            Represents a collection of lines linked to the Entity, which is an 
-            instance of the Skeletone class.
-        anchors (MultiAnchor):
-            Represents the anchor points of the Entity, 
-            which are instances of MultiAnchor.
+        - skeletone (Skeletone):
+            Represents a collection of lines linked to the Entity, which is an instance of the Skeletone class.
+        - anchors (MultiAnchor):
+            Represents the anchor points of the Entity, which are instances of MultiAnchor.
 
     Methods:
     --------
-        clean(): Removes all layers with empty polygons.
-        rotate(angle=0, origin=(0,0)): Rotates all objects in the class.
-        moveby(xy=(0,0)): Moves objects by the specified x and y offsets.
-        moveby_snap(anchor, to_point): Moves objects by snapping it to a new anchor point.
-        scale(xfact=1.0, yfact=1.0, origin=(0,0)): Scales all objects.
-        mirror(aroundaxis, keep_original=True, update_labels=False): Mirrors all objects.
-        add_anchor(points): Adds anchors to the 'anchors' class attribute.
-        get_anchor(label): Returns the Anchor class with the given label.
+        - clean(): Removes all layers with empty polygons.
+        - rotate(angle=0, origin=(0,0)): Rotates all objects in the class.
+        - moveby(xy=(0,0)): Moves objects by the specified x and y offsets.
+        - moveby_snap(anchor, to_point): Moves objects by snapping it to a new anchor point.
+        - scale(xfact=1.0, yfact=1.0, origin=(0,0)): Scales all objects.
+        - mirror(aroundaxis, keep_original=True, update_labels=False): Mirrors all objects.
+        - add_anchor(points): Adds anchors to the 'anchors' class attribute.
+        - get_anchor(label): Returns the Anchor class with the given label.
     """
 
     def __init__(self):
@@ -327,8 +325,8 @@ class Entity(_Base):
 
         Args:
         -----
-            angle (float, optional): rotation angle. Defaults to 0.
-            origin (str, optional): rotations are made around this point. Defaults to (0,0).
+            - angle (float, optional): rotation angle. Defaults to 0.
+            - origin (str, optional): rotations are made around this point. Defaults to (0,0).
         
         Returns:
         --------
@@ -372,8 +370,8 @@ class Entity(_Base):
 
         Args:
         -----
-            anchor (str): The name of the anchor point to move from.
-            to_point (str | tuple | Point): The new anchor point or coordinates to snap to.
+            - anchor (str): The name of the anchor point to move from.
+            - to_point (str | tuple | Point): The new anchor point or coordinates to snap to.
 
         Raises:
         -------
@@ -404,9 +402,9 @@ class Entity(_Base):
 
         Args:
         -----
-            xfact (float, optional): scale along x-axis. Defaults to 1.0.
-            yfact (float, optional): scale along y-axis. Defaults to 1.0.
-            origin ((x,y), optional): scale with respect to an origin (x,y). Defaults to (0,0).
+            - xfact (float, optional): scale along x-axis. Defaults to 1.0.
+            - yfact (float, optional): scale along y-axis. Defaults to 1.0.
+            - origin ((x,y), optional): scale with respect to an origin (x,y). Defaults to (0,0).
 
         Returns:
         --------
@@ -427,10 +425,10 @@ class Entity(_Base):
 
         Args:
         -----
-            aroundaxis (str): Defines the mirror axis. Only 'x' or 'y' are supported.
-            update_labels (bool, optional): 
+            - aroundaxis (str): Defines the mirror axis. Only 'x' or 'y' are supported.
+            - update_labels (bool, optional): 
                 Whether to update the labels after mirroring. Defaults to False.
-            keep_original (bool, optional):
+            - keep_original (bool, optional):
                 Whether to keep the original objects after mirroring. Defaults to False.
 
         Raises:
@@ -474,7 +472,7 @@ class Entity(_Base):
 
         Args:
         -----
-            points (list[Anchor] | Anchor): The anchor(s) to be added.
+            - points (list[Anchor] | Anchor): The anchor(s) to be added.
         
         Returns:
         --------
@@ -490,7 +488,7 @@ class Entity(_Base):
 
         Args:
         -----
-            label (str): The label of the anchor.
+            - label (str): The label of the anchor.
         
         Returns:
         --------
@@ -509,10 +507,10 @@ class Entity(_Base):
 
         Args:
         -----
-            label (str): the anchor to be modified
-            new_name (str, optional): updates the name. Defaults to None.
-            new_xy (tuple, optional): updates coordinates. Defaults to None.
-            new_direction (float, optional): updates the direction. Defaults to None.
+            - label (str): the anchor to be modified
+            - new_name (str, optional): updates the name. Defaults to None.
+            - new_xy (tuple, optional): updates coordinates. Defaults to None.
+            - new_direction (float, optional): updates the direction. Defaults to None.
         """
         self.anchors.modify(label=label,
                             new_name=new_name,
@@ -526,9 +524,8 @@ class Entity(_Base):
 
         Args:
         -----
-            *args: A variable number of arguments representing the labels
-            of the anchors to be removed.
-            The labels can be provided as individual arguments or as a single list or tuple.
+            - *args: A variable number of arguments representing the labels of the anchors to be removed.
+                The labels can be provided as individual arguments or as a single list or tuple.
 
         Returns:
         --------
@@ -559,10 +556,10 @@ class Entity(_Base):
 
         Args:
         -----
-            line (LineString): The LineString to append.
-            direction (float, optional): The direction of the LineString. Defaults to None.
-            ignore_crossing (bool, optional): Whether to ignore crossing lines. Defaults to False.
-            chaining (bool, optional): Whether to chain lines. Defaults to True.
+            - line (LineString): The LineString to append.
+            - direction (float, optional): The direction of the LineString. Defaults to None.
+            - ignore_crossing (bool, optional): Whether to ignore crossing lines. Defaults to False.
+            - chaining (bool, optional): Whether to chain lines. Defaults to True.
         
         Returns:
         --------
@@ -578,10 +575,10 @@ class Entity(_Base):
 
         Args:
         -----
-            name (str): new layer/attribute name
-            offset (float): buffering skeleton by offset
-            **kwargs: additional keyword arguments to be passed to the buffer method
-                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer) for additional keyword arguments.
+            - name (str): new layer/attribute name
+            - offset (float): buffering skeleton by offset
+            - **kwargs: additional keyword arguments to be passed to the buffer method
+            See `Shapely buffer docs <https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer>`_ for additional keyword arguments.
 
         Returns:
         --------
@@ -621,7 +618,7 @@ class Entity(_Base):
 
         Args:
         -----
-            line_id (int | tuple | list): The index of the line to be removed.
+            - line_id (int | tuple | list): The index of the line to be removed.
         
         Returns:
         --------
@@ -641,8 +638,8 @@ class Entity(_Base):
 
         Args:
         -----
-            lname (str): The layer/attribute name.
-            polygon (Polygon): The new polygon to be appended.
+            - lname (str): The layer/attribute name.
+            - polygon (Polygon): The new polygon to be appended.
 
         Returns:
         --------
@@ -661,9 +658,9 @@ class Entity(_Base):
         
         Args:
         -----
-            lname (str): The name of the layer.
-            geom (Polygon | MultiPolygon): The polygon to be cut.
-            loc (tuple[float, float], optional): The location where the polygon will be cut.
+            - lname (str): The name of the layer.
+            - geom (Polygon | MultiPolygon): The polygon to be cut.
+            - loc (tuple[float, float], optional): The location where the polygon will be cut.
                 Defaults to (0, 0).
 
         Returns:
@@ -682,7 +679,7 @@ class Entity(_Base):
 
         Args:
         -----
-            polygon (Polygon): The polygon used for cutting
+            - polygon (Polygon): The polygon used for cutting
         
         Returns:
         --------
@@ -700,8 +697,8 @@ class Entity(_Base):
 
         Args:
         -----
-            lname (str): The name of the layer.
-            polygon (Polygon): The polygon used for cropping.
+            - lname (str): The name of the layer.
+            - polygon (Polygon): The polygon used for cropping.
 
         Returns:
         --------
@@ -730,7 +727,7 @@ class Entity(_Base):
 
         Args:
         -----
-            polygon (Polygon): The cropping polygon.
+            - polygon (Polygon): The cropping polygon.
         
         Returns:
         --------
@@ -748,16 +745,16 @@ class Entity(_Base):
 
         Args:
         -----
-            layer (str): layer name
-            obj_idx (int): polygon index in multipolygon list
-            ext_points (dict): point indices to change in a polygon. 
+            - layer (str): layer name
+            - obj_idx (int): polygon index in multipolygon list
+            - next_points (dict): point indices to change in a polygon. 
                 Keys: corrresponds to the point idx in polygon exterior coord list.
                 Value: tuple of new [x,y] coordinates
-            int_points (dict, optional): point indices to change in a polygon. 
+            - int_points (dict, optional): point indices to change in a polygon. 
                 Keys: corrresponds to the point idx in polygon interiors coord list.
                 Value: tuple of new [x,y] coordinates
                 Defaults to None. 
-            int_idx (int, optional): interior index in the polygon's interiors list. Defaults to 0.
+            - int_idx (int, optional): interior index in the polygon's interiors list. Defaults to 0.
         """
         mpolygon = getattr(self, lname)
         if isinstance(mpolygon, Polygon):
@@ -805,13 +802,12 @@ class Entity(_Base):
     ## just note that it has that length
     def remove_holes_from_polygons(self, lname: str):
         """
-        Removes any holes from a multipolygon in a layer by vertically 
-        cutting along the centroid of each hole and piecing together the remaining Polygon geometries.
-            Vertical cut is made with a default length of 1e6. 
+        Removes any holes from a multipolygon in a layer by vertically cutting along the centroid of each hole and piecing together the remaining Polygon geometries.
+        Vertical cut is made with a default length of 1e6. 
 
         Args:
         -----
-            lname (str): Name of the layer where polygons with holes are located.
+            - lname (str): Name of the layer where polygons with holes are located.
         """
         polygons = getattr(self, lname)
         setattr(self, lname, flatten_multipolygon(polygons))
@@ -823,8 +819,8 @@ class Entity(_Base):
 
         Args:
         -----
-            lname (str): The name of the layer.
-            polygon_id (int | tuple | list): The index of the polygon to be removed.
+            - lname (str): The name of the layer.
+            - polygon_id (int | tuple | list): The index of the polygon to be removed.
         """
         polygons = getattr(self, lname)
 
@@ -848,10 +844,10 @@ class Entity(_Base):
 
         Args:
         -----
-            text (str, optional): The text to be converted into polygons. Defaults to "abcdef".
-            size (float, optional): The size of the text. Defaults to 1000.
-            loc (tuple, optional): The location where the text polygons will be placed.
-            layer (str, optional): The name of the layer where the text polygons will be added.
+            - text (str, optional): The text to be converted into polygons. Defaults to "abcdef".
+            - size (float, optional): The size of the text. Defaults to 1000.
+            - loc (tuple, optional): The location where the text polygons will be placed.
+            - layer (str, optional): The name of the layer where the text polygons will be added.
         """
         ptext = polygonize_text(text, size)
         ptext = affinity.translate(ptext, *loc)
@@ -868,7 +864,7 @@ class Entity(_Base):
 
         Args:
         -----
-            flatten_polygon (bool, optional): Flag to remove holes from polygons. Defaults to False.
+            - flatten_polygon (bool, optional): Flag to remove holes from polygons. Defaults to False.
 
         Returns:
         --------
@@ -891,7 +887,7 @@ class Entity(_Base):
 
         Args:
         -----
-            filename (str): The name of the pickle file to be exported.
+            - filename (str): The name of the pickle file to be exported.
         """
         zhkdict = self.get_zhk_dict()
         exp = Exporter_Pickle(filename, zhkdict)
@@ -904,10 +900,9 @@ class Entity(_Base):
 
         Args:
         -----
-            filename (str): The name of the gds file to be exported.
-            layer_cfg (dict): A dictionary containing the layer configuration.
-                {"layer1": {"layer": int, "datatype": int}, ...}
-                See [gdspy docs](https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype) for 'datatype' details.
+            - filename (str): The name of the gds file to be exported.
+            - layer_cfg (dict): A dictionary containing the layer configuration.
+                See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.get_zhk_dict(flatten_polygon=True)
         exp = Exporter_GDS(filename, zhkdict, layer_cfg)
@@ -920,8 +915,8 @@ class Entity(_Base):
 
         Args:
         -----
-            filename (str): The name of the dxf file to be exported.
-            layer_cfg (dict): A list of layer to be exported.
+            - filename (str): The name of the dxf file to be exported.
+            - layer_cfg (dict): A list of layer to be exported.
         """
         zhkdict = self.get_zhk_dict(flatten_polygon=True)
         exp = Exporter_DXF(filename, zhkdict, layer_cfg)
@@ -945,14 +940,14 @@ class Entity(_Base):
 
         Args:
         -----
-            ax (matplotlib.axes.Axes, optional): The axis to plot on. Defaults to None.
-            layer (list, optional): The layer(s) to plot. Defaults to ["all"].
-            show_idx (bool, optional): Whether to show the id of the polygon. Defaults to False.
-            color (str or list, optional): The color(s) to use for plotting. Defaults to None.
-            alpha (float, optional): The transparency of the plot. Defaults to 1.
-            draw_direction (bool, optional): Whether to draw arrows. Defaults to True.
-            draw_labels (bool, optional): Whether to draw labels on each Point. Defaults to False.
-            **kwargs: Additional keyword arguments to pass to the plot_geometry function.
+            - ax (matplotlib.axes.Axes, optional): The axis to plot on. Defaults to None.
+            - layer (list, optional): The layer(s) to plot. Defaults to ["all"].
+            - show_idx (bool, optional): Whether to show the id of the polygon. Defaults to False.
+            - color (str or list, optional): The color(s) to use for plotting. Defaults to None.
+            - alpha (float, optional): The transparency of the plot. Defaults to 1.
+            - draw_direction (bool, optional): Whether to draw arrows. Defaults to True.
+            - draw_labels (bool, optional): Whether to draw labels on each Point. Defaults to False.
+            - **kwargs: Additional keyword arguments to pass to the plot_geometry function.
         """
         if ax is None:
             fig = plt.figure(1, figsize=SIZE_L, dpi=90)
@@ -981,8 +976,8 @@ class Entity(_Base):
 
         Args:
         -----
-            plot_config (dict): dict of ordered layers (keys) with tuples of the color and alpha of the layer (values)
-            zoom (tuple, optional): ((x0, y0), zoom_scale, aspect_ratio). Defaults to None.
+            - plot_config (dict): dict of ordered layers (keys) with tuples of the color and alpha of the layer (values)
+            - zoom (tuple, optional): ((x0, y0), zoom_scale, aspect_ratio). Defaults to None.
 
         Returns:
         --------
@@ -1035,9 +1030,9 @@ class Structure(Entity):
     
     Methods:
     --------
-        append(structure, anchoring=None, direction_snap=False, remove_anchor=False, upd_alabels=None):
+        - append(structure, anchoring=None, direction_snap=False, remove_anchor=False, upd_alabels=None):
             Appends an Entity or Structure to the Structure.
-        return_mirrored(aroundaxis, **kwargs): Returns a mirrored copy of the Structure class.
+        - return_mirrored(aroundaxis, **kwargs): Returns a mirrored copy of the Structure class.
     """
 
     def __init__(self):
@@ -1054,19 +1049,19 @@ class Structure(Entity):
 
         Args:
         -----
-            structure (Entity): Entity or Structure with a collection of geometries 
-            anchoring (list, optional): 
+            - structure (Entity): Entity or Structure with a collection of geometries 
+            - anchoring (list, optional): 
                 List of points to snap the appending object to the existing structure. 
                 [StructureObj Point, AppendingObj Point]
                 Defaults to None.
-            direction_snap (bool, optional): 
+            - direction_snap (bool, optional): 
                 If True, aligns the direction of the appending object with the direction of the anchor points. 
                 Defaults to False.
-            remove_anchor (bool or str, optional): 
+            - remove_anchor (bool or str, optional): 
                 If True, removes the anchor points after appending. 
                 If a string is provided, removes the specified anchor point. 
                 Defaults to False.
-            upd_alabels (list, optional):
+            - upd_alabels (list, optional):
                 Renames anchor labels of the appending structure before appending.
                 A list of tuples with the old and new anchor labels: (old_label, new_label) 
                 Defaults to None.
@@ -1151,8 +1146,8 @@ class Structure(Entity):
 
         Args:
         -----
-            core_objs: shapely geometries to be appended.
-            appending_objs: shapely geometries to append.
+            - core_objs: shapely geometries to be appended.
+            - appending_objs: shapely geometries to append.
 
         Returns:
         --------
@@ -1172,8 +1167,8 @@ class Structure(Entity):
 
         Args:
         -----
-            aroundaxis (str): The axis around which to mirror the class. Valid values are 'x' or 'y'.
-            **kwargs: Additional keyword arguments.
+            - aroundaxis (str): The axis around which to mirror the class. Valid values are 'x' or 'y'.
+            - **kwargs: Additional keyword arguments.
 
         Returns:
         --------
@@ -1190,7 +1185,7 @@ class GeomCollection(Structure):
     
     Attributes:
     -----------
-        layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors.
+        - layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors.
     """
     def __init__(self, layers: dict=None):
         super().__init__()

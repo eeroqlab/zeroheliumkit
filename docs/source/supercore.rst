@@ -1,7 +1,15 @@
 Supercore.py
 ===========
+Supercore contains the SuperStructure and ContinuousLineBuilder classes.
 
-.. automodule:: zeroheliumkit.src.supercore
-   :members:
-   :undoc-members:
-   :show-inheritance:
+**Classes:**
+
+.. currentmodule:: zeroheliumkit.src.supercore
+
+.. autosummary::
+   :toctree: reference/
+
+   ContinuousLineBuilder
+   ObjsAlongConfig
+   RoutingConfig
+   SuperStructure

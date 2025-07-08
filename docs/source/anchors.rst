@@ -1,7 +1,13 @@
 Anchors.py
 ===========
 
-.. automodule:: zeroheliumkit.src.anchors
-   :members:
-   :undoc-members:
-   :show-inheritance:
+The following classes exist in the Anchors module for anchor and skeletone handling:
+
+.. currentmodule:: zeroheliumkit.src.anchors
+
+.. autosummary::
+   :toctree: reference/
+
+   Anchor
+   MultiAnchor
+   Skeletone

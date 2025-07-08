@@ -13,19 +13,26 @@ from .errors import *
 
 
 def sample_bezier(bezier, num_points=20):
-    """Sample points along a Bezier curve."""
+    """
+    Sample points along a Bezier curve.
+    
+    Returns:
+    -------
+        list: A list of (x, y) tuples representing points along the Bezier curve.
+    """
     return [(bezier.point(t).real, bezier.point(t).imag) for t in [i / num_points for i in range(num_points + 1)]]
 
 
 class Exporter_GDS():
-    """ A class for exporting geometries to GDSII format.
+    """ 
+    A class for exporting geometries to GDSII format.
 
     Attributes:
     ----------
-    name (str): The name of the GDSII file.
-    zhk_layers (dict): A dictionary containing the geometries for each layer.
-    gdsii (gdspy.GdsLibrary): The GDSII library object.
-    layer_cfg (dict): A dictionary containing the layer configuration.
+        - name (str): The name of the GDSII file.
+        - zhk_layers (dict): A dictionary containing the geometries for each layer.
+        - gdsii (gdspy.GdsLibrary): The GDSII library object.
+        - layer_cfg (dict): A dictionary containing the layer configuration.
     """
 
     __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
@@ -46,8 +53,8 @@ class Exporter_GDS():
 
         Note:
         ----
-        The `exclude_from_current` parameter has been deprecated in gdspy and will be removed
-        in a future version.
+            The `exclude_from_current` parameter has been deprecated in gdspy and will be removed
+            in a future version.
         """
         # The GDSII file is called a library, which contains multiple cells.
         self.gdsii = gdspy.GdsLibrary()
@@ -63,19 +70,32 @@ class Exporter_GDS():
                 cell.add(gds_poly)
 
     def save(self):
-        """ Save the GDSII file"""
+        """
+        Saves the GDSII file.
+        """
         self.gdsii.write_gds(self.name + '.gds')
         print("Geometries saved successfully.")
 
     def preview_gds(self):
-        """ Preview the GDSII file"""
+        """
+        Previews the GDSII file.
+        """
         warnings.warn("IMPORTANT: preview feature is unstable, kernel might crash in jupyter notebook, use with caution")
-        # good only for quick looks
         gdspy.LayoutViewer(self.gdsii)
 
 
 class Reader_GDS():
-    """ helper class to import .gds file into zhk dictionary """
+    """
+    Helper class to import .gds file into zhk dictionary.
+    
+    
+    Attributes:
+    ----------
+        - filename (str): The name of the GDSII file.
+        - geometries (dict): A dictionary containing the extracted geometries from the GDSII file.
+        - gdsii (gdspy.GdsLibrary): The GDSII library object.
+        - cells (dict): A dictionary containing the cells in the GDSII file.
+    """
 
     __slots__ = "filename", "geometries", "gdsii", "cells"
 
@@ -114,17 +134,32 @@ class Reader_GDS():
 
 
 class Exporter_DXF():
-    """ helper class to export zhk dictionary with geometries into .dxf file """
+    """
+    Helper class to export zhk dictionary with geometries into .dxf file.
+
+    Attributes:
+    ----------
+        - name (str): The name of the DXF file.
+        - zhk_layers (dict): A dictionary containing the geometries for each layer.
+        - dxf (ezdxf.DXFDocument): The DXF document object.
+        - layer_cfg (list): A list containing the layer configuration.
+    """
 
     __slots__ = "name", "zhk_layers", "dxf", "layer_cfg"
 
     def __init__(self, name: str, zhk_layers: dict, layer_cfg: list) -> None:
         self.name = name
+        """The name of the DXF file."""
         self.zhk_layers = zhk_layers
+        """A dictionary containing the geometries for each layer."""
         self.layer_cfg = layer_cfg
+        """A list containing the layer configuration."""
         self.preapre_dxf()
 
     def preapre_dxf(self) -> None:
+        """
+        Prepares the DXF file by creating a new DXF document and adding layers with polygons.
+        """
         
         self.dxf = ezdxf.new("R2000")
         msp = self.dxf.modelspace()
@@ -138,12 +173,23 @@ class Exporter_DXF():
                                                        "color": BYLAYER})
         
     def save(self):
+        """
+        Saves the DXF file.
+        """
         self.dxf.saveas(self.name + ".dxf")
         print("Geometries saved successfully.")
 
 
 class Reader_DXF():
-    """ helper class to import .dxf file into zhk dictionary
+    """
+    Helper class to import .dxf file into zhk dictionary.
+
+    Attributes:
+    ----------
+        - filename (str): The name of the DXF file.
+        - geometries (dict): A dictionary containing the extracted geometries from the DXF file.
+        - dxf (ezdxf.DXFDocument): The DXF document object.     
+
     NOTE: currently Arcs are not supported, and points will be ignored
     """
 
@@ -156,6 +202,10 @@ class Reader_DXF():
         self.extract_geometries()
 
     def extract_geometries(self):
+        """"
+        Extract geometries from the DXF file and group them by layer.
+        Converts the DXF entities into Shapely MultiPolygon objects.
+        """
         msp = self.dxf.modelspace()
         self.geometries = msp.groupby(dxfattrib="layer")
 
@@ -166,10 +216,11 @@ class Reader_DXF():
             self.geometries[k] = self.convert_dxf2shapely(self.geometries[k])
     
     def convert_dxf2shapely(self, dxfentity_list) -> MultiPolygon:
-        """ converts dxf entity into shapely MultiPolygon
+        """
+        Converts dxf entity into a Shapely MultiPolygon.
 
         Args:
-            dxfentity_list (_type_): dxf entity list
+            - dxfentity_list (_type_): dxf entity list
 
         Returns:
             MultiPolygon: converted geometries
@@ -192,6 +243,14 @@ class Reader_DXF():
 
 
 class Reader_Pickle():
+    """
+    Helper class to import .pickle file into zhk dictionary.
+    
+    Attributes:
+    ----------
+        - filename (str): The name of the pickle file.
+        - geometries (dict): A dictionary containing the extracted geometries from the pickle file.
+    """
 
     __slots__ = "filename", "geometries"
 
@@ -209,8 +268,14 @@ class Reader_Pickle():
 
 
 class Exporter_Pickle():
-
-    """ helper class to export zhk dictionary with geometries into .pickle file """
+    """
+    Helper class to export zhk dictionary with geometries into .pickle file.
+    
+    Attributes:
+    ----------
+        - name (str): The name of the pickle file.
+        - zhk_layers (dict): A dictionary containing the geometries for each layer.
+    """
 
     __slots__ = "name", "zhk_layers"
 
@@ -237,22 +302,12 @@ class Exporter_Pickle():
 class Reader_SVG():
     """
     A class to read and convert SVG files into Shapely polygons.
-    contributor: https://github.com/yneter
+    Contributor: https://github.com/yneter
 
     Attributes:
     ----------
-    svg_file : str
-        The path to the SVG file to be read.
-    geometries : dict
-        A dictionary containing the extracted geometries from the SVG file.
-    Methods:
-    -------
-    __init__(self, svg_file: str, bezier_samples: int=20)
-        Initializes the Reader_SVG with the given SVG file and samples for Bezier curves.
-    svg_to_shapely_polygons(self, bezier_samples=20)
-        Extracts multiple polygons from an SVG file.
-    extract_points_from_path(self, path_data, bezier_samples=20)
-        Extracts points from a single path, handling lines and Bezier curves.
+        - svg_file (str): The path to the SVG file to be read.
+        - geometries (dict): A dictionary containing the extracted geometries from the SVG file.
     """
 
     __slots__ = "svg_file", "geometries"
@@ -262,7 +317,17 @@ class Reader_SVG():
         self.geometries = {"L1": self.svg_to_shapely_polygons(bezier_samples)}
 
     def svg_to_shapely_polygons(self, bezier_samples=20):
-        """Extract multiple polygons from an SVG file."""
+        """
+        Extract multiple polygons from an SVG file.
+        
+        Args:
+        -----
+            - bezier_samples (int): Number of points to sample along Bezier curves. Default is 20.
+        
+        Returns:
+        -------
+            MultiPolygon: A Shapely MultiPolygon object containing all extracted polygons.
+        """
         tree = ET.parse(self.svg_file)
         root = tree.getroot()
 
@@ -293,7 +358,18 @@ class Reader_SVG():
 
 
     def extract_points_from_path(self, path_data, bezier_samples=20):
-        """Extract points from a single path (handling lines and Bezier curves)."""
+        """
+        Extracts points from a single path (handling lines and Bezier curves).
+        
+        Args:
+        -----
+            - path_data (str): The SVG path data string.
+            - bezier_samples (int): Number of points to sample along Bezier curves. Default is 20.
+            
+        Returns:
+        -------
+            list: A list of (x, y) tuples representing points along the path.
+        """
         svg_path = parse_path(path_data)
         points = []
 
