@@ -58,6 +58,7 @@ class FreeFEM():
         self.config = config
         self.dirname = dirname
         self.run_from_notebook = run_from_notebook
+        self.cc_files = []
 
         self.curvature_config = config.get("include_helium_curvature")
         self.physicalVols = config.get('physicalVolumes')
@@ -67,7 +68,7 @@ class FreeFEM():
 
 
     def write_edpScript(self):
-        script = self.create_edpScript()
+        script = self.create_edpScripts()
         with open(self.dirname + self.config["meshfile"] + '.edp', 'w') as file:
             file.write(script)
 
@@ -81,6 +82,50 @@ class FreeFEM():
         code += self.curvature_config["script"]
         code += headerFrame("HELIUM CURVATURE")
         return code
+    
+
+    def create_edpScripts(self) -> str:
+        code = ''
+
+        if self.curvature_config:
+            main_code = self.add_helium_curvature_edp()
+        else:
+            main_code = "\n"
+        main_code += headerFrame("ELECTROSTATIC POTENTIAL")
+        main_code += self.script_load_packages_and_mesh()
+        main_code += self.script_declare_variables()
+        main_code += self.script_create_coupling_const_matrix()
+
+        #create new files for each electrode, only inputting the lines of code needed
+        for i in range(self.num_electrodes):
+            filename = "electrode_" + str(i)
+            self.cc_files += filename
+            code += self.script_create_savefiles()
+            code += self.script_problem_definition(i)
+
+            for i, extract_config in enumerate(self.config.get('extract_opt')):
+                fem_object_name = self.__extract_opt[i]
+                # check supported parameters for extraction
+                if extract_config.get("quantity") not in config_quantity.keys():
+                    raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
+
+                if extract_config.get("quantity") == 'Cm':
+                    # extract capacitance matrix
+                    code += self.script_save_cmatrix(extract_config, fem_object_name)
+                else:
+                    # extract electrostatic field solutions
+                    plane = extract_config.get('plane')
+                    if plane in config_planes_2D:
+                        code += self.script_save_data_2D(extract_config, fem_object_name)
+                    elif plane in config_planes_3D:
+                        code += self.script_save_data_3D(extract_config, fem_object_name)
+                    else:
+                        raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+                    
+            with open(self.dirname + filename + '.edp', 'w') as file:
+                file.write(code)
+        
+        return main_code
 
 
     def create_edpScript(self) -> str:
@@ -95,6 +140,7 @@ class FreeFEM():
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix()
         code += self.script_create_savefiles()
+
         code += self.script_problem_definition()
 
         for i, extract_config in enumerate(self.config.get('extract_opt')):
@@ -169,6 +215,7 @@ class FreeFEM():
         return code
 
 
+    #maybe we make this obselete ??? not really sure how to do this
     def script_create_savefiles(self):
         code = "\n"
         self.__extract_opt = {}
@@ -186,7 +233,7 @@ class FreeFEM():
         return code
 
 
-    def script_problem_definition(self) -> str:
+    def script_problem_definition(self, k: int) -> str:
         polynomial = self.config["ff_polynomial"]
         epsilon = self.config["dielectric_constants"]
 
@@ -216,15 +263,13 @@ class FreeFEM():
             code += self.add_spaces(26) + f"""+ {epsilon[k]} * (region == {v})\n"""
         code += self.add_spaces(26) + ";\n"
 
-        code += "for(int k = 0; k < numV; k++){\n"
         code += self.add_spaces(4) + "problem Electro(u,v,solver=CG) =\n"
         code += self.add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
 
         for i, v in enumerate(self.physicalSurfs.values()):
-            code += self.add_spaces(20) + f"+ on({v},u = V(k,{i}))\n"
+            code += self.add_spaces(20) + f"+ on({v},u = V({k},{i}))\n"
         code += self.add_spaces(20) + ";\n"
 
-        code += self.add_spaces(4) + """cout << "I'm on iteration " << k + 1 << "/" << numV << endl;\n"""
         code += self.add_spaces(4) + "Electro;\n"
         code += self.add_spaces(4) + """cout << "calculations are finished, saving data" << endl;\n \n"""
 
@@ -386,32 +431,34 @@ class FreeFEM():
 
     def run(self,
             print_log=False,
-            freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.12/bin"):
-
+            freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
+        
         try:
             edp_name = self.config["meshfile"]
-            bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
-            env = os.environ.copy()
-            env['PATH'] += freefem_path
 
-            process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
+            for edp_name in self.cc_files:
+                bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
+                env = os.environ.copy()
+                env['PATH'] += freefem_path
 
-            logs = ""
-            items = iter(process.stdout.readline, b'')
-            bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35)
+                process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
 
-            for line in bar:
-                output_log = line.decode()
-                logs += output_log
-                if output_log[1:6] == "Error":
-                    raise FreefemError(output_log)
-                elif print_log:
-                    print(output_log)
-                else:
-                    pass
+                logs = ""
+                items = iter(process.stdout.readline, b'')
+                bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35)
 
-            process.stdout.close()
-            process.wait()
+                for line in bar:
+                    output_log = line.decode()
+                    logs += edp_name + ':' + output_log
+                    if output_log[1:6] == "Error":
+                        raise FreefemError(output_log)
+                    elif print_log:
+                        print(output_log)
+                    else:
+                        pass
+
+                process.stdout.close()
+                process.wait()
 
         except KeyboardInterrupt:
             message = 'Interrupted by user'
