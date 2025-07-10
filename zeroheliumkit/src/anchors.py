@@ -30,15 +30,14 @@ from .plotting import default_ax
 
 class Anchor():
     """
-    Represents a single anchor point with attributes
-        such as coordinates, orientation/direction, and label. 
+    Represents a single anchor point with attributes such as coordinates, orientation/direction, and label. 
     Provides methods for manipulating and visualizing the anchor point.
 
     Attributes:
     ----------
-        point (tuple | Point): The coordinates of the anchor point.
-        direction (float): The orientation/direction of the anchor point.
-        label (str): The label of the anchor point.
+        - point (tuple | Point): The coordinates of the anchor point.
+        - direction (float): The orientation/direction of the anchor point.
+        - label (str): The label of the anchor point.
 
     Example:
     --------
@@ -53,24 +52,30 @@ class Anchor():
         if not isinstance(point, Point):
             coords = np.array(point).squeeze()
             self.point = set_precision(Point(coords), grid_size=GRID_SIZE)
+            """The coordinates of the anchor point."""
         else:
             self.point = set_precision(point, grid_size=GRID_SIZE)
         self.direction = fmodnew(direction)
+        """The orientation/direction of the anchor point."""
         self.label = label
+        """The label of the anchor point."""
 
     def __repr__(self):
         return f"<ANCHOR ({self.point}, {self.direction}, {self.label})>"
 
     @property
     def x(self):
+        """The x-coordinate of the anchor point."""
         return self.point.x
 
     @property
     def y(self):
+        """The y-coordinate of the anchor point."""
         return self.point.y
 
     @property
     def coords(self):
+        """The (x, y) coordinates of the anchor point as a tuple."""
         return (self.point.x, self.point.y)
 
     @coords.setter
@@ -79,6 +84,7 @@ class Anchor():
 
     @property
     def properties(self):
+        """The attributes of the anchor in a tabular format."""
         print(tabulate([["label", "coords", "direction"],
                         [self.label, self.coords, self.direction]]))
 
@@ -89,7 +95,7 @@ class Anchor():
 
         Args:
         ____
-            point (tuple | Point): The other point to calculate the distance to.
+            - point (tuple | Point): The other point to calculate the distance to.
 
         Returns:
         -------
@@ -106,7 +112,7 @@ class Anchor():
 
         Args:
         ____
-            newlabel (str): The new label for the anchor.
+            - newlabel (str): The new label for the anchor.
         """
         self.label = newlabel
 
@@ -117,8 +123,8 @@ class Anchor():
 
         Args:
         ____
-            angle (float): The angle of rotation in degrees.
-            origin (tuple, optional): The origin point of rotation. Defaults to (0, 0).
+            - angle (float): The angle of rotation in degrees.
+            - origin (tuple, optional): The origin point of rotation. Defaults to (0, 0).
 
         Returns:
         -------
@@ -140,7 +146,7 @@ class Anchor():
 
         Args:
         ____
-            angle (float): The angle (in radians) by which to rotate the direction.
+            - angle (float): The angle (in radians) by which to rotate the direction.
 
         Returns:
         -------
@@ -157,8 +163,8 @@ class Anchor():
 
         Args:
         ----
-            xoff (float): The offset in the x direction. Default is 0.
-            yoff (float): The offset in the y direction. Default is 0.
+            - xoff (float): The offset in the x direction. Default is 0.
+            - yoff (float): The offset in the y direction. Default is 0.
 
         Returns:
         -------
@@ -176,8 +182,8 @@ class Anchor():
 
         Args:
         ----
-            distance (float): The distance to move the anchor point.
-            angle (float): The angle in degrees at which to move the anchor point.
+            - distance (float): The distance to move the anchor point.
+            - angle (float): The angle in degrees at which to move the anchor point.
 
         Returns:
         -------
@@ -194,9 +200,9 @@ class Anchor():
 
         Args:
         ----
-            xfact (float): The scaling factor along the x-axis. Default is 1.0.
-            yfact (float): The scaling factor along the y-axis. Default is 1.0.
-            origin (tuple): The origin point for scaling. Default is (0, 0).
+            - xfact (float): The scaling factor along the x-axis. Default is 1.0.
+            - yfact (float): The scaling factor along the y-axis. Default is 1.0.
+            - origin (tuple): The origin point for scaling. Default is (0, 0).
 
         Returns:
         -------
@@ -222,8 +228,8 @@ class Anchor():
 
         Args:
         ----
-            aroundaxis (str): The axis to mirror the anchor around.
-            update_label (str): The updated label for the mirrored anchor.
+            - aroundaxis (str): The axis to mirror the anchor around.
+            - update_label (str): The updated label for the mirrored anchor.
 
         Raises:
         ------
@@ -252,11 +258,11 @@ class Anchor():
 
         Args:
         ----
-            ax (optional): The axes on which to plot the anchor point.
+            - ax (optional): The axes on which to plot the anchor point.
                 Defaults to the default axes.
-            color (str, optional): The color of the anchor point and annotation box edge.
+            - color (str, optional): The color of the anchor point and annotation box edge.
                 Defaults to the default color.
-            draw_direction (bool, optional): Whether to draw an arrow indicating the direction of the anchor. 
+            - draw_direction (bool, optional): Whether to draw an arrow indicating the direction of the anchor. 
                 Defaults to True.
         """
         if ax is None:
@@ -292,7 +298,7 @@ class MultiAnchor():
 
         Attributes:
         ----------
-            multipoint (list): A list of Anchor objects.
+            - multipoint (list): A list of Anchor objects.
 
         Example:
         -------
@@ -313,8 +319,10 @@ class MultiAnchor():
     def __init__(self, multipoint: list=None):
         if multipoint is None:
             self.multipoint = []
+            """The list of Anchor objects."""
         else:
             self.multipoint = multipoint
+            """The list of Anchor objects."""
 
     def __repr__(self):
         name = f"<MULTIANCHOR {self.labels}>"
@@ -327,6 +335,7 @@ class MultiAnchor():
 
     @property
     def labels(self) -> list:
+        """The list of labels of the anchors in the MultiAnchor."""
         return [p.label for p in self.multipoint]
 
 
@@ -336,7 +345,7 @@ class MultiAnchor():
 
         Args:
         ----
-            label (str | int): The label or index of the anchor(s) to retrieve.
+            - label (str | int): The label or index of the anchor(s) to retrieve.
         
         Returns:
         -------
@@ -360,7 +369,7 @@ class MultiAnchor():
 
         Args:
         ----
-            label (str): The label to check.
+            - label (str): The label to check.
 
         Returns:
         -------
@@ -379,7 +388,7 @@ class MultiAnchor():
         
         Returns:
         -------
-            MultiAnchor: A new instance of MultiAnchor with the same multipoint anchors.
+            - MultiAnchor: A new instance of MultiAnchor with the same multipoint anchors.
         """
         return copy.deepcopy(self)
 
@@ -390,8 +399,8 @@ class MultiAnchor():
         
         Args:
         ----
-            angle (float): The angle of rotation in degrees.
-            origin (tuple, optional): The origin point of rotation. Defaults to (0, 0).
+            - angle (float): The angle of rotation in degrees.
+            - origin (tuple, optional): The origin point of rotation. Defaults to (0, 0).
 
         Returns:
         -------
@@ -410,8 +419,8 @@ class MultiAnchor():
 
         Args:
         ----
-            xoff (float): The horizontal offset to move the anchors by. Default is 0.
-            yoff (float): The vertical offset to move the anchors by. Default is 0.
+            - xoff (float): The horizontal offset to move the anchors by. Default is 0.
+            - yoff (float): The vertical offset to move the anchors by. Default is 0.
 
         Returns:
         -------
@@ -429,9 +438,9 @@ class MultiAnchor():
 
         Args:
         ----
-            xfact (float): The scaling factor along the x-axis. Default is 1.0.
-            yfact (float): The scaling factor along the y-axis. Default is 1.0.
-            origin (tuple): The origin point for scaling. Default is (0, 0).
+            - xfact (float): The scaling factor along the x-axis. Default is 1.0.
+            - yfact (float): The scaling factor along the y-axis. Default is 1.0.
+            - origin (tuple): The origin point for scaling. Default is (0, 0).
 
         Returns:
         -------
@@ -448,9 +457,9 @@ class MultiAnchor():
 
         Args:
         ----
-            aroundaxis (str): The axis around which to mirror the anchors.
-            update_labels (bool): Whether to update the labels of the mirrored anchors.
-            keep_original (bool): Whether to keep the original anchors.
+            - aroundaxis (str): The axis around which to mirror the anchors.
+            - update_labels (bool): Whether to update the labels of the mirrored anchors.
+            - keep_original (bool): Whether to keep the original anchors.
 
         Returns:
         -------
@@ -483,7 +492,7 @@ class MultiAnchor():
 
         Args:
         ----
-            labels (list[str]): A list of labels for which to retrieve the anchors.
+            - labels (list[str]): A list of labels for which to retrieve the anchors.
 
         Returns:
         -------
@@ -503,7 +512,7 @@ class MultiAnchor():
 
         Args:
         ----
-            labels (list or str): The anchors to be removed.
+            - labels (list or str): The anchors to be removed.
 
         Returns:
         -------
@@ -524,10 +533,10 @@ class MultiAnchor():
 
         Args:
         ----
-            label (str): The anchor to modify.
-            new_name (str, optional): The new name for the anchor. Defaults to None.
-            new_xy (tuple, optional): The new coordinates (x, y) for the anchor. Defaults to None.
-            new_direction (float, optional): The new direction for the anchor. Defaults to None.
+            - label (str): The anchor to modify.
+            - new_name (str, optional): The new name for the anchor. Defaults to None.
+            - new_xy (tuple, optional): The new coordinates (x, y) for the anchor. Defaults to None.
+            - new_direction (float, optional): The new direction for the anchor. Defaults to None.
 
         Returns:
         -------
@@ -549,8 +558,7 @@ class MultiAnchor():
 
         Args:
         ----
-            points (list[Anchor] | Anchor, optional): Anchor object(s) to be added.
-                Defaults to an empty list.
+            - points (list[Anchor] | Anchor, optional): Anchor object(s) to be added. Defaults to an empty list.
 
         Returns:
         -------
@@ -558,8 +566,7 @@ class MultiAnchor():
 
         Raises:
         ------
-            ValueError: If any of the Anchor objects being added
-                have a label that already exists in the MultiAnchor.
+            ValueError: If any of the Anchor objects being added have a label that already exists in the MultiAnchor.
         """
         if not isinstance(points, list):
             points = [points]
@@ -578,10 +585,9 @@ class MultiAnchor():
 
         Args:
         ----
-            ax (matplotlib.axes.Axes, optional): The axis on which to plot the anchors.
-                If not provided, a new axis will be created.
-            color (str, optional): The color of the anchors.
-            draw_direction (bool, optional): Whether to draw the direction of the anchors.
+            - ax (matplotlib.axes.Axes, optional): The axis on which to plot the anchors. If not provided, a new axis will be created.
+            - color (str, optional): The color of the anchors.
+            - draw_direction (bool, optional): Whether to draw the direction of the anchors.
         """
         for p in self.multipoint:
             p.plot(ax=ax, color=color, draw_direction=draw_direction)
@@ -594,7 +600,7 @@ class Skeletone():
 
         Attributes:
         ----------
-            lines (MultiLineString): A collection of LineString objects representing the skeletone.
+            - lines (MultiLineString): A collection of LineString objects representing the skeletone.
 
         Example:
         -------
@@ -611,6 +617,7 @@ class Skeletone():
 
     def __init__(self, lines: MultiLineString = MultiLineString()):
         self.lines = lines
+        """The MultiLineString object representing the skeletone lines."""
     
     def __repr__(self):
         return f"<SKELETONE {self.lines}>"
@@ -623,21 +630,24 @@ class Skeletone():
 
         Args:
         ----
-            name (str): The class attribute name.
-            value (obj): The shapely object.
+            - name (str): The class attribute name.
+            - value (obj): The shapely object.
         """
         self.__dict__[name] = set_precision(value, grid_size=GRID_SIZE, mode="pointwise")
 
     @property
     def length(self) -> float:
+        """The total length of all lines in the skeletone."""
         return self.lines.length
     
     @property
     def boundary(self) -> list:
+        """The boundary points of the skeletone as a list of Point objects."""
         return list(self.lines.boundary.geoms)
     
     @property
     def numlines(self) -> int:
+        """The number of lines in the skeletone."""
         return len(self.lines.geoms)
 
 
@@ -647,8 +657,8 @@ class Skeletone():
 
         Args:
         ----
-            angle (float): The angle of rotation in degrees.
-            origin (tuple): The origin point of rotation.
+            - angle (float): The angle of rotation in degrees.
+            - origin (tuple): The origin point of rotation.
 
         Returns:
         -------
@@ -664,8 +674,8 @@ class Skeletone():
 
         Args:
         ----
-            xoff (float): The horizontal offset to move the skeletone by.
-            yoff (float): The vertical offset to move the skeletone by.
+            - xoff (float): The horizontal offset to move the skeletone by.
+            - yoff (float): The vertical offset to move the skeletone by.
 
         Returns:
         -------
@@ -681,9 +691,9 @@ class Skeletone():
 
         Args:
         ----
-            xfact (float): The scaling factor along the x-axis.
-            yfact (float): The scaling factor along the y-axis.
-            origin (tuple): The origin point for scaling.
+            - xfact (float): The scaling factor along the x-axis.
+            - yfact (float): The scaling factor along the y-axis.
+            - origin (tuple): The origin point for scaling.
 
         Returns:
         -------
@@ -699,10 +709,8 @@ class Skeletone():
 
         Args:
         ----
-            aroundaxis (str, optional): The axis around which to mirror the skeletone.
-                Defaults to None.
-            keep_original (bool, optional): Whether to keep the original lines after mirroring.
-                Defaults to False.
+            - aroundaxis (str, optional): The axis around which to mirror the skeletone. Defaults to None.
+            - keep_original (bool, optional): Whether to keep the original lines after mirroring. Defaults to False.
 
         Returns:
         -------
@@ -734,10 +742,10 @@ class Skeletone():
 
         Args:
         ----
-            line (LineString): The LineString to append.
-            direction (float, optional): The direction of the LineString. Defaults to None.
-            ignore_crossing (bool, optional): Whether to ignore crossing lines. Defaults to False.
-            chaining (bool, optional): Whether to chain lines. Defaults to True.
+            - line (LineString): The LineString to append.
+            - direction (float, optional): The direction of the LineString. Defaults to None.
+            - ignore_crossing (bool, optional): Whether to ignore crossing lines. Defaults to False.
+            - chaining (bool, optional): Whether to chain lines. Defaults to True.
 
         Returns:
         -------
@@ -753,7 +761,7 @@ class Skeletone():
 
         Args:
         ----
-            line_id (int | tuple | list): The index of the line to be removed.
+            - line_id (int | tuple | list): The index of the line to be removed.
 
         Returns:
         -------
@@ -788,7 +796,7 @@ class Skeletone():
 
         Args:
         ----
-            polygon (Polygon): The polygon to cut the skeletone with.
+            - polygon (Polygon): The polygon to cut the skeletone with.
         
         Returns:
         -------
@@ -804,9 +812,9 @@ class Skeletone():
 
         Args:
         ----
-            offset (float): buffering skeleton by offset
-            **kwargs: additional keyword arguments to be passed to the buffer method
-                See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer) for additional keyword arguments.
+            - offset (float): buffering skeleton by offset
+            - **kwargs: additional keyword arguments to be passed to the buffer method
+                See `Shapely buffer docs <https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html#shapely.buffer>`_ for additional keyword arguments.
 
         Returns:
         -------
@@ -821,8 +829,8 @@ class Skeletone():
 
         Args:
         ----
-            ax (matplotlib.axes.Axes, optional): The axes on which to plot the skeleton. Defaults to None.
-            color (str, optional): The color of the skeleton. Defaults to DARKGRAY.
+            - ax (matplotlib.axes.Axes, optional): The axes on which to plot the skeleton. Defaults to None.
+            - color (str, optional): The color of the skeleton. Defaults to DARKGRAY.
 
         Returns:
         -------

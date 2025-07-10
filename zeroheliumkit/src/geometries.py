@@ -28,8 +28,8 @@ def Rectangle(width: float,
 
     Args:
     ----
-    width (float): width of the rectangle
-    height (float): height of the rectangle
+        - width (float): width of the rectangle
+        - height (float): height of the rectangle
 
     Example:
     -------
@@ -55,7 +55,7 @@ def Square(size: float, location: tuple | Point=None, direction: float=None, rou
 
     Args:
     ----
-    size (float): size of the square
+        - size (float): size of the square
 
     Example:
     -------
@@ -73,9 +73,9 @@ def RegularPolygon(edge_size: float=None,
 
     Args:
     ----
-    edge (float): size of edge
-    radius (float): radius of the Regular polygon
-    num_edges (int): number of edges
+        - edge (float): size of edge
+        - radius (float): radius of the Regular polygon
+        - num_edges (int): number of edges
 
     Example:
     -------
@@ -102,7 +102,7 @@ def Circle(radius: float, location: tuple | Point=None, num_edges: int=100) -> P
 
     Args:
     ----
-    radius (float): radius of the circle
+        - radius (float): radius of the circle
 
     Example:
     ------
@@ -120,13 +120,13 @@ def CircleSegment(radius: float=1,
 
     Args:
     ----
-    radius (float): The radius of the circle segment.
-    start_angle (float): The starting angle of the circular segment in degrees.
-    end_angle (float): The ending angle of the circular segment in degrees.
-    location (tuple or Point, optional): The location of the circular segment. If provided,
-        the circular segment will be translated to this location. Defaults to None.
-    num_edges (int, optional): The number of edges used to approximate the circular segment.
-        Defaults to 25.
+        - radius (float): The radius of the circle segment.
+        - start_angle (float): The starting angle of the circular segment in degrees.
+        - end_angle (float): The ending angle of the circular segment in degrees.
+        - location (tuple or Point, optional): The location of the circular segment. If provided,
+            the circular segment will be translated to this location. Defaults to None.
+        - num_edges (int, optional): The number of edges used to approximate the circular segment.
+            Defaults to 25.
 
     Example:
         >>> segment = CircleSegment(radius=5, start_angle=45, end_angle=135)
@@ -153,11 +153,10 @@ def Ring(inner_radius: float, outer_radius: float, location: tuple | Point=None,
 
     Args:
     ----
-    inner_radius (float): inner radius of the ring
-    outer_radius (float): outer radius of the ring
-    location (tuple or Point, optional): The location of the ring.
-        If provided, the ring will be translated to this location. Defaults to None.
-    num_edges (int, optional): The number of edges used to approximate the ring. Defaults to 100.
+        - inner_radius (float): inner radius of the ring
+        - outer_radius (float): outer radius of the ring
+        - location (tuple or Point, optional): The location of the ring. If provided, the ring will be translated to this location. Defaults to None.
+        - num_edges (int, optional): The number of edges used to approximate the ring. Defaults to 100.
 
     Example:
     -------
@@ -183,12 +182,12 @@ def RingSector(inner_radius: float,
 
     Args:
     ----
-    inner_radius (float): The inner radius of the ring.
-    outer_radius (float): The outer radius of the ring.
-    start_angle (float): The starting angle of the sector in degrees.
-    end_angle (float): The ending angle of the sector in degrees.
-    location (tuple | Point, optional): The location of the center of the ring. Defaults to None.
-    num_edges (int, optional): The number of edges used to approximate the ring and sector. Defaults to 100.
+        - inner_radius (float): The inner radius of the ring.
+        - outer_radius (float): The outer radius of the ring.
+        - start_angle (float): The starting angle of the sector in degrees.
+        - end_angle (float): The ending angle of the sector in degrees.
+        - location (tuple | Point, optional): The location of the center of the ring. Defaults to None.
+        - num_edges (int, optional): The number of edges used to approximate the ring and sector. Defaults to 100.
 
     Example:
     -------
@@ -232,12 +231,12 @@ def ArcLine(centerx: float,
 
     Args:
     ----
-    centerx (float): center.x of arcline
-    centery (float): center.y of arcline
-    radius (float): radius of the arcline
-    start_angle (float): starting angle
-    end_angle (float): end angle
-    numsegments (int, optional): number of the segments. Defaults to 10.
+        - centerx (float): center.x of arcline
+        - centery (float): center.y of arcline
+        - radius (float): radius of the arcline
+        - start_angle (float): starting angle
+        - end_angle (float): end angle
+        - numsegments (int, optional): number of the segments. Defaults to 10.
 
     Example:
     -------
@@ -260,11 +259,10 @@ def Meander(length: float=100,
 
     Args:
     ----
-    length (float): Length of the straight section.
-    radius (float): Radius of the round section.
-    direction (float): Rotates the meander by the given value in the end.
-    num_segments (int, optional): Number of segments in the round section.
-                                    Defaults to 100.
+        - length (float): Length of the straight section.
+        - radius (float): Radius of the round section.
+        - direction (float): Rotates the meander by the given value in the end.
+        - num_segments (int, optional): Number of segments in the round section. Defaults to 100.
 
     Example:
     -------
@@ -309,11 +307,10 @@ def MeanderHalf(length: float=100,
 
     Args:
     ----
-    length (float): length of the straight section
-    radius (float): radius of the round section
-    direction (float): rotates the meander by given value in the end
-    num_segments (int, optional): number of segments in round section
-                                    Defaults to 100
+        - length (float): length of the straight section
+        - radius (float): radius of the round section
+        - direction (float): rotates the meander by given value in the end
+        - num_segments (int, optional): number of segments in round section. Defaults to 100
 
     Example:
     -------
@@ -353,10 +350,10 @@ def PinchGate(arm_w: float,
 
     Args:
     ----
-    arm_w (float): arm width
-    arm_l (float): arm length
-    length (float): length of the pinch gate
-    width (float): width of the pinch gate
+        - arm_w (float): arm width
+        - arm_l (float): arm length
+        - length (float): length of the pinch gate
+        - width (float): width of the pinch gate
 
     Example:
     -------
@@ -386,11 +383,10 @@ def LineExtrudedRectangle(point: tuple | Point | Anchor,
 
     Args:
     ----
-    point (tuple | Point | Anchor): The starting point of the extrusion.
-        Can be a tuple, Point object, or Anchor object.
-    width (float): The width of the rectangle.
-    length (float): The length of the rectangle.
-    direction (float): The direction of the extrusion in degrees. Default is 0.
+        - point (tuple | Point | Anchor): The starting point of the extrusion. Can be a tuple, Point object, or Anchor object.
+        - width (float): The width of the rectangle.
+        - length (float): The length of the rectangle.
+        - direction (float): The direction of the extrusion in degrees. Default is 0.
 
     Example:
     -------
@@ -415,9 +411,8 @@ def CornerCutterPolygon(radius: float=10, num_segments: int=7):
 
     Args:
     ----
-        radius (float): The radius of the rounded corners. Default is 10.
-        num_segments (int): The number of segments used to approximate the rounded corners. 
-                            Must be greater than 2. Default is 7.
+        - radius (float): The radius of the rounded corners. Default is 10.
+        - num_segments (int): The number of segments used to approximate the rounded corners. Must be greater than 2. Default is 7.
     """
 
     if num_segments < 2:
@@ -439,12 +434,11 @@ def CornerRounder(corner: tuple | Point | Anchor, radius: float=10, angle: float
 
     Args:
     ----
-        corner (tuple | Point | Anchor): The corner to be rounded.
-        radius (float): The radius of the rounded corner. Default is 10.
-        angle (float): The angle of the corner. Default is 0.
-        num_segments (int): The number of segments used to approximate the rounded corner. 
-                            Must be greater than 2. Default is 7.
-        margin (float): The margin to be added to the corner. Default is 0.1.
+        - corner (tuple | Point | Anchor): The corner to be rounded.
+        - radius (float): The radius of the rounded corner. Default is 10.
+        - angle (float): The angle of the corner. Default is 0.
+        - num_segments (int): The number of segments used to approximate the rounded corner. Must be greater than 2. Default is 7.
+        - margin (float): The margin to be added to the corner. Default is 0.1.
     """
 
     if isinstance(corner, tuple):
@@ -470,11 +464,11 @@ class StraightLine(Structure):
 
     Args:
     ----
-    anchors (tuple, optional): Two anchors that define the start and end of the line.
-    lendir (tuple, optional): A tuple containing the length and direction (in degrees) of the line.
-    layers (dict, optional): A dictionary containing the names of the layers and their corresponding widths.
-    alabel (tuple, optional): A tuple containing labels for the start and end anchors.
-    cap_style (str, optional): The style of line ending. Valid options are 'square', 'round', or 'flat'.
+        - anchors (tuple, optional): Two anchors that define the start and end of the line.
+        - lendir (tuple, optional): A tuple containing the length and direction (in degrees) of the line.
+        - layers (dict, optional): A dictionary containing the names of the layers and their corresponding widths.
+        - alabel (tuple, optional): A tuple containing labels for the start and end anchors.
+        - cap_style (str, optional): The style of line ending. Valid options are 'square', 'round', or 'flat'.
 
     Raises:
     ------
@@ -536,10 +530,9 @@ class ArbitraryLine(Structure):
 
         Args:
         ----
-        points (list): list of points along which a polygon will be constructed
-        layers (dict): layers info, where the keys are the layer names and
-            the values are the corresponding widths
-        alabel (tuple): labels of the start and end-points.
+            - points (list): list of points along which a polygon will be constructed
+            - layers (dict): layers info, where the keys are the layer names and the values are the corresponding widths
+            - alabel (tuple): labels of the start and end-points.
 
         Example:
         -------
@@ -577,10 +570,9 @@ class Taper(ArbitraryLine):
 
     Args:
     ----
-    length (float): length of the tapered section
-    layers (dict, optional): layer info. Dictionary values must be
-        a (input width, output width) tuple. Defaults to None.
-    alabel (tuple, optional): labels of the start and end-points. Defaults to None.
+        - length (float): length of the tapered section
+        - layers (dict, optional): layer info. Dictionary values must be a (input width, output width) tuple. Defaults to None.
+        - alabel (tuple, optional): labels of the start and end-points. Defaults to None.
 
     Examples:
     --------
@@ -627,12 +619,11 @@ class Fillet(Structure):
 
     Args:
     ----
-    anchor (Anchor | tuple[Anchor, Anchor]): The anchor point(s) of the fillet. If a tuple is provided,
-        it represents the start and end anchors of the fillet.
-    radius (float): The radius of the fillet.
-    num_segments (int): The number of line segments used to approximate the fillet curve.
-    layers (dict, optional): A dictionary mapping layer names to widths for creating polygons.
-    alabel (bool, optional): Adds anchors if True. Defaults to True.
+        - anchor (Anchor | tuple[Anchor, Anchor]): The anchor point(s) of the fillet. If a tuple is provided, it represents the start and end anchors of the fillet.
+        - radius (float): The radius of the fillet.
+        - num_segments (int): The number of line segments used to approximate the fillet curve.
+        - layers (dict, optional): A dictionary mapping layer names to widths for creating polygons.
+        - alabel (bool, optional): Adds anchors if True. Defaults to True.
 
     Example:
     -------
@@ -686,12 +677,12 @@ class MicroChannels(Structure):
 
     Args:
     ----
-    length (float): The length of the microchannels.
-    spacing (float): The spacing between each microchannel.
-    num (int): The number of microchannels.
-    angle (float): The angle of the microchannels in degrees.
-    layers (dict): A dictionary containing the names and widths of the layers.
-    alabel (tuple, optional): A tuple containing the labels for the anchors.
+        - length (float): The length of the microchannels.
+        - spacing (float): The spacing between each microchannel.
+        - num (int): The number of microchannels.
+        - angle (float): The angle of the microchannels in degrees.
+        - layers (dict): A dictionary containing the names and widths of the layers.
+        - alabel (tuple, optional): A tuple containing the labels for the anchors.
 
     Example:
     -------
@@ -740,13 +731,13 @@ class SpiralInductor(Entity):
     """ Represents a spiral inductor.
 
     Args:
-        size (float): The size of the inductor.
-        width (float): The width of each turn in the spiral.
-        gap (float): The gap between each turn in the spiral.
-        num_turns (int): The number of turns in the spiral.
-        smallest_section_length (float): The length of the smallest section in the spiral.
-        layers (dict): A dictionary mapping layer names to their respective widths.
-        alabel (dict): A dictionary containing labels for the first and last anchor points.
+        - size (float): The size of the inductor.
+        - width (float): The width of each turn in the spiral.
+        - gap (float): The gap between each turn in the spiral.
+        - num_turns (int): The number of turns in the spiral.
+        - smallest_section_length (float): The length of the smallest section in the spiral.
+        - layers (dict): A dictionary mapping layer names to their respective widths.
+        - alabel (dict): A dictionary containing labels for the first and last anchor points.
 
     Example:
     -------
@@ -822,11 +813,11 @@ class IDC(Entity):
 
     Args:
     ----
-    length (float): The length of the IDC.
-    spacing (float): The spacing between each IDC.
-    num (int): The number of IDCs to create.
-    layers (dict): A dictionary mapping layer names to their widths.
-    alabel (tuple): A tuple containing two labels for the anchors.
+        - length (float): The length of the IDC.
+        - spacing (float): The spacing between each IDC.
+        - num (int): The number of IDCs to create.
+        - layers (dict): A dictionary mapping layer names to their widths.
+        - alabel (tuple): A tuple containing two labels for the anchors.
 
     Example:
     -------
