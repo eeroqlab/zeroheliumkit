@@ -13,9 +13,7 @@ Classes:
 
 import copy, re
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 from warnings import warn
-from itertools import cycle
 
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
@@ -23,15 +21,12 @@ from shapely import (affinity, unary_union,
                      difference, set_precision, intersection,
                      set_coordinates, get_coordinates, remove_repeated_points)
 
-from .plotting import plot_geometry, interactive_widget_handler, tuplify_colors, draw_labels
+from .plotting import plot_geometry, interactive_widget_handler, tuplify_colors, draw_labels, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
-from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY, COLORS
+from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
 from .anchors import Anchor, MultiAnchor, Skeletone
 from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior
-
-
-color_cycle = cycle(COLORS)
 
 
 class _Base:
@@ -41,7 +36,6 @@ class _Base:
     Attributes:
     -----------
         - layers: List of layer names.
-        - colors: Mapping of layer names to their desired color and transparancy level. 
 
     Methods:
     --------
@@ -54,8 +48,6 @@ class _Base:
     """
     layers = [] 
     """List of all layer names belonging to the object."""
-    colors = {} 
-    """Mapping of layer names to tuples containing the desired color and transparancy for plotting."""
     _errors = None
 
     def __init__(self):
@@ -63,7 +55,7 @@ class _Base:
         Initializes a new Base class instance.
         """
         self.layers = []
-        self.colors = {}
+        self.colors = ColorHandler({})
         self.errors = None
 
     def copy(self):
@@ -120,8 +112,7 @@ class _Base:
         """
         self.layers.append(lname)
         
-        if color is None: color = next(color_cycle)
-        self.colors[lname] = (color, alpha)
+        self.colors.add_color(lname, color, alpha)
 
         setattr(self, lname, geometry)
         return self
@@ -142,13 +133,9 @@ class _Base:
         if lname in self.layers:
             self.layers.remove(lname)
             delattr(self, lname)
+            self.colors.remove_color(lname)
         else:
             print(f"Layer '{lname}' not found in layers.")
-        
-        if lname in self.colors:
-            del self.colors[lname]
-        else:
-            print(f"Layer '{lname}' not found in colors.")
 
         return self
 
@@ -169,13 +156,9 @@ class _Base:
         if old_name in self.layers:
             self.__dict__[new_name] = self.__dict__.pop(old_name)
             self.layers[self.layers.index(old_name)] = new_name
+            self.colors.rename_color(old_name, new_name)
         else:
             print(f"Layer '{old_name}' not found in layers.")
-
-        if old_name in self.colors:
-            self.colors[new_name] = self.colors.pop(old_name)
-        else:
-            print(f"Layer '{old_name}' not found in colors.")
 
         return self
 
@@ -211,55 +194,6 @@ class _Base:
             bool: True if the layer exists, False otherwise.
         """
         return lname in self.layers
-    
-
-    def change_color(self, lname: str, new_color: str | tuple | float):
-        """
-        Updates the color of a layer in the colors attribute.
-
-        Args:
-        -----
-            - lname (str): The name of the layer to update.
-            - new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
-
-        Returns:
-        --------
-            Updated instance (self) of the class with the specified layer's color changed. 
-
-        Raises:
-        -------
-            ValueError: If the new_color parameter is not a tuple, string, or float.
-            ValueError: If the given color is anot a valid color code.
-        """
-        if isinstance(new_color, tuple):
-            if lname in self.layers:
-                self.colors[lname] = new_color
-        elif isinstance(new_color, float):
-            if lname in self.layers:
-                self.colors[lname][1] = new_color
-        elif isinstance(new_color, str):
-            if not bool(mcolors.is_color_like(new_color)):
-                raise ValueError("Input color is not a valid color.")
-        
-            if lname in self.layers:
-                self.colors[lname][0] = new_color
-
-        return self
-    
-    def update_colors(self):
-        """
-        WIP method to update colors when layers are imported.
-
-        Returns:
-        --------
-            Updated instance (self) with the udpated colors attribute. 
-        """
-        for l in self.layers:
-            if l not in self.colors:
-                color = next(color_cycle)
-                self.colors[l] = (color, 1.0)
-
-        return self
                 
 
 
@@ -983,7 +917,7 @@ class Entity(_Base):
         --------
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
-        plot_config = tuplify_colors(color_config) if color_config else self.colors
+        plot_config = tuplify_colors(color_config) if color_config else self.colors.colors
 
         if "anchors" in plot_config:
             anchor_color = plot_config.pop("anchors")[0]
@@ -1000,8 +934,9 @@ class Entity(_Base):
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
 
         #plot layers
-        layer_colors = [plot_config[k][0] for k in self.layers]
-        self.plot(ax=ax, layer=self.layers, color=layer_colors, show_idx=show_idx, labels=labels, **kwargs)
+        layer_colors = [plot_config[k][0] for k in plot_config]
+        layers = list(plot_config.keys())
+        self.plot(ax=ax, layer=layers, color=layer_colors, show_idx=show_idx, labels=labels, **kwargs)
 
         #plot skeletone
         self.skeletone.plot(ax=ax, color=skeletone_color)
@@ -1071,7 +1006,7 @@ class Structure(Entity):
         attr_list_structure = s.layers
         self.layers = list(set(attr_list_device + attr_list_structure))
 
-        self.colors = self.colors | s.colors
+        self.colors.colors = self.colors.colors | s.colors.colors
 
         # snapping direction
         if direction_snap:
@@ -1213,4 +1148,4 @@ class GeomCollection(Structure):
         if not hasattr(self, "skeletone"):
             self.skeletone = Skeletone()
 
-        self.update_colors()
+        self.colors.update_colors(self.layers)
