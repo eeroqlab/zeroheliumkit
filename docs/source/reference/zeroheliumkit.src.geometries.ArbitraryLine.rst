@@ -21,7 +21,6 @@
       ~ArbitraryLine.add_text
       ~ArbitraryLine.append
       ~ArbitraryLine.buffer_line
-      ~ArbitraryLine.change_color
       ~ArbitraryLine.clean
       ~ArbitraryLine.copy
       ~ArbitraryLine.crop_all
@@ -53,7 +52,6 @@
       ~ArbitraryLine.rotate
       ~ArbitraryLine.scale
       ~ArbitraryLine.simplify_layer
-      ~ArbitraryLine.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~ArbitraryLine.colors
       ~ArbitraryLine.layers
    
    

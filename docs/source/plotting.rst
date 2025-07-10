@@ -1,8 +1,13 @@
 Plotting.py
 ===========
-Plotting contains functions for plotting geometries using matplotlib.
+Plotting contains the ColorHandler class and functions for plotting geometries using matplotlib.
 
 .. currentmodule:: zeroheliumkit.src.plotting
+
+.. autosummary::
+   :toctree: reference/
+
+   ColorHandler
 
 .. autosummary::
    :toctree: functions/ 

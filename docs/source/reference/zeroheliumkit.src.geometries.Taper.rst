@@ -21,7 +21,6 @@
       ~Taper.add_text
       ~Taper.append
       ~Taper.buffer_line
-      ~Taper.change_color
       ~Taper.clean
       ~Taper.copy
       ~Taper.crop_all
@@ -53,7 +52,6 @@
       ~Taper.rotate
       ~Taper.scale
       ~Taper.simplify_layer
-      ~Taper.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~Taper.colors
       ~Taper.layers
    
    

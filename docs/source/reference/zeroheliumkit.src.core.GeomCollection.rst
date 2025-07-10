@@ -21,7 +21,6 @@
       ~GeomCollection.add_text
       ~GeomCollection.append
       ~GeomCollection.buffer_line
-      ~GeomCollection.change_color
       ~GeomCollection.clean
       ~GeomCollection.copy
       ~GeomCollection.crop_all
@@ -53,7 +52,6 @@
       ~GeomCollection.rotate
       ~GeomCollection.scale
       ~GeomCollection.simplify_layer
-      ~GeomCollection.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~GeomCollection.colors
       ~GeomCollection.layers
    
    

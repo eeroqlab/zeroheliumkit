@@ -21,7 +21,6 @@
       ~MicroChannels.add_text
       ~MicroChannels.append
       ~MicroChannels.buffer_line
-      ~MicroChannels.change_color
       ~MicroChannels.clean
       ~MicroChannels.copy
       ~MicroChannels.crop_all
@@ -53,7 +52,6 @@
       ~MicroChannels.rotate
       ~MicroChannels.scale
       ~MicroChannels.simplify_layer
-      ~MicroChannels.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~MicroChannels.colors
       ~MicroChannels.layers
    
    

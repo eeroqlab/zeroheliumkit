@@ -23,7 +23,6 @@
       ~SuperStructure.append
       ~SuperStructure.buffer_line
       ~SuperStructure.bufferize_routing_line
-      ~SuperStructure.change_color
       ~SuperStructure.clean
       ~SuperStructure.copy
       ~SuperStructure.crop_all
@@ -58,7 +57,6 @@
       ~SuperStructure.route
       ~SuperStructure.scale
       ~SuperStructure.simplify_layer
-      ~SuperStructure.update_colors
    
    
 
@@ -68,7 +66,6 @@
 
    .. autosummary::
    
-      ~SuperStructure.colors
       ~SuperStructure.layers
    
    

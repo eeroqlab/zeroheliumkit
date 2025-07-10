@@ -20,7 +20,6 @@
       ~Entity.add_polygon
       ~Entity.add_text
       ~Entity.buffer_line
-      ~Entity.change_color
       ~Entity.clean
       ~Entity.copy
       ~Entity.crop_all
@@ -51,7 +50,6 @@
       ~Entity.rotate
       ~Entity.scale
       ~Entity.simplify_layer
-      ~Entity.update_colors
    
    
 
@@ -61,7 +59,6 @@
 
    .. autosummary::
    
-      ~Entity.colors
       ~Entity.layers
    
    

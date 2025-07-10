@@ -21,7 +21,6 @@
       ~Fillet.add_text
       ~Fillet.append
       ~Fillet.buffer_line
-      ~Fillet.change_color
       ~Fillet.clean
       ~Fillet.copy
       ~Fillet.crop_all
@@ -53,7 +52,6 @@
       ~Fillet.rotate
       ~Fillet.scale
       ~Fillet.simplify_layer
-      ~Fillet.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~Fillet.colors
       ~Fillet.layers
    
    

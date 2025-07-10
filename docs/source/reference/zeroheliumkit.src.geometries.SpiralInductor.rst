@@ -20,7 +20,6 @@
       ~SpiralInductor.add_polygon
       ~SpiralInductor.add_text
       ~SpiralInductor.buffer_line
-      ~SpiralInductor.change_color
       ~SpiralInductor.clean
       ~SpiralInductor.copy
       ~SpiralInductor.crop_all
@@ -51,7 +50,6 @@
       ~SpiralInductor.rotate
       ~SpiralInductor.scale
       ~SpiralInductor.simplify_layer
-      ~SpiralInductor.update_colors
    
    
 
@@ -61,7 +59,6 @@
 
    .. autosummary::
    
-      ~SpiralInductor.colors
       ~SpiralInductor.layers
    
    
