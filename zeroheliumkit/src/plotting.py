@@ -272,7 +272,7 @@ class ColorHandler():
     """Itercycle object that cycles through color names when no color name is provided."""
 
     def __init__(self, colors):
-        self.colors = colors
+        self.colors = tuplify_colors(colors)
 
     def change_color(self, lname: str, new_color: str | tuple | float) -> 'ColorHandler':
         """
