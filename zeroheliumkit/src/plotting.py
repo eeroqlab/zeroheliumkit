@@ -258,10 +258,18 @@ def draw_labels(geometry, ax: matplotlib.axes.Axes) -> None:
 
 class ColorHandler():
     """
-    A class to handle color/layer adjustments for plotting.
+    A class to handle color/layer adjustments for plotting. 
+    The 'colors' attribute of the Base class is set to an instance of ColorHandler(), which holds and modifies the colors/layers mapping and order for plotting.
+
+    Attr:
+    -----
+        - colors (dict): dictionary mapping of layer names to (color, transparancy) tuples.
+        - color_cycle (cycle): itercycle object that cycles through color names when no color name is provided.
     """
     colors = {}
+    """Dictionary mapping of layer names to (color, transparancy) tuples."""
     color_cycle = cycle(COLORS)
+    """Itercycle object that cycles through color names when no color name is provided."""
 
     def __init__(self, colors):
         self.colors = colors
@@ -340,6 +348,11 @@ class ColorHandler():
     def rename_color(self, old_color: str, new_color: str) -> 'ColorHandler':
         """
         Renames a color when a layer is renamed.
+
+        Args:
+        -----
+            - old_color (str): old color name
+            - new_color (str): new color name
         """
 
         if old_color in self.colors:
@@ -352,6 +365,10 @@ class ColorHandler():
     def remove_color(self, color: str) -> 'ColorHandler':
         """
         Removes a color when a layer is removed.
+
+        Args:
+        -----
+            - color (str): color to remove in the colors attribute.
         """
 
         if color in self.colors:

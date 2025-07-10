@@ -21,7 +21,6 @@
       ~Structure.add_text
       ~Structure.append
       ~Structure.buffer_line
-      ~Structure.change_color
       ~Structure.clean
       ~Structure.copy
       ~Structure.crop_all
@@ -53,7 +52,6 @@
       ~Structure.rotate
       ~Structure.scale
       ~Structure.simplify_layer
-      ~Structure.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~Structure.colors
       ~Structure.layers
    
    
