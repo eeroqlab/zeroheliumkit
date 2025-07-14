@@ -38,7 +38,7 @@ def extract_results(quantity: str,
                     axis3_params: float | tuple=None,
                     additional_name: str=None) -> dict:
     return {
-        'quantity': quantity, 
+        'quantity': quantity,
         'plane': plane,
         'coordinate1': axis1_params,
         'coordinate2': axis2_params,
@@ -85,8 +85,6 @@ class FreeFEM():
     
 
     def create_edpScripts(self) -> str:
-        code = ''
-
         if self.curvature_config:
             main_code = self.add_helium_curvature_edp()
         else:
@@ -97,14 +95,16 @@ class FreeFEM():
         main_code += self.script_create_coupling_const_matrix()
 
         #create new files for each electrode, only inputting the lines of code needed
-        for i in range(self.num_electrodes):
-            filename = "electrode_" + str(i)
-            self.cc_files += filename
-            code += self.script_create_savefiles()
-            code += self.script_problem_definition(i)
+        for j in range(self.num_electrodes):
+            code = ''
+
+            filename = "electrode_" + str(j)
+            self.cc_files.append(filename)
+            code += self.script_create_savefiles(j)
+            code += self.script_problem_definition(j)
 
             for i, extract_config in enumerate(self.config.get('extract_opt')):
-                fem_object_name = self.__extract_opt[i]
+                fem_object_name = self.__extract_opt[i] + f'_{j}'
                 # check supported parameters for extraction
                 if extract_config.get("quantity") not in config_quantity.keys():
                     raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
@@ -215,15 +215,14 @@ class FreeFEM():
         return code
 
 
-    #maybe we make this obselete ??? not really sure how to do this
-    def script_create_savefiles(self):
+    def script_create_savefiles(self, j: int):
         code = "\n"
         self.__extract_opt = {}
         for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
             addname = extract_cfg['additional_name']
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
-            name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "")
+            name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "") + f'_{j}'
 
             if self.run_from_notebook:
                 name = self.dirname + name
@@ -233,7 +232,7 @@ class FreeFEM():
         return code
 
 
-    def script_problem_definition(self, k: int) -> str:
+    def script_problem_definition(self, electrode_num: int) -> str:
         polynomial = self.config["ff_polynomial"]
         epsilon = self.config["dielectric_constants"]
 
@@ -267,7 +266,7 @@ class FreeFEM():
         code += self.add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
 
         for i, v in enumerate(self.physicalSurfs.values()):
-            code += self.add_spaces(20) + f"+ on({v},u = V({k},{i}))\n"
+            code += self.add_spaces(20) + f"+ on({v},u = V({electrode_num},{i}))\n"
         code += self.add_spaces(20) + ";\n"
 
         code += self.add_spaces(4) + "Electro;\n"
@@ -433,15 +432,19 @@ class FreeFEM():
             print_log=False,
             freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
         
+        print("hello")
+        
         try:
             edp_name = self.config["meshfile"]
 
             for edp_name in self.cc_files:
+                print(f'processing file {edp_name}')
                 bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
                 env = os.environ.copy()
                 env['PATH'] += freefem_path
 
                 process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
+                print(f'opened subprocess for {edp_name}')
 
                 logs = ""
                 items = iter(process.stdout.readline, b'')
@@ -472,7 +475,7 @@ class FreeFEM():
 
 
 if __name__=="__main__":
-
+    
     with open(r'freefem_config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     pyff = FreeFEM(config=config, dirname='')
