@@ -6,7 +6,8 @@ This file contains functions for plotting geometries using matplotlib.
 
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
-import matplotlib.axes 
+import matplotlib.axes
+from itertools import cycle
 import colorsys
 
 from shapely import get_coordinates, Point
@@ -254,3 +255,170 @@ def draw_labels(geometry, ax: matplotlib.axes.Axes) -> None:
                         ax.plot(x, y, 'ro')
                         ax.text(label_x, label_y, str(label), ha='left', va='bottom', color='red')
                         label += 1
+
+class ColorHandler():
+    """
+    A class to handle color/layer adjustments for plotting. 
+    The 'colors' attribute of the Base class is set to an instance of ColorHandler(), which holds and modifies the colors/layers mapping and order for plotting.
+
+    Attr:
+    -----
+        - colors (dict): dictionary mapping of layer names to (color, transparancy) tuples.
+        - color_cycle (cycle): itercycle object that cycles through color names when no color name is provided.
+    """
+    __slots__ = "colors", "color_cycle"
+
+    def __init__(self, colors):
+        self.colors = tuplify_colors(colors)
+        """Dictionary mapping of layer names to (color, transparancy) tuples."""
+        self.color_cycle = cycle(COLORS)
+        """Itercycle object that cycles through color names when no color name is provided."""
+
+    def change_color(self, lname: str, new_color: str | tuple | float) -> 'ColorHandler':
+        """
+        Updates the color of a layer in the colors attribute.
+
+        Args:
+        -----
+            - 
+            - lname (str): The name of the layer to update.
+            - new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
+
+        Returns:
+        --------
+            Updated instance (self) of the class with the specified layer's color changed. 
+
+        Raises:
+        -------
+            ValueError: If the new_color parameter is not a tuple, string, or float.
+            ValueError: If the given color is anot a valid color code.
+        """
+        if isinstance(new_color, tuple):
+            if lname in self.colors:
+                self.colors[lname] = new_color
+        elif isinstance(new_color, float):
+            if lname in self.colors:
+                self.colors[lname][1] = new_color
+        elif isinstance(new_color, str):
+            if not bool(mc.is_color_like(new_color)):
+                raise ValueError("Input color is not a valid color.")
+        
+            if lname in self.colors:
+                self.colors[lname][0] = new_color
+
+        return self
+    
+    def update_colors(self, layers: list) -> 'ColorHandler':
+        """
+        Updates colors when layers are imported from external files.
+
+        Args:
+        -----
+            - layers (list): list of layers to update the colors list in accordance with.
+
+        Returns:
+        --------
+            Updated instance (self) with the udpated colors attribute. 
+        """
+        for l in layers:
+            if l not in self.colors:
+                color = next(self.color_cycle)
+                self.colors[l] = (color, 1.0)
+
+        return self
+    
+    def add_color(self, layer: str, color: str | None, alpha: float | None) -> 'ColorHandler':
+        """
+        Adds a color to the colors list when a layer is added.
+        
+        Args:
+        -----
+            - layer (str): layer name to add to the list.
+            - color_info (tuple(str, int)): color and transparancy to map to the layer.
+        """
+        if color is None:
+            color = next(self.color_cycle)
+        
+        if alpha is None:
+            alpha = 1.0
+        
+        self.colors[layer] = (color, alpha)
+        return self
+    
+    def rename_color(self, old_color: str, new_color: str) -> 'ColorHandler':
+        """
+        Renames a color when a layer is renamed.
+
+        Args:
+        -----
+            - old_color (str): old color name
+            - new_color (str): new color name
+        """
+
+        if old_color in self.colors:
+            self.colors[new_color] = self.colors.pop(old_color)
+        else:
+            print(f"Layer '{old_color}' not found in colors.")
+
+        return self
+    
+    def remove_color(self, color: str) -> 'ColorHandler':
+        """
+        Removes a color when a layer is removed.
+
+        Args:
+        -----
+            - color (str): color to remove in the colors attribute.
+        """
+
+        if color in self.colors:
+            del self.colors[color]
+        else:
+            print(f"Layer '{color}' not found in colors.")
+
+        return self
+    
+    def move_layer_back(self, layer: str, move_by: int):
+        """
+        Moves a layer back by a given number of indices in the color dictionary.
+
+        Args:
+        -----
+            - layer (str): the name of the layer to move.
+            - move_by (int): the number of indices to move the color by.
+        """
+        color_items = list(self.colors.items())
+        curr_item = self.colors[layer]
+
+        curr_index = color_items.index((layer, curr_item))
+
+        try:
+            new_index = curr_index - move_by
+            old_item = color_items.pop(curr_index)
+            color_items.insert(new_index, old_item)
+            self.colors = dict(color_items)
+        except IndexError:
+            print("Out of bounds! Please choose a different offset.")
+
+    
+    def move_layer_forward(self, layer: str, move_by: int):
+        """
+        Moves a layer back by a given number of indices in the color dictionary.
+
+        Args:
+        -----
+            - layer (str): the name of the layer to move.
+            - move_by (int): the number of indices to move the color by.
+        """
+        color_items = list(self.colors.items())
+        curr_item = self.colors[layer]
+
+        curr_index = color_items.index((layer, curr_item))
+
+        try:
+            new_index = curr_index + move_by
+            old_item = color_items.pop(curr_index)
+            color_items.insert(new_index, old_item)
+            self.colors = dict(color_items)
+        except IndexError:
+            print("Out of bounds! Please choose a different offset.")

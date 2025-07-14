@@ -15,13 +15,11 @@
    
       ~_Base.__init__
       ~_Base.add_layer
-      ~_Base.change_color
       ~_Base.copy
       ~_Base.has_layer
       ~_Base.remove_layer
       ~_Base.rename_layer
       ~_Base.simplify_layer
-      ~_Base.update_colors
    
    
 
@@ -31,7 +29,6 @@
 
    .. autosummary::
    
-      ~_Base.colors
       ~_Base.layers
    
    

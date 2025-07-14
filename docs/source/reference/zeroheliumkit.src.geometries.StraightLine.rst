@@ -21,7 +21,6 @@
       ~StraightLine.add_text
       ~StraightLine.append
       ~StraightLine.buffer_line
-      ~StraightLine.change_color
       ~StraightLine.clean
       ~StraightLine.copy
       ~StraightLine.crop_all
@@ -53,7 +52,6 @@
       ~StraightLine.rotate
       ~StraightLine.scale
       ~StraightLine.simplify_layer
-      ~StraightLine.update_colors
    
    
 
@@ -63,7 +61,6 @@
 
    .. autosummary::
    
-      ~StraightLine.colors
       ~StraightLine.layers
    
    

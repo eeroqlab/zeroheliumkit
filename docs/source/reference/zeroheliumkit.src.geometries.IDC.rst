@@ -20,7 +20,6 @@
       ~IDC.add_polygon
       ~IDC.add_text
       ~IDC.buffer_line
-      ~IDC.change_color
       ~IDC.clean
       ~IDC.copy
       ~IDC.crop_all
@@ -51,7 +50,6 @@
       ~IDC.rotate
       ~IDC.scale
       ~IDC.simplify_layer
-      ~IDC.update_colors
    
    
 
@@ -61,7 +59,6 @@
 
    .. autosummary::
    
-      ~IDC.colors
       ~IDC.layers
    
    
