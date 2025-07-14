@@ -824,6 +824,7 @@ class Entity(_Base):
             - filename (str): The name of the pickle file to be exported.
         """
         zhkdict = self.get_zhk_dict()
+        zhkdict["colors"] = self.colors
         exp = Exporter_Pickle(filename, zhkdict)
         exp.save()
 
@@ -1138,6 +1139,8 @@ class GeomCollection(Structure):
                     case ("anchors", MultiPoint()):
                         for i, pt in enumerate(items[1].geoms):
                             self.anchors.add(Anchor(pt, 0, "anchor" + str(i)))
+                    case ("colors", ColorHandler()):
+                        self.colors = items[1]
                     case _:
                         self.layers.append(items[0])
                         setattr(self, *items)
@@ -1148,4 +1151,5 @@ class GeomCollection(Structure):
         if not hasattr(self, "skeletone"):
             self.skeletone = Skeletone()
 
-        self.colors.update_colors(self.layers)
+        if self.colors.is_empty:
+            self.colors.update_colors(self.layers)
