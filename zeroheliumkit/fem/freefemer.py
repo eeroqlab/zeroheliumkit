@@ -3,8 +3,10 @@
 """
 
 import os
+import sys
 import yaml
 import subprocess
+import asyncio
 import numpy as np
 from alive_progress import alive_it
 from ..src.errors import *
@@ -59,6 +61,10 @@ class FreeFEM():
         self.dirname = dirname
         self.run_from_notebook = run_from_notebook
         self.cc_files = []
+        self.res_files = []
+        self.res_name = ""
+
+        open(dirname + 'Vmatrix.txt', 'w+').close()
 
         self.curvature_config = config.get("include_helium_curvature")
         self.physicalVols = config.get('physicalVolumes')
@@ -101,10 +107,20 @@ class FreeFEM():
             filename = "electrode_" + str(j)
             self.cc_files.append(filename)
             code += self.script_create_savefiles(j)
+            code += self.script_load_packages_and_mesh()
+            code += self.script_declare_variables()
+            code += f"int numV = {self.num_electrodes};\n"
+            code += "real[int, int] V(numV, numV);\n"
+            code += """ifstream fin("dump/Vmatrix.txt");\n"""
+            code += "for (int i = 0; i < numV; i++) {\n"
+            code += self.add_spaces(4) + "for (int j = 0; j < numV; j++) {\n"
+            code += self.add_spaces(8) + "fin >> V(i, j);\n"
+            code += self.add_spaces(4) + "}\n"
+            code += "}\n"
             code += self.script_problem_definition(j)
 
             for i, extract_config in enumerate(self.config.get('extract_opt')):
-                fem_object_name = self.__extract_opt[i] + f'_{j}'
+                fem_object_name = self.__extract_opt[i] + f'{j}'
                 # check supported parameters for extraction
                 if extract_config.get("quantity") not in config_quantity.keys():
                     raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
@@ -116,7 +132,7 @@ class FreeFEM():
                     # extract electrostatic field solutions
                     plane = extract_config.get('plane')
                     if plane in config_planes_2D:
-                        code += self.script_save_data_2D(extract_config, fem_object_name)
+                        code += self.script_save_data_2D(extract_config, fem_object_name, j)
                     elif plane in config_planes_3D:
                         code += self.script_save_data_3D(extract_config, fem_object_name)
                     else:
@@ -207,6 +223,15 @@ class FreeFEM():
         code += self.add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
 
         code += "\n"
+        code += """ofstream vMatrix("dump/Vmatrix.txt");\n"""
+        code += "for (int i = 0; i < numV; i++) {\n"
+        code += self.add_spaces(4) + "for (int j = 0; j < numV; j++) {\n"
+        code += self.add_spaces(8) + """vMatrix << V(i, j) << " ";\n"""
+        code += self.add_spaces(4) + "}\n"
+        code += self.add_spaces(4) + "vMatrix << endl;\n"
+        code += "}\n"
+
+        code += "\n"
         code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
         code += "for (int i = 0; i < numV; i+= 1){\n"
         code += self.add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
@@ -222,11 +247,14 @@ class FreeFEM():
             addname = extract_cfg['additional_name']
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
-            name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "") + f'_{j}'
+            name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "")
 
             if self.run_from_notebook:
                 name = self.dirname + name
-            code += f"""ofstream extract{idx}{qty}("{name}.txt");\n"""
+            self.res_name = name
+            name += f'_{j}'
+            self.res_files.append(name)
+            code += f"""ofstream extract{idx}{qty}{j}("{name}.txt");\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
 
         return code
@@ -275,7 +303,7 @@ class FreeFEM():
         return code
 
 
-    def script_save_data_2D(self, params: dict, fem_object_name: str) -> str:
+    def script_save_data_2D(self, params: dict, fem_object_name: str, k: int) -> str:
         if params.get('plane')=='xy':
             xyz = "ax1,ax2,ax3"
         elif params.get('plane')=='yz':
@@ -320,11 +348,11 @@ class FreeFEM():
             code += self.add_spaces(12) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
 
         code += self.add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
-        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[k] + " ";\n"""
+        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] + " ";\n"""
         code += self.add_spaces(4) + f"""{name} << quantity << endl;\n"""
         code += self.add_spaces(4) + f"""{name} << "END" << endl;\n"""
 
-        code += self.add_spaces(4) + "if (k == numV - 1){\n"
+        code += self.add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
         code += self.add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
         code += self.add_spaces(8) + f"""{name} << xList << endl;\n"""
         code += self.add_spaces(8) + f"""{name} << "END" << endl;\n"""
@@ -338,7 +366,7 @@ class FreeFEM():
         return code  
 
 
-    def script_save_data_3D(self, params: dict, fem_object_name: str) -> str:
+    def script_save_data_3D(self, params: dict, fem_object_name: str, k: int) -> str:
         if params.get('plane')=='xyZ':
             xyz = "ax1,ax2,ax3"
         else:
@@ -371,7 +399,7 @@ class FreeFEM():
 
         code += self.add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
         code += self.add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
-        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[k] << endl;\n"""
+        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] << endl;\n"""
 
         code += self.add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
@@ -397,7 +425,7 @@ class FreeFEM():
         code += self.add_spaces(8) + f"""{name} << "end" << endl;""" + "}\n"
         code += self.add_spaces(4) + f"""{name} << "END" << endl;\n \n"""
 
-        code += self.add_spaces(4) + """if (k == numV - 1){\n"""
+        code += self.add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
         code += self.add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
         code += self.add_spaces(8) + f"""{name} << xList << endl;\n"""
         code += self.add_spaces(8) + f"""{name} << "END" << endl;\n"""
@@ -428,40 +456,59 @@ class FreeFEM():
         return code
 
 
-    def run(self,
+    async def edp_exec(self, edp_file: str, filepath: str, print_log: bool=False):
+        logs = ""
+        bashCommand = ['freefem++', self.dirname + edp_file + '.edp']
+        env = os.environ.copy()
+        env['PATH'] += filepath
+        process = await asyncio.create_subprocess_exec(
+            *bashCommand,
+            stdout=asyncio.subprocess.PIPE,
+            env=env
+        )
+
+        items = iter(process.stdout.readline, b'')
+        bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35)
+
+        async for line in process.stdout:
+            output_log = line.decode()
+            logs += edp_file + ':' + output_log
+            if output_log[1:6] == "Error":
+                raise FreefemError(output_log)
+            elif print_log:
+                print(output_log)
+        
+        await process.wait()
+
+
+    def gather_results(self, res_files: list, res_name: str):
+        with open(f"{res_name}.txt", "w") as res:
+            for file in res_files:
+                with open(f"{file}.txt", "r") as f:
+                    res.write(f.read())
+                os.remove(f"{file}.txt")
+
+
+    async def run(self,
             print_log=False,
             freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
-        
-        print("hello")
+        logs = ""
         
         try:
-            edp_name = self.config["meshfile"]
+            main_name = self.config["meshfile"]
 
+            #execute main edp file first, wait to finish
+            if sys.platform == "win32" or "ipykernel" in sys.modules:
+                await self.edp_exec(main_name, freefem_path, print_log)
+            else:
+                asyncio.run(self.edp_exec(main_name, freefem_path, print_log))
+            
+            asynch_in = []
             for edp_name in self.cc_files:
-                print(f'processing file {edp_name}')
-                bashCommand_ff = ['freefem++', self.dirname + edp_name + '.edp']
-                env = os.environ.copy()
-                env['PATH'] += freefem_path
+                #collects each of the edp files for gather input
+                asynch_in.append(self.edp_exec(edp_name, freefem_path, print_log))
 
-                process = subprocess.Popen(bashCommand_ff, stdout=subprocess.PIPE, env=env)
-                print(f'opened subprocess for {edp_name}')
-
-                logs = ""
-                items = iter(process.stdout.readline, b'')
-                bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35)
-
-                for line in bar:
-                    output_log = line.decode()
-                    logs += edp_name + ':' + output_log
-                    if output_log[1:6] == "Error":
-                        raise FreefemError(output_log)
-                    elif print_log:
-                        print(output_log)
-                    else:
-                        pass
-
-                process.stdout.close()
-                process.wait()
+            await asyncio.gather(*asynch_in)
 
         except KeyboardInterrupt:
             message = 'Interrupted by user'
@@ -471,6 +518,7 @@ class FreeFEM():
         finally:
             with open(os.path.join(self.dirname, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(logs)
+            self.gather_results(self.res_files, self.res_name)
             print('Freefem calculations are complete')
 
 
