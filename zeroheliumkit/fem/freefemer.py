@@ -5,8 +5,9 @@
 import os
 import sys
 import yaml
-import subprocess
+import time
 import asyncio
+import psutil
 import numpy as np
 from alive_progress import alive_it
 from ..src.errors import *
@@ -467,9 +468,7 @@ class FreeFEM():
             env=env
         )
 
-        items = iter(process.stdout.readline, b'')
-        bar = alive_it(items, title='Freefem running ', force_tty=True, refresh_secs=1/35)
-
+        print(f"Freefem running on {edp_file}")
         async for line in process.stdout:
             output_log = line.decode()
             logs += edp_file + ':' + output_log
@@ -489,24 +488,41 @@ class FreeFEM():
                 os.remove(f"{file}.txt")
 
 
+    async def limited_exec(self, semaphore, *args, **kwargs):
+        async with semaphore:
+            await self.edp_exec(*args, **kwargs)
+
+
     async def run(self,
             print_log=False,
             freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
         logs = ""
         
+        sys_cores = psutil.cpu_count(logical=False)
+        calculations_num = len(self.cc_files)
+        print(f"Your system has {sys_cores} cores and needs to run {calculations_num} calculations.")
+        core_count = int(input("Please enter the number of cores you would like to use:"))
+
+        if core_count > sys_cores:
+            raise ValueError(f"Input core count is greater than the available cores on this system.")
+        semaphore = asyncio.Semaphore(core_count)
+
+        start_time = time.perf_counter()
+        
         try:
             main_name = self.config["meshfile"]
+            await self.edp_exec(main_name, freefem_path, print_log)
 
             #execute main edp file first, wait to finish
             if sys.platform == "win32" or "ipykernel" in sys.modules:
                 await self.edp_exec(main_name, freefem_path, print_log)
             else:
                 asyncio.run(self.edp_exec(main_name, freefem_path, print_log))
-            
-            asynch_in = []
-            for edp_name in self.cc_files:
-                #collects each of the edp files for gather input
-                asynch_in.append(self.edp_exec(edp_name, freefem_path, print_log))
+
+            asynch_in = [
+                self.limited_exec(semaphore, edp_name, freefem_path, print_log)
+                for edp_name in self.cc_files
+            ]
 
             await asyncio.gather(*asynch_in)
 
@@ -519,7 +535,11 @@ class FreeFEM():
             with open(os.path.join(self.dirname, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(logs)
             self.gather_results(self.res_files, self.res_name)
-            print('Freefem calculations are complete')
+
+            end_time = time.perf_counter()
+            total_time = end_time - start_time
+
+            print(f'Freefem calculations are complete. Ran in {total_time:.2f} seconds.')
 
 
 if __name__=="__main__":
