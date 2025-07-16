@@ -64,6 +64,7 @@ class FreeFEM():
         self.cc_files = []
         self.res_files = []
         self.res_name = ""
+        self.logs = ""
 
         open(dirname + 'Vmatrix.txt', 'w+').close()
 
@@ -97,7 +98,6 @@ class FreeFEM():
         else:
             main_code = "\n"
         main_code += headerFrame("ELECTROSTATIC POTENTIAL")
-        main_code += self.script_load_packages_and_mesh()
         main_code += self.script_declare_variables()
         main_code += self.script_create_coupling_const_matrix()
 
@@ -145,42 +145,42 @@ class FreeFEM():
         return main_code
 
 
-    def create_edpScript(self) -> str:
-        """ Creates main .edp script by combining different script components."""
+    # def create_edpScript(self) -> str:
+    #     """ Creates main .edp script by combining different script components."""
 
-        if self.curvature_config:
-            code = self.add_helium_curvature_edp()
-        else:
-            code = "\n"
-        code += headerFrame("ELECTROSTATIC POTENTIAL")
-        code += self.script_load_packages_and_mesh()
-        code += self.script_declare_variables()
-        code += self.script_create_coupling_const_matrix()
-        code += self.script_create_savefiles()
+    #     if self.curvature_config:
+    #         code = self.add_helium_curvature_edp()
+    #     else:
+    #         code = "\n"
+    #     code += headerFrame("ELECTROSTATIC POTENTIAL")
+    #     code += self.script_load_packages_and_mesh()
+    #     code += self.script_declare_variables()
+    #     code += self.script_create_coupling_const_matrix()
+    #     code += self.script_create_savefiles()
 
-        code += self.script_problem_definition()
+    #     code += self.script_problem_definition()
 
-        for i, extract_config in enumerate(self.config.get('extract_opt')):
-            fem_object_name = self.__extract_opt[i]
-            # check supported parameters for extraction
-            if extract_config.get("quantity") not in config_quantity.keys():
-                raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
+    #     for i, extract_config in enumerate(self.config.get('extract_opt')):
+    #         fem_object_name = self.__extract_opt[i]
+    #         # check supported parameters for extraction
+    #         if extract_config.get("quantity") not in config_quantity.keys():
+    #             raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
 
-            if extract_config.get("quantity") == 'Cm':
-                # extract capacitance matrix
-                code += self.script_save_cmatrix(extract_config, fem_object_name)
-            else:
-                # extract electrostatic field solutions
-                plane = extract_config.get('plane')
-                if plane in config_planes_2D:
-                    code += self.script_save_data_2D(extract_config, fem_object_name)
-                elif plane in config_planes_3D:
-                    code += self.script_save_data_3D(extract_config, fem_object_name)
-                else:
-                    raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+    #         if extract_config.get("quantity") == 'Cm':
+    #             # extract capacitance matrix
+    #             code += self.script_save_cmatrix(extract_config, fem_object_name)
+    #         else:
+    #             # extract electrostatic field solutions
+    #             plane = extract_config.get('plane')
+    #             if plane in config_planes_2D:
+    #                 code += self.script_save_data_2D(extract_config, fem_object_name)
+    #             elif plane in config_planes_3D:
+    #                 code += self.script_save_data_3D(extract_config, fem_object_name)
+    #             else:
+    #                 raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
 
-        code += "}\n"
-        return code
+    #     code += "}\n"
+    #     return code
 
 
     def script_load_packages_and_mesh(self):
@@ -458,7 +458,6 @@ class FreeFEM():
 
 
     async def edp_exec(self, edp_file: str, filepath: str, print_log: bool=False):
-        logs = ""
         bashCommand = ['freefem++', self.dirname + edp_file + '.edp']
         env = os.environ.copy()
         env['PATH'] += filepath
@@ -471,7 +470,7 @@ class FreeFEM():
         print(f"Freefem running on {edp_file}")
         async for line in process.stdout:
             output_log = line.decode()
-            logs += edp_file + ':' + output_log
+            self.logs += edp_file + ':' + output_log
             if output_log[1:6] == "Error":
                 raise FreefemError(output_log)
             elif print_log:
@@ -494,18 +493,18 @@ class FreeFEM():
 
 
     async def run(self,
+            cores,
             print_log=False,
             freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
-        logs = ""
         
         sys_cores = psutil.cpu_count(logical=False)
-        calculations_num = len(self.cc_files)
-        print(f"Your system has {sys_cores} cores and needs to run {calculations_num} calculations.")
-        core_count = int(input("Please enter the number of cores you would like to use:"))
+        # calculations_num = len(self.cc_files)
+        # print(f"Your system has {sys_cores} cores and needs to run {calculations_num} calculations.")
+        # core_count = int(input("Please enter the number of cores you would like to use:"))
 
-        if core_count > sys_cores:
+        if cores > sys_cores:
             raise ValueError(f"Input core count is greater than the available cores on this system.")
-        semaphore = asyncio.Semaphore(core_count)
+        semaphore = asyncio.Semaphore(cores)
 
         start_time = time.perf_counter()
         
@@ -529,11 +528,11 @@ class FreeFEM():
         except KeyboardInterrupt:
             message = 'Interrupted by user'
             print(message)
-            logs += message
+            self.logs += message
 
         finally:
             with open(os.path.join(self.dirname, 'ff_logs.txt'), 'w') as outfile:
-                outfile.write(logs)
+                outfile.write(self.logs)
             self.gather_results(self.res_files, self.res_name)
 
             end_time = time.perf_counter()
