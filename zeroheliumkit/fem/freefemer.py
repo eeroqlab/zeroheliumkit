@@ -12,9 +12,11 @@ import asyncio
 import psutil
 import numpy as np
 import ipywidgets as widgets
+from datetime import datetime
 from IPython.display import display
 from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
+from dataclasses import dataclass
 
 config_planes_2D = ['xy', 'yz', 'xz']
 config_planes_3D = ['xyZ']
@@ -42,22 +44,50 @@ def headerFrame(header: str) -> str:
     edp += '//////////////////////////////////////////////////////////\n\n'
     return edp
 
-def extract_results(quantity: str,
-                    plane: str=None,
-                    axis1_params: tuple=None,
-                    axis2_params: tuple=None,
-                    axis3_params: float | tuple=None,
-                    additional_name: str=None) -> dict:
+
+@dataclass
+class ExtractConfig():
     """
-    Extracts the results based on the provided parameters."""
-    return {
-        'quantity': quantity,
-        'plane': plane,
-        'coordinate1': axis1_params,
-        'coordinate2': axis2_params,
-        'coordinate3': axis3_params,
-        'additional_name': additional_name
-    }
+    Data class for storing extraction configuration parameters.
+    """ 
+    quantity: str
+    plane: str
+    axis1_params: tuple
+    axis2_params: tuple
+    axis3_params: float | tuple
+    additional_name: str
+
+    def __init__(self, quantity, plane, axis1_params, axis2_params, axis3_params, additional_name):
+        self.quantity = quantity
+        self.plane = plane
+        self.axis1_params = axis1_params
+        self.axis2_params = axis2_params
+        self.axis3_params = axis3_params
+        self.additional_name = additional_name
+
+    def __post_init__(self):
+        if not isinstance(self.quantity, str):
+            raise TypeError("'quantity' parameter must be a string")
+        if not isinstance(self.plane, str):
+            raise TypeError("'plane' parameter must be a string")
+        if not isinstance(self.axis1_params, str):
+            raise TypeError("'axis1_params' parameter must be a string")
+        if not isinstance(self.axis2_params, str):
+            raise TypeError("'axis2_params' parameter must be a string")
+        if not isinstance(self.axis3_params, str):
+            raise TypeError("'axis3_params' parameter must be a string")
+        if not isinstance(self.additional_name, str):
+            raise TypeError("'additional_name' parameter must be a string")
+        
+    def extract_dict(self):
+        return {
+            'quantity': self.quantity,
+            'plane': self.plane,
+            'coordinate1': self.axis1_params,
+            'coordinate2': self.axis2_params,
+            'coordinate3': self.axis3_params,
+            'additional_name': self.additional_name
+        }
 
 
 class FreeFEM():
@@ -88,8 +118,6 @@ class FreeFEM():
         self.res_name = ""
         self.logs = ""
 
-        open(dirname + 'Vmatrix.txt', 'w+').close()
-
         self.curvature_config = config.get("include_helium_curvature")
         self.physicalVols = config.get('physicalVolumes')
         self.physicalSurfs = config.get('physicalSurfaces')
@@ -101,9 +129,7 @@ class FreeFEM():
         """
         Writes the main FreeFEM scripts to a file based on the configuration.
         """
-        script = self.create_edpScripts()
-        with open(self.dirname + self.config["meshfile"] + '.edp', 'w') as file:
-            file.write(script)
+        self.create_edpScripts()
 
 
     def add_spaces(self, num: int) -> str:
@@ -127,60 +153,51 @@ class FreeFEM():
         return code
     
 
-    def create_edpScripts(self) -> str:
+    def write_edpContent(self, j: int | str):
+        """
+        Returns the contents of an electrode_k .edp file with the desired integer or variable in the place of 'k'.
+        """
+        code = ''
+        code += self.script_create_savefiles(j)
+        code += self.script_load_packages_and_mesh()
+        code += self.script_declare_variables()
+        code += self.script_create_coupling_const_matrix()
+        code += self.script_problem_definition(j)
+
+        for i, extract_config in enumerate(self.config.get('extract_opt')):
+            fem_object_name = self.__extract_opt[i] + f'{j}'
+            # check supported parameters for extraction
+            if extract_config.get("quantity") not in config_quantity.keys():
+                raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
+
+            if extract_config.get("quantity") == 'Cm':
+                # extract capacitance matrix
+                code += self.script_save_cmatrix(extract_config, fem_object_name)
+            else:
+                # extract electrostatic field solutions
+                plane = extract_config.get('plane')
+                if plane in config_planes_2D:
+                    code += self.script_save_data_2D(extract_config, fem_object_name, j)
+                elif plane in config_planes_3D:
+                    code += self.script_save_data_3D(extract_config, fem_object_name)
+                else:
+                    raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+        
+        return code
+    
+
+    def create_edpScripts(self):
         """
         Creates the main FreeFEM script based on the configuration and physical surfaces.
         """
-        if self.curvature_config:
-            main_code = self.add_helium_curvature_edp()
-        else:
-            main_code = "\n"
-        main_code += headerFrame("ELECTROSTATIC POTENTIAL")
-        main_code += self.script_declare_variables()
-        main_code += self.script_create_coupling_const_matrix()
-
         #create new files for each electrode, only inputting the lines of code needed
         for j in range(self.num_electrodes):
-            code = ''
-
+            code = self.write_edpContent(j)
             filename = "electrode_" + str(j)
             self.cc_files.append(filename)
-            code += self.script_create_savefiles(j)
-            code += self.script_load_packages_and_mesh()
-            code += self.script_declare_variables()
-            code += f"int numV = {self.num_electrodes};\n"
-            code += "real[int, int] V(numV, numV);\n"
-            code += """ifstream fin("dump/Vmatrix.txt");\n"""
-            code += "for (int i = 0; i < numV; i++) {\n"
-            code += self.add_spaces(4) + "for (int j = 0; j < numV; j++) {\n"
-            code += self.add_spaces(8) + "fin >> V(i, j);\n"
-            code += self.add_spaces(4) + "}\n"
-            code += "}\n"
-            code += self.script_problem_definition(j)
-
-            for i, extract_config in enumerate(self.config.get('extract_opt')):
-                fem_object_name = self.__extract_opt[i] + f'{j}'
-                # check supported parameters for extraction
-                if extract_config.get("quantity") not in config_quantity.keys():
-                    raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
-
-                if extract_config.get("quantity") == 'Cm':
-                    # extract capacitance matrix
-                    code += self.script_save_cmatrix(extract_config, fem_object_name)
-                else:
-                    # extract electrostatic field solutions
-                    plane = extract_config.get('plane')
-                    if plane in config_planes_2D:
-                        code += self.script_save_data_2D(extract_config, fem_object_name, j)
-                    elif plane in config_planes_3D:
-                        code += self.script_save_data_3D(extract_config, fem_object_name)
-                    else:
-                        raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
                     
             with open(self.dirname + filename + '.edp', 'w') as file:
                 file.write(code)
-        
-        return main_code
 
 
     def script_load_packages_and_mesh(self):
@@ -231,15 +248,6 @@ class FreeFEM():
         code += self.add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
         code += self.add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
         code += self.add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
-
-        code += "\n"
-        code += """ofstream vMatrix("dump/Vmatrix.txt");\n"""
-        code += "for (int i = 0; i < numV; i++) {\n"
-        code += self.add_spaces(4) + "for (int j = 0; j < numV; j++) {\n"
-        code += self.add_spaces(8) + """vMatrix << V(i, j) << " ";\n"""
-        code += self.add_spaces(4) + "}\n"
-        code += self.add_spaces(4) + "vMatrix << endl;\n"
-        code += "}\n"
 
         code += "\n"
         code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
@@ -556,6 +564,31 @@ class FreeFEM():
                 os.remove(f"{file}.txt")
 
 
+    def log_history(self, edp_code: str, total_time: float):
+        curr_date = datetime.now()
+        try:
+            with open(self.dirname + 'ff_history.md', 'r+', encoding='utf-8') as hist:
+                contents = hist.read()
+                iteration = int(contents[0]) + 1 if contents else 1
+                hist.seek(0)
+                hist.write(str(iteration))
+                hist.seek(0, 2) 
+                hist.write(f"\n## [{iteration}] - {curr_date} - Run in {total_time} seconds\n")
+                hist.write("```freefem\n")
+                hist.write(edp_code)
+                hist.write("```\n")
+        except FileNotFoundError:
+            with open(self.dirname + 'ff_history.md', 'w', encoding='utf-8') as hist:
+                hist.seek(0)
+                hist.write('1')
+                hist.write(f"\n## [1] - {curr_date} - Run in {total_time} seconds\n")
+                hist.write("```freefem\n")
+                hist.write(edp_code)
+                hist.write("```\n")
+        except Exception as e:
+            print(e)
+
+
     async def limited_exec(self, semaphore, *args, **kwargs):
         """
         Executes the FreeFEM script with a semaphore to limit the number of concurrent executions.
@@ -590,15 +623,6 @@ class FreeFEM():
         start_time = time.perf_counter()
         
         try:
-            main_name = self.config["meshfile"]
-            await self.edp_exec(main_name, freefem_path, print_log)
-
-            #execute main edp file first, wait to finish
-            if sys.platform == "win32" or "ipykernel" in sys.modules:
-                await self.edp_exec(main_name, freefem_path, print_log)
-            else:
-                asyncio.run(self.edp_exec(main_name, freefem_path, print_log))
-
             asynch_in = [
                 self.limited_exec(semaphore, edp_name, freefem_path, print_log)
                 for edp_name in self.cc_files
@@ -618,6 +642,9 @@ class FreeFEM():
 
             end_time = time.perf_counter()
             total_time = end_time - start_time
+
+            skel_code = self.write_edpContent('k')
+            self.log_history(skel_code, total_time)
 
             print(f'Freefem calculations are complete. Ran in {total_time:.2f} seconds.')
 
