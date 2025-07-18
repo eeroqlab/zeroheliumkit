@@ -16,7 +16,7 @@ from datetime import datetime
 from IPython.display import display
 from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 config_planes_2D = ['xy', 'yz', 'xz']
 config_planes_3D = ['xyZ']
@@ -66,28 +66,23 @@ class ExtractConfig():
         self.additional_name = additional_name
 
     def __post_init__(self):
+        if self.quantity not in config_quantity.keys():
+            raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
+        if self.plane not in config_planes_2D and self.plane not in config_planes_3D:
+            raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+        
         if not isinstance(self.quantity, str):
             raise TypeError("'quantity' parameter must be a string")
         if not isinstance(self.plane, str):
             raise TypeError("'plane' parameter must be a string")
-        if not isinstance(self.axis1_params, str):
-            raise TypeError("'axis1_params' parameter must be a string")
-        if not isinstance(self.axis2_params, str):
-            raise TypeError("'axis2_params' parameter must be a string")
-        if not isinstance(self.axis3_params, str):
-            raise TypeError("'axis3_params' parameter must be a string")
+        if not isinstance(self.axis1_params, tuple):
+            raise TypeError("'axis1_params' parameter must be a tuple")
+        if not isinstance(self.axis2_params, tuple):
+            raise TypeError("'axis2_params' parameter must be a tuple")
+        if not isinstance(self.axis3_params, float | tuple):
+            raise TypeError("'axis3_params' parameter must be a tuple or float")
         if not isinstance(self.additional_name, str):
             raise TypeError("'additional_name' parameter must be a string")
-        
-    def extract_dict(self):
-        return {
-            'quantity': self.quantity,
-            'plane': self.plane,
-            'coordinate1': self.axis1_params,
-            'coordinate2': self.axis2_params,
-            'coordinate3': self.axis3_params,
-            'additional_name': self.additional_name
-        }
 
 
 class FreeFEM():
@@ -110,7 +105,7 @@ class FreeFEM():
                 dirname: str,
                 run_from_notebook: bool=False):
 
-        self.config = config
+        self.config = asdict(config)
         self.dirname = dirname
         self.run_from_notebook = run_from_notebook
         self.cc_files = []
