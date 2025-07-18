@@ -7,6 +7,7 @@ This module contains functions and a class for creating freefem files. Created b
 import os
 import sys
 import yaml
+import re
 import time
 import asyncio
 import psutil
@@ -540,7 +541,7 @@ class FreeFEM():
         progress.value = f"✅ {edp_file} complete"
 
 
-    def gather_results(self, res_files: list, res_name: str):
+    def gather_results(self):
         """
         Gathers the results from the individual FreeFEM result files into a single file.
 
@@ -549,8 +550,8 @@ class FreeFEM():
             res_files (list): List of result files to gather.
             res_name (str): Name of the result file to save the gathered results.
         """
-        with open(f"{res_name}.txt", "w") as res:
-            for file in res_files:
+        with open(f"{self.res_name}.txt", "w") as res:
+            for file in self.res_files:
                 with open(f"{file}.txt", "r") as f:
                     res.write(f.read())
                 os.remove(f"{file}.txt")
@@ -587,6 +588,52 @@ class FreeFEM():
         """
         async with semaphore:
             await self.edp_exec(*args, **kwargs)
+
+
+    async def run_from_history(self, iteration: int, electrode_name: int | list, cores: int, 
+                               print_log: bool=False, freefem_path: str=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
+        indices = []
+        names = list(self.physicalSurfs.keys())
+        if electrode_name is None:
+            indices = list(i for i in range(self.num_electrodes))
+        elif isinstance(electrode_name, list):
+            for name in electrode_name:
+                indices.append(names.index(name))
+        elif isinstance(electrode_name, str):
+            indices.append(names.index(electrode_name))
+
+        pattern = rf'^##\s+\[({iteration})]'
+        with open(self.dirname + "ff_history.md", 'r+') as hist:
+            history_content = hist.read()
+            match = re.search(pattern, history_content, re.MULTILINE)
+
+            if match is None:
+                raise ValueError("No iteration of that kind can be found")
+            
+            code_start = history_content.find("```freefem", match.end())
+            if code_start == -1:
+                raise ValueError("Given index does not have freefem code logged in history.")
+            code_end = history_content.find("```", code_start + 4)
+            if code_end == -1:
+                raise ValueError("Given index does not have freefem code logged in history.")
+
+            hist.seek(0)
+            history_content = hist.read()
+            code = history_content[code_start + 12:code_end]
+            self.cc_files = []
+            self.res_files = []
+            self.logs = ""
+
+            for i in indices:
+                code = code.replace('k', str(i))
+                with open(self.dirname + f"electrode_{i}.edp", 'w+') as edp:
+                    edp.write(code)
+                self.cc_files.append(f"electrode_{i}")
+                name = self.res_name
+                name += f'_{i}'
+                self.res_files.append(name)
+                code = history_content[code_start + 12:code_end]
+            await self.run(cores, print_log, freefem_path)
 
 
     async def run(self,
@@ -630,7 +677,9 @@ class FreeFEM():
         finally:
             with open(os.path.join(self.dirname, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
-            self.gather_results(self.res_files, self.res_name)
+            self.gather_results()
+            for file in self.cc_files:
+                os.remove(self.dirname + file + ".edp")
 
             end_time = time.perf_counter()
             total_time = end_time - start_time
