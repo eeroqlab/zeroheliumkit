@@ -52,18 +52,10 @@ class ExtractConfig():
     """ 
     quantity: str
     plane: str
-    axis1_params: tuple
-    axis2_params: tuple
-    axis3_params: float | tuple
+    coordinate1: tuple
+    coordinate2: tuple
+    coordinate3: float | tuple
     additional_name: str
-
-    def __init__(self, quantity, plane, axis1_params, axis2_params, axis3_params, additional_name):
-        self.quantity = quantity
-        self.plane = plane
-        self.axis1_params = axis1_params
-        self.axis2_params = axis2_params
-        self.axis3_params = axis3_params
-        self.additional_name = additional_name
 
     def __post_init__(self):
         if self.quantity not in config_quantity.keys():
@@ -75,14 +67,17 @@ class ExtractConfig():
             raise TypeError("'quantity' parameter must be a string")
         if not isinstance(self.plane, str):
             raise TypeError("'plane' parameter must be a string")
-        if not isinstance(self.axis1_params, tuple):
-            raise TypeError("'axis1_params' parameter must be a tuple")
-        if not isinstance(self.axis2_params, tuple):
-            raise TypeError("'axis2_params' parameter must be a tuple")
-        if not isinstance(self.axis3_params, float | tuple):
-            raise TypeError("'axis3_params' parameter must be a tuple or float")
+        if not isinstance(self.coordinate1, tuple):
+            raise TypeError("'coordinate1' parameter must be a tuple")
+        if not isinstance(self.coordinate2, tuple):
+            raise TypeError("'coordinate2' parameter must be a tuple")
+        if not isinstance(self.coordinate3, float | tuple):
+            raise TypeError("'coordinate3' parameter must be a tuple or float")
         if not isinstance(self.additional_name, str):
             raise TypeError("'additional_name' parameter must be a string")
+        
+    def to_dict(self):
+        return self.__dict__
 
 
 class FreeFEM():
@@ -105,7 +100,7 @@ class FreeFEM():
                 dirname: str,
                 run_from_notebook: bool=False):
 
-        self.config = asdict(config)
+        self.config = config
         self.dirname = dirname
         self.run_from_notebook = run_from_notebook
         self.cc_files = []
@@ -160,6 +155,8 @@ class FreeFEM():
         code += self.script_problem_definition(j)
 
         for i, extract_config in enumerate(self.config.get('extract_opt')):
+            if isinstance(extract_config, ExtractConfig):
+                extract_config = asdict(extract_config)
             fem_object_name = self.__extract_opt[i] + f'{j}'
             # check supported parameters for extraction
             if extract_config.get("quantity") not in config_quantity.keys():
