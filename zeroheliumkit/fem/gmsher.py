@@ -82,7 +82,6 @@ class GMSHmaker():
                  electrodes_config: dict, 
                  mesh_params: tuple,
                  additional_surfaces: dict=None,
-                 log: bool=False,
                  savedir: str="dump",
                  configdir: str="config",
                  filename: str="device"):
