@@ -8,12 +8,12 @@
 '''
 
 import gmsh
-import sys
-import yaml
+import sys, os, yaml
 import numpy as np
 
 from shapely import Polygon, MultiPolygon, get_coordinates
 from alive_progress import alive_it
+from pathlib import Path
 
 from ..src.core import Structure, Entity
 
@@ -82,12 +82,18 @@ class GMSHmaker():
                  electrodes_config: dict, 
                  mesh_params: tuple,
                  additional_surfaces: dict=None,
-                 log: bool=False):
+                 log: bool=False,
+                 savedir: str="dump",
+                 configdir: str="config",
+                 filename: str="device"):
         
         self.layout = convert_layout_to_dict(layout)
         self.extrude_config = extrude_config
         self.additional_surfaces = additional_surfaces
         self.electrodes_config = electrodes_config
+        self.savedir = Path(savedir)
+        self.configdir = Path(configdir)
+        self.filename = filename + ".msh2"
 
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
@@ -101,7 +107,8 @@ class GMSHmaker():
             self.physicalSurfaces = self.create_PhysicalSurfaces()
         else:
             self.physicalSurfaces = {}
-        
+
+        self.export_config()
         self.define_mesh(mesh_params)
         
     def get_polygon(self, lname: str, idx: int) -> Polygon:
@@ -476,16 +483,17 @@ class GMSHmaker():
         gmsh.model.mesh.field.setAsBackgroundMesh(minimum)
         gmsh.model.occ.synchronize()
     
-    def create_geo(self, filename: str):
-        gmsh.write(filename + ".geo_unrolled")
+    def create_geo(self):
+        gmsh.write(self.savedir / self.filename + ".geo_unrolled")
     
-    def create_mesh(self, filename: str, dim='2'):
+    def create_mesh(self, dim='2'):
+        os.makedirs(self.savedir, exist_ok=True)
         bar = alive_it([0], title='Gmsh generation ', length=3, spinner='elements', force_tty=True) 
         try:
             for item in bar:
                 gmsh.model.mesh.generate(dim)
                 print("mesh is constructed")
-                gmsh.write(filename + ".msh2")
+                gmsh.write(str(self.savedir / self.filename))
                 print("mesh saved")
         except KeyboardInterrupt:
             print('interrupted by user')
@@ -509,10 +517,13 @@ class GMSHmaker():
     def disable_consoleOutput(self):
         gmsh.option.setNumber("General.Terminal", 0)
 
-    def export_physical(self, save_dir: str):
-        gmsh_physical_config ={
+    def export_config(self):
+        gmsh_config ={
+            'meshfile': self.filename,
+            'extrude': self.extrude_config,
             'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
-        with open(save_dir + r'/gmsh.yaml', 'w') as file:
-            yaml.safe_dump(gmsh_physical_config, file)
+        os.makedirs(self.configdir, exist_ok=True) 
+        with open(self.configdir / "gmsh.yaml", 'w') as file:
+            yaml.safe_dump(gmsh_config, file)

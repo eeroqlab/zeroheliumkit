@@ -4,20 +4,17 @@ freefemer.py
 This module contains functions and a class for creating freefem files. Created by Niyaz B / January 10th, 2023.
 """
 
-import os
-import sys
-import yaml
-import re
-import time
-import asyncio
-import psutil
+import os, yaml, re, time
+import asyncio, psutil
 import numpy as np
 import ipywidgets as widgets
+from dataclasses import dataclass, asdict
+from pathlib import Path
 from datetime import datetime
 from IPython.display import display
 from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
-from dataclasses import dataclass, asdict
+
 
 config_planes_2D = ['xy', 'yz', 'xz']
 config_planes_3D = ['xyZ']
@@ -26,6 +23,7 @@ config_quantity = {'phi': 'u',
                    'Ey': 'dy(u)',
                    'Ez': 'dz(u)',
                    'Cm': None}
+
 
 def scaling_size(bulk_helium_distance: float=1e-1):
     """
@@ -56,29 +54,41 @@ class ExtractConfig():
     coordinate1: tuple
     coordinate2: tuple
     coordinate3: float | tuple
-    additional_name: str
+    additional_name: str = None
 
     def __post_init__(self):
         if self.quantity not in config_quantity.keys():
             raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
-        if self.plane not in config_planes_2D and self.plane not in config_planes_3D:
+        if self.plane not in config_planes_2D + config_planes_3D:
             raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
-        
-        if not isinstance(self.quantity, str):
-            raise TypeError("'quantity' parameter must be a string")
-        if not isinstance(self.plane, str):
-            raise TypeError("'plane' parameter must be a string")
         if not isinstance(self.coordinate1, tuple):
-            raise TypeError("'coordinate1' parameter must be a tuple")
+            raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
-            raise TypeError("'coordinate2' parameter must be a tuple")
+            raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
         if not isinstance(self.coordinate3, float | tuple):
             raise TypeError("'coordinate3' parameter must be a tuple or float")
-        if not isinstance(self.additional_name, str):
-            raise TypeError("'additional_name' parameter must be a string")
-        
+
     def to_dict(self):
         return self.__dict__
+
+
+@dataclass
+class FFconfigurator():
+    """
+    Dataclass to create FreeFEM config yaml file
+    """
+    configdir: str
+    meshconfig: str
+    dielectric_constants: dict
+    ff_polynomial: int
+    extract_opt: list
+
+    def __post_init__(self):
+        with open(self.meshconfig, 'r') as file:
+            gmsh_config = yaml.safe_load(file)
+        ff_config_path = Path(self.configdir) / 'fem.yaml'
+        with open(ff_config_path, 'w') as file:
+            yaml.safe_dump(self.__dict__ | gmsh_config, file)
 
 
 class FreeFEM():
