@@ -77,18 +77,19 @@ class FFconfigurator():
     """
     Dataclass to create FreeFEM config yaml file
     """
-    configdir: str
-    meshconfig: str
+    config_file: str
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list
+    include_helium_curvature: dict=None
 
     def __post_init__(self):
-        with open(self.meshconfig, 'r') as file:
+        with open(self.config_file, 'r') as file:
             gmsh_config = yaml.safe_load(file)
-        ff_config_path = Path(self.configdir) / 'fem.yaml'
-        with open(ff_config_path, 'w') as file:
-            yaml.safe_dump(self.__dict__ | gmsh_config, file)
+        with open(self.config_file, 'w') as file:
+            mergeddict = gmsh_config | self.__dict__
+            del mergeddict["config_file"]
+            yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
 
 class FreeFEM():
@@ -97,8 +98,8 @@ class FreeFEM():
 
     Attributes:
     -----------
-        config (dict): Configuration dictionary containing FreeFEM parameters.
-        dirname (str): Directory name where the FreeFEM files will be saved.
+        config (str): filepath containing FreeFEM config yaml file.
+        savedir (str): Directory name where the FreeFEM files will be saved.
         run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
         cc_files (list): List of coupling constant files.
         res_files (list): List of result files.
@@ -107,21 +108,21 @@ class FreeFEM():
     """
     
     def __init__(self,
-                config: dict,
-                dirname: str,
-                run_from_notebook: bool=False):
+                 config_file: str,
+                 run_from_notebook: bool=False):
 
-        self.config = config
-        self.dirname = dirname
+        with open(config_file, 'r') as file:
+            self.config = yaml.safe_load(file)
+        self.savedir = self.config.get("savedir") + "/"
         self.run_from_notebook = run_from_notebook
         self.cc_files = []
         self.res_files = []
         self.res_name = ""
         self.logs = ""
 
-        self.curvature_config = config.get("include_helium_curvature")
-        self.physicalVols = config.get('physicalVolumes')
-        self.physicalSurfs = config.get('physicalSurfaces')
+        self.curvature_config = self.config.get("include_helium_curvature")
+        self.physicalVols = self.config.get('physicalVolumes')
+        self.physicalSurfs = self.config.get('physicalSurfaces')
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
         self.write_edpScript()
 
@@ -199,7 +200,7 @@ class FreeFEM():
             filename = "electrode_" + str(j)
             self.cc_files.append(filename)
                     
-            with open(self.dirname + filename + '.edp', 'w') as file:
+            with open(self.savedir + filename + '.edp', 'w') as file:
                 file.write(code)
 
 
@@ -210,10 +211,10 @@ class FreeFEM():
         code = """load "msh3"\n"""
         code += """load "gmsh"\n"""
         code += """load "medit"\n"""
-        #code += f"""system("mkdir -p {self.dirname}");\n"""
+        #code += f"""system("mkdir -p {self.savedir}");\n"""
         code += "\n"
         if self.run_from_notebook:
-            path_meshfile = self.dirname + self.config["meshfile"] + '.msh2'
+            path_meshfile = self.savedir + self.config["meshfile"] + '.msh2'
         else:
             path_meshfile = self.config["meshfile"] + '.msh2'
         code += f"""mesh3 Th = gmshload3("{path_meshfile}");\n"""
@@ -278,7 +279,7 @@ class FreeFEM():
             name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "")
 
             if self.run_from_notebook:
-                name = self.dirname + name
+                name = self.savedir + name
             self.res_name = name
             name += f'_{j}'
             self.res_files.append(name)
@@ -530,7 +531,7 @@ class FreeFEM():
         progress = widgets.Label(f"⏳ Running calculations for {edp_file}")
         display(progress)
 
-        bashCommand = ['freefem++', self.dirname + edp_file + '.edp']
+        bashCommand = ['freefem++', self.savedir + edp_file + '.edp']
         env = os.environ.copy()
         env['PATH'] += filepath
         process = await asyncio.create_subprocess_exec(
@@ -570,7 +571,7 @@ class FreeFEM():
     def log_history(self, edp_code: str, total_time: float):
         curr_date = datetime.now()
         try:
-            with open(self.dirname + 'ff_history.md', 'r+', encoding='utf-8') as hist:
+            with open(self.savedir + 'ff_history.md', 'r+', encoding='utf-8') as hist:
                 contents = hist.read()
                 iteration = int(contents[0]) + 1 if contents else 1
                 hist.seek(0)
@@ -581,7 +582,7 @@ class FreeFEM():
                 hist.write(edp_code)
                 hist.write("```\n")
         except FileNotFoundError:
-            with open(self.dirname + 'ff_history.md', 'w', encoding='utf-8') as hist:
+            with open(self.savedir + 'ff_history.md', 'w', encoding='utf-8') as hist:
                 hist.seek(0)
                 hist.write('1')
                 hist.write(f"\n## [1] - {curr_date} - Run in {total_time} seconds\n")
@@ -613,7 +614,7 @@ class FreeFEM():
             indices.append(names.index(electrode_name))
 
         pattern = rf'^##\s+\[({iteration})]'
-        with open(self.dirname + "ff_history.md", 'r+') as hist:
+        with open(self.savedir + "ff_history.md", 'r+') as hist:
             history_content = hist.read()
             match = re.search(pattern, history_content, re.MULTILINE)
 
@@ -636,7 +637,7 @@ class FreeFEM():
 
             for i in indices:
                 code = code.replace('k', str(i))
-                with open(self.dirname + f"electrode_{i}.edp", 'w+') as edp:
+                with open(self.savedir + f"electrode_{i}.edp", 'w+') as edp:
                     edp.write(code)
                 self.cc_files.append(f"electrode_{i}")
                 name = self.res_name
@@ -685,11 +686,11 @@ class FreeFEM():
             self.logs += message
 
         finally:
-            with open(os.path.join(self.dirname, 'ff_logs.txt'), 'w') as outfile:
+            with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
             self.gather_results()
             for file in self.cc_files:
-                os.remove(self.dirname + file + ".edp")
+                os.remove(self.savedir + file + ".edp")
 
             end_time = time.perf_counter()
             total_time = end_time - start_time
@@ -704,5 +705,5 @@ if __name__=="__main__":
     
     with open(r'freefem_config.yaml', 'r') as file:
         config = yaml.safe_load(file)
-    pyff = FreeFEM(config=config, dirname='')
+    pyff = FreeFEM(config=config, savedir='')
     pyff.run(print_log=True)

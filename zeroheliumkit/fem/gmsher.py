@@ -78,8 +78,8 @@ class GMSHmaker():
 
     def __init__(self, 
                  layout: Structure | Entity,
-                 extrude_config: dict, 
-                 electrodes_config: dict, 
+                 extrude_config: dict,
+                 electrodes_config: dict,
                  mesh_params: tuple,
                  additional_surfaces: dict=None,
                  savedir: str="dump",
@@ -518,11 +518,13 @@ class GMSHmaker():
 
     def export_config(self):
         gmsh_config ={
+            'savedir': str(self.savedir),
             'meshfile': self.filename,
             'extrude': self.extrude_config,
             'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
-        os.makedirs(self.configdir, exist_ok=True) 
-        with open(self.configdir / "gmsh.yaml", 'w') as file:
-            yaml.safe_dump(gmsh_config, file)
+        os.makedirs(self.configdir, exist_ok=True)
+        config_filename = self.filename.replace(".msh2","") + ".yaml"
+        with open(self.configdir / config_filename, 'w') as file:
+            yaml.safe_dump(gmsh_config, file, sort_keys=False, indent=3)
