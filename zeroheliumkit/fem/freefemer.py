@@ -141,21 +141,21 @@ class FreeFEM():
         return code
     
 
-    def write_edpContent(self, j: int | str):
+    def write_edpContent(self, electrode_name: int):
         """
         Returns the contents of an electrode_k .edp file with the desired integer or variable in the place of 'k'.
         """
         code = ''
-        code += self.script_create_savefiles(j)
+        code += self.script_create_savefiles(electrode_name)
         code += self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix()
-        code += self.script_problem_definition(j)
+        code += self.script_problem_definition(electrode_name)
 
         for i, extract_config in enumerate(self.config.get('extract_opt')):
             if isinstance(extract_config, ExtractConfig):
                 extract_config = asdict(extract_config)
-            fem_object_name = self.__extract_opt[i] + f'{j}'
+            fem_object_name = self.__extract_opt[i] + electrode_name
             # check supported parameters for extraction
             if extract_config.get("quantity") not in config_quantity.keys():
                 raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
@@ -167,7 +167,7 @@ class FreeFEM():
                 # extract electrostatic field solutions
                 plane = extract_config.get('plane')
                 if plane in config_planes_2D:
-                    code += self.script_save_data_2D(extract_config, fem_object_name, j)
+                    code += self.script_save_data_2D(extract_config, fem_object_name, electrode_name)
                 elif plane in config_planes_3D:
                     code += self.script_save_data_3D(extract_config, fem_object_name)
                 else:
@@ -181,9 +181,9 @@ class FreeFEM():
         Creates the main FreeFEM script based on the configuration and physical surfaces.
         """
         #create new files for each electrode, only inputting the lines of code needed
-        for j in range(self.num_electrodes):
-            code = self.write_edpContent(j)
-            filename = "electrode_" + str(j)
+        for electrode in self.physicalSurfs.keys():
+            code = self.write_edpContent(electrode)
+            filename = "electrode_" + electrode
             self.cc_files.append(filename)
                     
             with open(self.savedir + filename + '.edp', 'w') as file:
@@ -200,7 +200,7 @@ class FreeFEM():
         #code += f"""system("mkdir -p {self.savedir}");\n"""
         code += "\n"
         if self.run_from_notebook:
-            path_meshfile = self.savedir + self.config["meshfile"] + '.msh2'
+            path_meshfile = self.savedir + self.config["meshfile"]
         else:
             path_meshfile = self.config["meshfile"] + '.msh2'
         code += f"""mesh3 Th = gmshload3("{path_meshfile}");\n"""
@@ -218,10 +218,10 @@ class FreeFEM():
         code += "int n1, n2, n3;\n"
         code += "real xmin, xmax, ymin, ymax, ax3, zmin, zmax;\n"
 
-        electrodestring_name = '"' + '","'.join(electrode_names) + '"'
-        code += f"string[int] electrodenames = [{electrodestring_name}];\n"
+        # electrodestring_name = '"' + '","'.join(electrode_names) + '"'
+        # code += f"string[int] electrodenames = [{electrodestring_name}];\n"
 
-        code += f"int[int] electrodeid = {electrode_id};\n"
+        # code += f"int[int] electrodeid = {electrode_id};\n"
         return code
 
 
@@ -233,11 +233,11 @@ class FreeFEM():
 
         code = "\n"
         code += f"int numV = {number_of_electrodes};\n"
-        code += "real[int, int] V(numV, numV);\n"
-        code += "for (int i = 0; i < numV; i+= 1){\n"
-        code += add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
-        code += add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
-        code += add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
+        # code += "real[int, int] V(numV, numV);\n"
+        # code += "for (int i = 0; i < numV; i+= 1){\n"
+        # code += add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
+        # code += add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
+        # code += add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
 
         code += "\n"
         code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
@@ -248,7 +248,7 @@ class FreeFEM():
         return code
 
 
-    def script_create_savefiles(self, j: int):
+    def script_create_savefiles(self, electrode_name: str):
         """
         Creates the necessary files for saving results based on the configuration and electrode index.
 
@@ -267,15 +267,15 @@ class FreeFEM():
             if self.run_from_notebook:
                 name = self.savedir + name
             self.res_name = name
-            name += f'_{j}'
+            name += f'_{electrode_name}'
             self.res_files.append(name)
-            code += f"""ofstream extract{idx}{qty}{j}("{name}.txt");\n"""
+            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.txt");\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
 
         return code
 
 
-    def script_problem_definition(self, electrode_num: int) -> str:
+    def script_problem_definition(self, electrode_name: int) -> str:
         """
         Defines the problem for the electrostatic potential in FreeFEM, including the finite element space and the dielectric constants.
 
@@ -312,20 +312,23 @@ class FreeFEM():
             code += add_spaces(26) + f"""+ {epsilon[k]} * (region == {v})\n"""
         code += add_spaces(26) + ";\n"
 
-        code += add_spaces(4) + "problem Electro(u,v,solver=CG) =\n"
-        code += add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
+        code += "problem Electro(u,v,solver=CG) =\n"
+        code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
 
-        for i, v in enumerate(self.physicalSurfs.values()):
-            code += add_spaces(20) + f"+ on({v},u = V({electrode_num},{i}))\n"
-        code += add_spaces(20) + ";\n"
+        main_electrode = self.physicalSurfs.get(electrode_name)
+        ground_electrodes = [item for item in self.physicalSurfs.values() if item != main_electrode]
+        code += add_spaces(16) + f"+ on({main_electrode},u = 1.0)\n"
+        for v in ground_electrodes:
+            code += add_spaces(16) + f"+ on({v},u = 0.0)\n"
+        code += add_spaces(16) + ";\n"
 
-        code += add_spaces(4) + "Electro;\n"
-        code += add_spaces(4) + """cout << "calculations are finished, saving data" << endl;\n \n"""
+        code += "Electro;\n"
+        code += """cout << "calculations are finished, saving data" << endl;\n \n"""
 
         return code
 
 
-    def script_save_data_2D(self, params: dict, fem_object_name: str, k: int) -> str:
+    def script_save_data_2D(self, params: dict, fem_object_name: str, electrode_name: str) -> str:
         """
         Saves 2D data extraction based on the provided parameters and the FreeFEM object name.
         
@@ -354,43 +357,43 @@ class FreeFEM():
         name = fem_object_name  #params['quantity']
  
         code  = headerFrame("2D DATA EXTRACTION BLOCK START")
-        code += add_spaces(4) + "{\n"
-        code += add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
-        code += add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
-        code += add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
-        code += add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
-        code += add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
-        code += add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
-        code += add_spaces(4) + zcoord_code
-        code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
-        code += add_spaces(4) + "real[int] xList(n1), yList(n2);\n \n"
+        code += "{\n"
+        code += f"n1 = {params['coordinate1'][2]};\n"
+        code += f"n2 = {params['coordinate2'][2]};\n"
+        code += f"xmin = {params['coordinate1'][0]};\n"
+        code += f"xmax = {params['coordinate1'][1]};\n"
+        code += f"ymin = {params['coordinate2'][0]};\n"
+        code += f"ymax = {params['coordinate2'][1]};\n"
+        code += zcoord_code
+        code += "real[int,int] quantity(n1,n2);\n"
+        code += "real[int] xList(n1), yList(n2);\n \n"
 
-        code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
-        code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        code += add_spaces(8) + "xList[i] = ax1;\n"
-        code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
+        code += "for(int i = 0; i < n1; i++){\n"
+        code += add_spaces(4) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += add_spaces(4) + "xList[i] = ax1;\n"
+        code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
         
         quantity = config_quantity.get(params['quantity'])
-        code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        code += add_spaces(12) + "yList[j] = ax2;\n"
+        code += add_spaces(8) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += add_spaces(8) + "yList[j] = ax2;\n"
 
         # working along the helium curvature lines if the option is enabled
         if self.curvature_config:
-            code += add_spaces(12) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
+            code += add_spaces(8) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
 
-        code += add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
-        code += add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] + " ";\n"""
-        code += add_spaces(4) + f"""{name} << quantity << endl;\n"""
-        code += add_spaces(4) + f"""{name} << "END" << endl;\n"""
+        code += add_spaces(8) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
+        code += f"""{name} << "startDATA {electrode_name} ";\n"""
+        code += f"""{name} << quantity << endl;\n"""
+        code += f"""{name} << "END" << endl;\n"""
 
-        code += add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
-        code += add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
-        code += add_spaces(8) + f"""{name} << xList << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "END" << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
-        code += add_spaces(8) + f"""{name} << yList << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
-        code += add_spaces(4) + "}\n"
+        # code += "if (" + electrode_name + " == numV - 1) {\n"
+        code += f"""{name} << "startXY xlist ";\n"""
+        code += f"""{name} << xList << endl;\n"""
+        code += f"""{name} << "END" << endl;\n"""
+        code += f"""{name} << "startXY ylist ";\n"""
+        code += f"""{name} << yList << endl;\n"""
+        code += f"""{name} << "END" << endl;\n""" # + "}\n"
+        code += "}\n"
 
         code += headerFrame("2D DATA EXTRACTION BLOCK END")
 
