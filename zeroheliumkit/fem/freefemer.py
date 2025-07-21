@@ -44,6 +44,10 @@ def headerFrame(header: str) -> str:
     return edp
 
 
+def add_spaces(num: int) -> str:
+    return ' ' * num
+
+
 @dataclass
 class ExtractConfig():
     """
@@ -127,24 +131,6 @@ class FreeFEM():
         self.write_edpScript()
 
 
-    def write_edpScript(self):
-        """
-        Writes the main FreeFEM scripts to a file based on the configuration.
-        """
-        self.create_edpScripts()
-
-
-    def add_spaces(self, num: int) -> str:
-        """
-        Adds a specified number of spaces for indentation in the FreeFEM script.
-
-        Args:
-        -----
-            num (int): Number of spaces to add.
-        """
-        return ' ' * num
-
-
     def add_helium_curvature_edp(self) -> str:
         """
         Adds the helium curvature script to the FreeFEM script if the curvature configuration is provided.
@@ -190,7 +176,7 @@ class FreeFEM():
         return code
     
 
-    def create_edpScripts(self):
+    def write_edpScript(self):
         """
         Creates the main FreeFEM script based on the configuration and physical surfaces.
         """
@@ -249,15 +235,15 @@ class FreeFEM():
         code += f"int numV = {number_of_electrodes};\n"
         code += "real[int, int] V(numV, numV);\n"
         code += "for (int i = 0; i < numV; i+= 1){\n"
-        code += self.add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
-        code += self.add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
-        code += self.add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
+        code += add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
+        code += add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
+        code += add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
 
         code += "\n"
         code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
         code += "for (int i = 0; i < numV; i+= 1){\n"
-        code += self.add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
-        code += self.add_spaces(8) + "CapacitanceMatrix(i, j) = 0.0;}}\n"
+        code += add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
+        code += add_spaces(8) + "CapacitanceMatrix(i, j) = 0.0;}}\n"
 
         return code
 
@@ -323,18 +309,18 @@ class FreeFEM():
         code += "FunctionRegion dielectric =\n"
 
         for k, v in self.physicalVols.items():
-            code += self.add_spaces(26) + f"""+ {epsilon[k]} * (region == {v})\n"""
-        code += self.add_spaces(26) + ";\n"
+            code += add_spaces(26) + f"""+ {epsilon[k]} * (region == {v})\n"""
+        code += add_spaces(26) + ";\n"
 
-        code += self.add_spaces(4) + "problem Electro(u,v,solver=CG) =\n"
-        code += self.add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
+        code += add_spaces(4) + "problem Electro(u,v,solver=CG) =\n"
+        code += add_spaces(20) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
 
         for i, v in enumerate(self.physicalSurfs.values()):
-            code += self.add_spaces(20) + f"+ on({v},u = V({electrode_num},{i}))\n"
-        code += self.add_spaces(20) + ";\n"
+            code += add_spaces(20) + f"+ on({v},u = V({electrode_num},{i}))\n"
+        code += add_spaces(20) + ";\n"
 
-        code += self.add_spaces(4) + "Electro;\n"
-        code += self.add_spaces(4) + """cout << "calculations are finished, saving data" << endl;\n \n"""
+        code += add_spaces(4) + "Electro;\n"
+        code += add_spaces(4) + """cout << "calculations are finished, saving data" << endl;\n \n"""
 
         return code
 
@@ -368,43 +354,43 @@ class FreeFEM():
         name = fem_object_name  #params['quantity']
  
         code  = headerFrame("2D DATA EXTRACTION BLOCK START")
-        code += self.add_spaces(4) + "{\n"
-        code += self.add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
-        code += self.add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
-        code += self.add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
-        code += self.add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
-        code += self.add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
-        code += self.add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
-        code += self.add_spaces(4) + zcoord_code
-        code += self.add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
-        code += self.add_spaces(4) + "real[int] xList(n1), yList(n2);\n \n"
+        code += add_spaces(4) + "{\n"
+        code += add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
+        code += add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
+        code += add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
+        code += add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
+        code += add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
+        code += add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
+        code += add_spaces(4) + zcoord_code
+        code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
+        code += add_spaces(4) + "real[int] xList(n1), yList(n2);\n \n"
 
-        code += self.add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
-        code += self.add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        code += self.add_spaces(8) + "xList[i] = ax1;\n"
-        code += self.add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
+        code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
+        code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += add_spaces(8) + "xList[i] = ax1;\n"
+        code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
         
         quantity = config_quantity.get(params['quantity'])
-        code += self.add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        code += self.add_spaces(12) + "yList[j] = ax2;\n"
+        code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += add_spaces(12) + "yList[j] = ax2;\n"
 
         # working along the helium curvature lines if the option is enabled
         if self.curvature_config:
-            code += self.add_spaces(12) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
+            code += add_spaces(12) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
 
-        code += self.add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
-        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] + " ";\n"""
-        code += self.add_spaces(4) + f"""{name} << quantity << endl;\n"""
-        code += self.add_spaces(4) + f"""{name} << "END" << endl;\n"""
+        code += add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
+        code += add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] + " ";\n"""
+        code += add_spaces(4) + f"""{name} << quantity << endl;\n"""
+        code += add_spaces(4) + f"""{name} << "END" << endl;\n"""
 
-        code += self.add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
-        code += self.add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
-        code += self.add_spaces(8) + f"""{name} << xList << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "END" << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
-        code += self.add_spaces(8) + f"""{name} << yList << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
-        code += self.add_spaces(4) + "}\n"
+        code += add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
+        code += add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
+        code += add_spaces(8) + f"""{name} << xList << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "END" << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
+        code += add_spaces(8) + f"""{name} << yList << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
+        code += add_spaces(4) + "}\n"
 
         code += headerFrame("2D DATA EXTRACTION BLOCK END")
 
@@ -429,64 +415,64 @@ class FreeFEM():
         name = fem_object_name  # params['quantity']
 
         code  = headerFrame("2D SLICES DATA EXTRACTION BLOCK START")
-        code += self.add_spaces(4) + "{\n"
+        code += add_spaces(4) + "{\n"
 
         # working along the helium curvature lines if the option is enabled
         if self.curvature_config:
             bulkHelevels = np.asarray(self.curvature_config["bulk_helium_distances"])
             scaling = scaling_size(bulkHelevels)
             surfaceHelevel = self.curvature_config["surface_helium_level"]
-            code += self.add_spaces(4) + f"n3  = {len(scaling)};\n"
-            code += self.add_spaces(4) + f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
-            code += self.add_spaces(4) + f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
+            code += add_spaces(4) + f"n3  = {len(scaling)};\n"
+            code += add_spaces(4) + f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
+            code += add_spaces(4) + f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
         else:
-            code += self.add_spaces(4) + f"n3  = {params['coordinate3'][2]};\n"
-            code += self.add_spaces(4) + f"zmin  = {params['coordinate3'][0]};\n"
-            code += self.add_spaces(4) + f"zmax  = {params['coordinate3'][1]};\n"
+            code += add_spaces(4) + f"n3  = {params['coordinate3'][2]};\n"
+            code += add_spaces(4) + f"zmin  = {params['coordinate3'][0]};\n"
+            code += add_spaces(4) + f"zmax  = {params['coordinate3'][1]};\n"
 
-        code += self.add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
-        code += self.add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
-        code += self.add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
-        code += self.add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
-        code += self.add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
-        code += self.add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
+        code += add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
+        code += add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
+        code += add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
+        code += add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
+        code += add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
+        code += add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
 
-        code += self.add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
-        code += self.add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
-        code += self.add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] << endl;\n"""
+        code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
+        code += add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
+        code += add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] << endl;\n"""
 
-        code += self.add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
+        code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
-            code += self.add_spaces(8) + "zList[m] = bulkHeliumLevels[m];\n"
+            code += add_spaces(8) + "zList[m] = bulkHeliumLevels[m];\n"
         else:
-            code += self.add_spaces(8) + "real ax3 = zmin + m*(zmax-zmin)/(n3-1);\n"
-            code += self.add_spaces(8) + "zList[m] = ax3;\n"
+            code += add_spaces(8) + "real ax3 = zmin + m*(zmax-zmin)/(n3-1);\n"
+            code += add_spaces(8) + "zList[m] = ax3;\n"
 
-        code += self.add_spaces(8) + f"""{name} << "start2DSLICE " << zList[m] + " ";\n"""
-        code += self.add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
-        code += self.add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        code += self.add_spaces(12) + "xList[i] = ax1;\n"
-        code += self.add_spaces(12) + "for(int j = 0; j < n2; j++){\n"
-        code += self.add_spaces(16) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        code += self.add_spaces(16) + "yList[j] = ax2;\n"
+        code += add_spaces(8) + f"""{name} << "start2DSLICE " << zList[m] + " ";\n"""
+        code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
+        code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += add_spaces(12) + "xList[i] = ax1;\n"
+        code += add_spaces(12) + "for(int j = 0; j < n2; j++){\n"
+        code += add_spaces(16) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += add_spaces(16) + "yList[j] = ax2;\n"
         if self.curvature_config:
-            code += self.add_spaces(16) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
+            code += add_spaces(16) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
         
         quantity = config_quantity.get(params['quantity'])
-        code += self.add_spaces(16) + f"""quantity(i,j) = {quantity}({xyz});""" + "}}\n"
+        code += add_spaces(16) + f"""quantity(i,j) = {quantity}({xyz});""" + "}}\n"
 
-        code += self.add_spaces(8) + f"""{name} << quantity << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "end" << endl;""" + "}\n"
-        code += self.add_spaces(4) + f"""{name} << "END" << endl;\n \n"""
+        code += add_spaces(8) + f"""{name} << quantity << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "end" << endl;""" + "}\n"
+        code += add_spaces(4) + f"""{name} << "END" << endl;\n \n"""
 
-        code += self.add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
-        code += self.add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
-        code += self.add_spaces(8) + f"""{name} << xList << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "END" << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
-        code += self.add_spaces(8) + f"""{name} << yList << endl;\n"""
-        code += self.add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
-        code += self.add_spaces(4) + "}\n"
+        code += add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
+        code += add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
+        code += add_spaces(8) + f"""{name} << xList << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "END" << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
+        code += add_spaces(8) + f"""{name} << yList << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
+        code += add_spaces(4) + "}\n"
 
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
 
@@ -504,16 +490,16 @@ class FreeFEM():
         """
         name = fem_object_name  # params['quantity']
 
-        code = self.add_spaces(4) + "{\n"
-        code += self.add_spaces(4) + "for(int i = k; i < numV; i++){\n"
-        code += self.add_spaces(8) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
-        code += self.add_spaces(46) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
-        code += self.add_spaces(8) + "CapacitanceMatrix(k,i) = charge;\n"
-        code += self.add_spaces(8) + "CapacitanceMatrix(i,k) = charge;}\n"
-        code += self.add_spaces(4) + """if (k == numV - 1){\n"""
-        code += self.add_spaces(8) + f"{name} << electrodenames << endl;\n"
-        code += self.add_spaces(8) + f"{name} << CapacitanceMatrix << endl;" + "}\n"
-        code += self.add_spaces(4) + "}\n"
+        code = add_spaces(4) + "{\n"
+        code += add_spaces(4) + "for(int i = k; i < numV; i++){\n"
+        code += add_spaces(8) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
+        code += add_spaces(46) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
+        code += add_spaces(8) + "CapacitanceMatrix(k,i) = charge;\n"
+        code += add_spaces(8) + "CapacitanceMatrix(i,k) = charge;}\n"
+        code += add_spaces(4) + """if (k == numV - 1){\n"""
+        code += add_spaces(8) + f"{name} << electrodenames << endl;\n"
+        code += add_spaces(8) + f"{name} << CapacitanceMatrix << endl;" + "}\n"
+        code += add_spaces(4) + "}\n"
 
         return code
 
@@ -702,8 +688,6 @@ class FreeFEM():
 
 
 if __name__=="__main__":
-    
-    with open(r'freefem_config.yaml', 'r') as file:
-        config = yaml.safe_load(file)
-    pyff = FreeFEM(config=config, savedir='')
+
+    pyff = FreeFEM(config_file="config/dot.yaml")
     pyff.run(print_log=True)
