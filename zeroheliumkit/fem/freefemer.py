@@ -84,7 +84,7 @@ class FFconfigurator():
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
-    extract_opt: list
+    extract_opt: list[ExtractConfig]
     include_helium_curvature: dict=None
 
     def __post_init__(self):
@@ -92,6 +92,7 @@ class FFconfigurator():
             gmsh_config = yaml.safe_load(file)
         with open(self.config_file, 'w') as file:
             mergeddict = gmsh_config | self.__dict__
+            mergeddict['extract_opt'] = [asdict(e) if hasattr(e, '__dict__') else e for e in self.extract_opt]
             del mergeddict["config_file"]
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
@@ -106,8 +107,8 @@ class FreeFEM():
         savedir (str): Directory name where the FreeFEM files will be saved.
         run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
         cc_files (list): List of coupling constant files.
-        res_files (list): List of result files.
-        res_name (str): Name of the result file.
+        res_files (list): 2D list of result files based on extract configs.
+        res_name (str): List of names for the result files.
         logs (str): Log messages from the FreeFEM execution.
     """
     
@@ -121,13 +122,15 @@ class FreeFEM():
         self.run_from_notebook = run_from_notebook
         self.cc_files = []
         self.res_files = []
-        self.res_name = ""
+        self.res_name = []
         self.logs = ""
 
         self.curvature_config = self.config.get("include_helium_curvature")
         self.physicalVols = self.config.get('physicalVolumes')
         self.physicalSurfs = self.config.get('physicalSurfaces')
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
+        if isinstance(self.config.get('extract_opt'), dict):
+            self.config['extract_opt'] = [self.config['extract_opt']]
         self.write_edpScript()
 
 
@@ -258,7 +261,9 @@ class FreeFEM():
         """
         code = "\n"
         self.__extract_opt = {}
+
         for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
+            self.res_files.append([])
             addname = extract_cfg['additional_name']
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
@@ -266,16 +271,15 @@ class FreeFEM():
 
             if self.run_from_notebook:
                 name = self.savedir + name
-            self.res_name = name
+            self.res_name.append(name)
             name += f'_{electrode_name}'
-            self.res_files.append(name)
+            self.res_files[idx].append(name)
             code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.txt");\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
 
         return code
 
-
-    def script_problem_definition(self, electrode_name: int) -> str:
+    def script_problem_definition(self, electrode_name: str) -> str:
         """
         Defines the problem for the electrostatic potential in FreeFEM, including the finite element space and the dielectric constants.
 
@@ -386,13 +390,6 @@ class FreeFEM():
         code += f"""{name} << quantity << endl;\n"""
         code += f"""{name} << "END" << endl;\n"""
 
-        # code += "if (" + electrode_name + " == numV - 1) {\n"
-        code += f"""{name} << "startXY xlist ";\n"""
-        code += f"""{name} << xList << endl;\n"""
-        code += f"""{name} << "END" << endl;\n"""
-        code += f"""{name} << "startXY ylist ";\n"""
-        code += f"""{name} << yList << endl;\n"""
-        code += f"""{name} << "END" << endl;\n""" # + "}\n"
         code += "}\n"
 
         code += headerFrame("2D DATA EXTRACTION BLOCK END")
@@ -400,7 +397,7 @@ class FreeFEM():
         return code  
 
 
-    def script_save_data_3D(self, params: dict, fem_object_name: str, k: int) -> str:
+    def script_save_data_3D(self, params: dict, fem_object_name: str, electrode_name: str) -> str:
         """
         Saves 3D data extraction based on the provided parameters and the FreeFEM object name.
 
@@ -442,7 +439,8 @@ class FreeFEM():
 
         code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
         code += add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
-        code += add_spaces(4) + f"""{name} << "startDATA " + electrodenames[{k}] << endl;\n"""
+
+        code += add_spaces(4) + f"""{name} << "startDATA " + {electrode_name} << endl;\n"""
 
         code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
@@ -452,6 +450,7 @@ class FreeFEM():
             code += add_spaces(8) + "zList[m] = ax3;\n"
 
         code += add_spaces(8) + f"""{name} << "start2DSLICE " << zList[m] + " ";\n"""
+
         code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         code += add_spaces(12) + "xList[i] = ax1;\n"
@@ -465,16 +464,8 @@ class FreeFEM():
         code += add_spaces(16) + f"""quantity(i,j) = {quantity}({xyz});""" + "}}\n"
 
         code += add_spaces(8) + f"""{name} << quantity << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "end" << endl;""" + "}\n"
-        code += add_spaces(4) + f"""{name} << "END" << endl;\n \n"""
-
-        code += add_spaces(4) + "if (" + str(k) + " == numV - 1) {\n"
-        code += add_spaces(8) + f"""{name} << "startXY xlist ";\n"""
-        code += add_spaces(8) + f"""{name} << xList << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "END" << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "startXY ylist ";\n"""
-        code += add_spaces(8) + f"""{name} << yList << endl;\n"""
         code += add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
+    
         code += add_spaces(4) + "}\n"
 
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
@@ -541,20 +532,29 @@ class FreeFEM():
         progress.value = f"✅ {edp_file} complete"
 
 
-    def gather_results(self):
+    def gather_results(self, res_num: int=None):
         """
         Gathers the results from the individual FreeFEM result files into a single file.
 
         Args:
         -----
-            res_files (list): List of result files to gather.
-            res_name (str): Name of the result file to save the gathered results.
+            res_num (int): Index of the extract config to gather results for.
         """
-        with open(f"{self.res_name}.txt", "w") as res:
-            for file in self.res_files:
+        if res_num > 0:
+            header_data = self.config.get('extract_opt')[res_num]
+            filename = f"ff_data_{header_data['additional_name']}.txt"
+        else:
+            filename = "ff_data.txt"
+            header_data = self.config.get('extract_opt')[0]
+         
+        with open(self.savedir + filename, "w") as res:
+            res.write(f"## RAN [{header_data['quantity']}] ON PLANE [{header_data['plane']}] ## \n")
+            res.write(f"## COORD1: [{header_data['coordinate1']}] // COORD2: [{header_data['coordinate2']}] ##\n")
+            for file in self.res_files[res_num]:
                 with open(f"{file}.txt", "r") as f:
                     res.write(f.read())
                 os.remove(f"{file}.txt")
+            self.res_files[res_num].clear()
 
 
     def log_history(self, edp_code: str, total_time: float):
@@ -562,9 +562,10 @@ class FreeFEM():
         try:
             with open(self.savedir + 'ff_history.md', 'r+', encoding='utf-8') as hist:
                 contents = hist.read()
-                iteration = int(contents[0]) + 1 if contents else 1
+                start_header = contents.find("\n")
+                iteration = int(contents[0:start_header]) + 1 if contents else 1
                 hist.seek(0)
-                hist.write(str(iteration))
+                hist.write(str(iteration) + "\n")
                 hist.seek(0, 2) 
                 hist.write(f"\n## [{iteration}] - {curr_date} - Run in {total_time} seconds\n")
                 hist.write("```freefem\n")
@@ -592,15 +593,11 @@ class FreeFEM():
 
     async def run_from_history(self, iteration: int, electrode_name: int | list, cores: int, 
                                print_log: bool=False, freefem_path: str=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
-        indices = []
-        names = list(self.physicalSurfs.keys())
+        names = []
         if electrode_name is None:
-            indices = list(i for i in range(self.num_electrodes))
-        elif isinstance(electrode_name, list):
-            for name in electrode_name:
-                indices.append(names.index(name))
+            names = list(self.physicalSurfs.keys())
         elif isinstance(electrode_name, str):
-            indices.append(names.index(electrode_name))
+            names = [electrode_name]
 
         pattern = rf'^##\s+\[({iteration})]'
         with open(self.savedir + "ff_history.md", 'r+') as hist:
@@ -620,19 +617,30 @@ class FreeFEM():
             hist.seek(0)
             history_content = hist.read()
             code = history_content[code_start + 12:code_end]
-            self.cc_files = []
-            self.res_files = []
+            self.cc_files.clear()
+            self.res_files.clear()
             self.logs = ""
 
-            for i in indices:
-                code = code.replace('k', str(i))
-                with open(self.savedir + f"electrode_{i}.edp", 'w+') as edp:
-                    edp.write(code)
-                self.cc_files.append(f"electrode_{i}")
-                name = self.res_name
-                name += f'_{i}'
-                self.res_files.append(name)
-                code = history_content[code_start + 12:code_end]
+            problem_start = code.find("fespace")
+            if problem_start != -1:
+                problem_end = code.find("endl;", problem_start)
+            else:
+                raise ValueError("Given edp file from History does not contain a problem definition block.")
+
+            for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
+                for name in names:
+                    temp_code = self.script_problem_definition(name)
+                    new_code = code[0:problem_start] + temp_code + code[problem_end + 5::]
+                    new_code = new_code.replace('k', name)
+                    
+                    with open(self.savedir + f"electrode_{name}.edp", 'w+') as edp:
+                        edp.write(new_code)
+                    self.cc_files.append(f"electrode_{name}")
+                    res_name = self.res_name[idx]
+                    res_name += f'_{name}'
+                    self.res_files.append(res_name[idx])
+                    new_code = ""
+                    temp_code = ""
             await self.run(cores, print_log, freefem_path)
 
 
@@ -677,15 +685,21 @@ class FreeFEM():
         finally:
             with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
-            self.gather_results()
+            for i, _ in enumerate(self.config.get('extract_opt')):
+                self.gather_results(i)
+            filename = self.cc_files[0]
+            with open(self.savedir + filename + ".edp", 'r') as file:
+                skel_name = self.cc_files[0].split('_')[-1]
+                edp_skel = file.read()
             for file in self.cc_files:
                 os.remove(self.savedir + file + ".edp")
+            self.cc_files.clear()
 
             end_time = time.perf_counter()
             total_time = end_time - start_time
 
-            skel_code = self.write_edpContent('k')
-            self.log_history(skel_code, total_time)
+            edp_skel = edp_skel.replace(skel_name, 'k')
+            self.log_history(edp_skel, total_time)
 
             print(f'Freefem calculations are complete. Ran in {total_time:.2f} seconds.')
 
