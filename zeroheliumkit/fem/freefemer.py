@@ -84,15 +84,25 @@ class FFconfigurator():
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
-    extract_opt: list[ExtractConfig]
+    extract_opt: list[ExtractConfig] | dict
     include_helium_curvature: dict=None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
             gmsh_config = yaml.safe_load(file)
         with open(self.config_file, 'w') as file:
-            mergeddict = gmsh_config | self.__dict__
-            mergeddict['extract_opt'] = [asdict(e) if hasattr(e, '__dict__') else e for e in self.extract_opt]
+            mergeddict = None
+            if isinstance(self.extract_opt, list):
+                #if it is a list of ExtractConfig objects
+                mergeddict = gmsh_config | self.__dict__
+                mergeddict['extract_opt'] = [asdict(e) if hasattr(e, '__dict__') else e for e in self.extract_opt]
+            elif isinstance(self.extract_opt, ExtractConfig):
+                #if it is a singular ExtractConfig object
+                mergeddict = gmsh_config | self.__dict__
+                mergeddict['extract_opt'] = self.extract_opt.to_dict()
+            elif isinstance(self.extract_opt, dict):
+                #if it is a dictionary
+                mergeddict = gmsh_config | self.extract_opt
             del mergeddict["config_file"]
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
@@ -149,6 +159,8 @@ class FreeFEM():
         Returns the contents of an electrode_k .edp file with the desired integer or variable in the place of 'k'.
         """
         code = ''
+        if self.curvature_config:
+            code += self.add_helium_curvature_edp()
         code += self.script_create_savefiles(electrode_name)
         code += self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
@@ -172,7 +184,7 @@ class FreeFEM():
                 if plane in config_planes_2D:
                     code += self.script_save_data_2D(extract_config, fem_object_name, electrode_name)
                 elif plane in config_planes_3D:
-                    code += self.script_save_data_3D(extract_config, fem_object_name)
+                    code += self.script_save_data_3D(extract_config, fem_object_name, electrode_name)
                 else:
                     raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
         
@@ -276,7 +288,7 @@ class FreeFEM():
             self.res_files[idx].append(name)
             code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.txt");\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
-
+        
         return code
 
     def script_problem_definition(self, electrode_name: str) -> str:
@@ -405,7 +417,7 @@ class FreeFEM():
         -----
             params (dict): Dictionary containing the parameters for the 3D data extraction.
             fem_object_name (str): Name of the FreeFEM object to save the data to.
-            k (int): Index of the electrode for which the data is being saved.
+            electrode_name (str): Name of the electrode for which the data is being saved.
         """
         if params.get('plane')=='xyZ':
             xyz = "ax1,ax2,ax3"
@@ -440,7 +452,7 @@ class FreeFEM():
         code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
         code += add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
 
-        code += add_spaces(4) + f"""{name} << "startDATA " + {electrode_name} << endl;\n"""
+        code += add_spaces(4) + f"""{name} << "startDATA {electrode_name}" << endl;\n"""
 
         code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
@@ -548,8 +560,14 @@ class FreeFEM():
             header_data = self.config.get('extract_opt')[0]
          
         with open(self.savedir + filename, "w") as res:
-            res.write(f"## RAN [{header_data['quantity']}] ON PLANE [{header_data['plane']}] ## \n")
-            res.write(f"## COORD1: [{header_data['coordinate1']}] // COORD2: [{header_data['coordinate2']}] ##\n")
+            res.write(f"## CONFIG: \n")
+            res.write(f"    quantity: {header_data['quantity']}\n")
+            res.write(f"    plane: {header_data['plane']}\n")
+            res.write(f"    coordinate1: {header_data['coordinate1']}\n")
+            res.write(f"    coordinate2: {header_data['coordinate2']}\n")
+            if header_data['coordinate3']:
+                res.write(f"    coordinate3: {header_data['coordinate3']}\n")
+            res.write('\n')
             for file in self.res_files[res_num]:
                 with open(f"{file}.txt", "r") as f:
                     res.write(f.read())

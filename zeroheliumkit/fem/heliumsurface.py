@@ -344,12 +344,12 @@ class HeliumSurfaceFreeFEM():
 
     def save_edp(self, filename: str):
         with open(filename + ".edp", 'w') as f:
-            f.write(self.create_edp())
+            f.write(self.create_edp(self.fem_config['savedir']))
 
 
     def get_code_config(self, bulk_helium_distances: float|list=0, surface_helium_level: float=0):
         config = {
-            "script": self.create_edp(),
+            "script": self.create_edp(self.fem_config['savedir']),
             "displacement": "disp",
             "bulk_helium_distances": bulk_helium_distances if isinstance(bulk_helium_distances, list) else [bulk_helium_distances],
             "surface_helium_level": surface_helium_level
