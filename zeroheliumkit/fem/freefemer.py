@@ -28,6 +28,14 @@ config_quantity = {'phi': 'u',
 def scaling_size(bulk_helium_distance: float=1e-1):
     """
     Calculates the scaling size for the helium curvature displacement based on the bulk helium distance.
+
+    Args:
+    -----
+        bulk_helium_distance (float): The distance between the bulk helium atoms in meters. Default is 1e-1 m.
+
+    Returns:
+    --------
+        lengthscale (float): The scaling size in micrometers.
     """
     lengthscale = (rho * g * bulk_helium_distance)/alpha * 1e-6      # in um
     return lengthscale
@@ -35,7 +43,16 @@ def scaling_size(bulk_helium_distance: float=1e-1):
 
 def headerFrame(header: str) -> str:
     """
-    Creates a header frame for the FreeFEM script."""
+    Creates a header frame for the FreeFEM script.
+
+    Args:
+    -----
+        header (str): The header text to be included in the frame.
+
+    Returns:
+    --------
+        edp (str): A formatted string containing the header frame.
+    """
     edp = '\n//////////////////////////////////////////////////////////\n'
     edp += '//\n'
     edp += '//    ' + header + '\n'
@@ -45,6 +62,17 @@ def headerFrame(header: str) -> str:
 
 
 def add_spaces(num: int) -> str:
+    """
+    Adds a specified number of spaces for indentation in the FreeFEM script.
+
+    Args:
+    -----
+        num (int): The number of spaces to add.
+
+    Returns:
+    --------
+        str: A string containing the specified number of spaces.
+    """
     return ' ' * num
 
 
@@ -52,12 +80,21 @@ def add_spaces(num: int) -> str:
 class ExtractConfig():
     """
     Data class for storing extraction configuration parameters.
+
+    Attributes:
+    -----------
+        - quantity (str): The quantity to be extracted (e.g., 'phi', 'Ex', 'Ey', 'Ez', 'Cm').
+        - plane (str): The plane for extraction (e.g., 'xy', 'yz', 'xz', 'xyZ').
+        - coordinate1 (tuple): A tuple containing the start and end coordinates and the number of points for the first coordinate.
+        - coordinate2 (tuple): A tuple containing the start and end coordinates and the number of points for the second coordinate.
+        - coordinate3 (float | list): A float or list of floats for the third coordinate.
+        - additional_name (str, optional): An additional name to append to the result file name.
     """ 
     quantity: str
     plane: str
     coordinate1: tuple
     coordinate2: tuple
-    coordinate3: float | tuple
+    coordinate3: float | list
     additional_name: str = None
 
     def __post_init__(self):
@@ -69,8 +106,8 @@ class ExtractConfig():
             raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
             raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
-        if not isinstance(self.coordinate3, float | tuple):
-            raise TypeError("'coordinate3' parameter must be a tuple or float")
+        if not isinstance(self.coordinate3, float | list):
+            raise TypeError("'coordinate3' parameter must be a list or float")
 
     def to_dict(self):
         return self.__dict__
@@ -79,7 +116,15 @@ class ExtractConfig():
 @dataclass
 class FFconfigurator():
     """
-    Dataclass to create FreeFEM config yaml file
+    Dataclass to create the FreeFEM config yaml file.
+
+    Attributes:
+    -----------
+        - config_file (str): Path to the FreeFEM config yaml file.
+        - dielectric_constants (dict): Dictionary containing the dielectric constants for different physical volumes.
+        - ff_polynomial (int): Polynomial order for the FreeFEM script.
+        - extract_opt (list[ExtractConfig] | dict): List of ExtractConfig objects or a dictionary containing extraction options.
+        - include_helium_curvature (dict): Optional dictionary containing helium curvature configuration. 
     """
     config_file: str
     dielectric_constants: dict
@@ -147,6 +192,8 @@ class FreeFEM():
     def add_helium_curvature_edp(self) -> str:
         """
         Adds the helium curvature script to the FreeFEM script if the curvature configuration is provided.
+
+        Returns:-
         """
         code  = headerFrame("HELIUM CURVATURE")
         code += self.curvature_config["script"]
@@ -154,9 +201,17 @@ class FreeFEM():
         return code
     
 
-    def write_edpContent(self, electrode_name: int):
+    def write_edpContent(self, electrode_name: int) -> str:
         """
-        Returns the contents of an electrode_k .edp file with the desired integer or variable in the place of 'k'.
+        Returns the contents of an electrode_k.edp file with the desired electrode name in the place of 'k'.
+
+        Args:
+        -----
+            - electrode_name (str): Name of the electrode to generate .edp file content for.
+
+        Returns:
+        --------
+            code (str): code containing the entire edp content written for electrode_name.
         """
         code = ''
         if self.curvature_config:
@@ -205,9 +260,13 @@ class FreeFEM():
                 file.write(code)
 
 
-    def script_load_packages_and_mesh(self):
+    def script_load_packages_and_mesh(self) -> str:
         """
         Loads the necessary FreeFEM packages and the mesh file into the script.
+
+        Returns:
+        --------
+            code (str): code containing the necessary FreeFEM packages and mesh file declarations.
         """
         code = """load "msh3"\n"""
         code += """load "gmsh"\n"""
@@ -225,6 +284,10 @@ class FreeFEM():
     def script_declare_variables(self) -> str:
         """
         Declares the necessary variables for the FreeFEM script, including physical surfaces and volumes.
+
+        Returns:
+        --------
+            code (str): code containing the necessary variable declarations.
         """
         electrode_names = list(self.physicalSurfs.keys())
         electrode_id = list(self.physicalSurfs.values())
@@ -243,16 +306,19 @@ class FreeFEM():
     def script_create_coupling_const_matrix(self) -> str:
         """
         Creates the coupling constant matrix for the FreeFEM script, which is used to define the interaction between electrodes.
+
+        Returns:
+        --------
+            code (str): code containing the coupling constant matrix
+
+        Returns:
+        --------
+            code (str): code containing the coupling constant matrix.
         """
         number_of_electrodes = len(list(self.physicalSurfs.keys()))
 
         code = "\n"
         code += f"int numV = {number_of_electrodes};\n"
-        # code += "real[int, int] V(numV, numV);\n"
-        # code += "for (int i = 0; i < numV; i+= 1){\n"
-        # code += add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
-        # code += add_spaces(8) + "if (i == j) {V(i, j) = 1.0;}\n"
-        # code += add_spaces(8) + "else {V(i, j) = 1e-5;}}}\n"
 
         code += "\n"
         code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
@@ -269,7 +335,11 @@ class FreeFEM():
 
         Args:
         -----
-            j (int): Index of the electrode for which the files are being created.
+            - electrode_name (str): Name of the electrode for which the files are being created.
+
+        Returns:
+        --------
+            code (str): string containing the necessary lines of code to save the data.
         """
         code = "\n"
         self.__extract_opt = {}
@@ -297,7 +367,11 @@ class FreeFEM():
 
         Args:
         -----
-            electrode_num (int): Index of the electrode for which the problem is being defined.
+            - electrode_name (str): Name of the electrode for which the problem is being defined.
+
+        Returns:
+        --------
+            code (str): code containing the problem definition.
         """
         polynomial = self.config["ff_polynomial"]
         epsilon = self.config["dielectric_constants"]
@@ -350,9 +424,13 @@ class FreeFEM():
         
         Args:
         -----
-            params (dict): Dictionary containing the parameters for the 2D data extraction.
-            fem_object_name (str): Name of the FreeFEM object to save the data to.
-            k (int): Index of the electrode for which the data is being saved.
+            - params (dict): Dictionary containing the parameters for the 2D data extraction.
+            - fem_object_name (str): Name of the FreeFEM object to save the data to.
+            - electrode_name (str): of the electrode for which the data is being saved.
+
+        Returns:
+        --------
+            code (str): code containing the 2D data saving code.
         """
         if params.get('plane')=='xy':
             xyz = "ax1,ax2,ax3"
@@ -415,12 +493,16 @@ class FreeFEM():
 
         Args:
         -----
-            params (dict): Dictionary containing the parameters for the 3D data extraction.
-            fem_object_name (str): Name of the FreeFEM object to save the data to.
-            electrode_name (str): Name of the electrode for which the data is being saved.
+            - params (dict): Dictionary containing the parameters for the 3D data extraction.
+            - fem_object_name (str): Name of the FreeFEM object to save the data to.
+            - electrode_name (str): Name of the electrode for which the data is being saved.
+
+        Returns:
+        --------
+            code (str): code containing the 2D slicing code.
         """
         if params.get('plane')=='xyZ':
-            xyz = "ax1,ax2,ax3"
+            xyz = "ax1,ax2,zcoords[m]"
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
 
@@ -442,6 +524,8 @@ class FreeFEM():
             code += add_spaces(4) + f"zmin  = {params['coordinate3'][0]};\n"
             code += add_spaces(4) + f"zmax  = {params['coordinate3'][1]};\n"
 
+        code += add_spaces(4) + f"real[int] zcoords = {list(params['coordinate3'])};\n"
+
         code += add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
         code += add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
         code += add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
@@ -457,9 +541,6 @@ class FreeFEM():
         code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
             code += add_spaces(8) + "zList[m] = bulkHeliumLevels[m];\n"
-        else:
-            code += add_spaces(8) + "real ax3 = zmin + m*(zmax-zmin)/(n3-1);\n"
-            code += add_spaces(8) + "zList[m] = ax3;\n"
 
         code += add_spaces(8) + f"""{name} << "start2DSLICE " << zList[m] + " ";\n"""
 
@@ -491,8 +572,12 @@ class FreeFEM():
         
         Args:
         -----
-            params (dict): Dictionary containing the parameters for the capacitance matrix extraction.
-            fem_object_name (str): Name of the FreeFEM object to save the capacitance matrix to.
+            - params (dict): Dictionary containing the parameters for the capacitance matrix extraction.
+            - fem_object_name (str): Name of the FreeFEM object to save the capacitance matrix to.
+
+        Returns:
+        --------
+            code (str): code containing the Capacitance Matrix.
         """
         name = fem_object_name  # params['quantity']
 
@@ -516,9 +601,9 @@ class FreeFEM():
         
         Args:
         -----
-            edp_file (str): Name of the FreeFEM script file to execute.
-            filepath (str): Path to the FreeFEM executable.
-            print_log (bool): Flag to indicate whether to print the output log.
+            - edp_file (str): Name of the FreeFEM script file to execute.
+            - filepath (str): Path to the FreeFEM executable.
+            - print_log (bool): Flag to indicate whether to print the output log.
         """
         progress = widgets.Label(f"⏳ Running calculations for {edp_file}")
         display(progress)
@@ -550,7 +635,7 @@ class FreeFEM():
 
         Args:
         -----
-            res_num (int): Index of the extract config to gather results for.
+            - res_num (int): Index of the extract config to gather results for.
         """
         if res_num > 0:
             header_data = self.config.get('extract_opt')[res_num]
@@ -576,6 +661,14 @@ class FreeFEM():
 
 
     def log_history(self, edp_code: str, total_time: float):
+        """
+        Logs the current run and edp code to an existing, running history file (ff_history.md)
+
+        Args:
+        -----
+            - edp_code (str): Skeleton edp code to place in the body of the history entry.
+            - total_time (float): Time elapsed from the latest FreeFem calculation to input in the header.
+        """
         curr_date = datetime.now()
         try:
             with open(self.savedir + 'ff_history.md', 'r+', encoding='utf-8') as hist:
@@ -604,6 +697,10 @@ class FreeFEM():
     async def limited_exec(self, semaphore, *args, **kwargs):
         """
         Executes the FreeFEM script with a semaphore to limit the number of concurrent executions.
+
+        Args:
+        -----
+            - semaphore (asyncio.Semaphore): Semaphore to run the edp_exec method with.
         """
         async with semaphore:
             await self.edp_exec(*args, **kwargs)
@@ -611,6 +708,16 @@ class FreeFEM():
 
     async def run_from_history(self, iteration: int, electrode_name: int | list, cores: int, 
                                print_log: bool=False, freefem_path: str=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
+        """
+        Runs the edp file from a given iteration of the ff_history.md file.
+
+        Args:
+        -----
+            - iteration (int): Iteration number to grab the edp code from.
+            - electrode name (int | list): Name(s) of the electrode(s) to run again on this edp file.
+            - print_log (bool): Whether or not to print the logs to stdout. Defaults to False.
+            - freefem_path (str): Path to the FreeFem package. Has a default path. 
+        """
         names = []
         if electrode_name is None:
             names = list(self.physicalSurfs.keys())
@@ -645,7 +752,7 @@ class FreeFEM():
             else:
                 raise ValueError("Given edp file from History does not contain a problem definition block.")
 
-            for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
+            for idx, _ in enumerate(self.config.get('extract_opt')):
                 for name in names:
                     temp_code = self.script_problem_definition(name)
                     new_code = code[0:problem_start] + temp_code + code[problem_end + 5::]
@@ -677,10 +784,6 @@ class FreeFEM():
         """
         
         sys_cores = psutil.cpu_count(logical=False)
-        # calculations_num = len(self.cc_files)
-        # print(f"Your system has {sys_cores} cores and needs to run {calculations_num} calculations.")
-        # core_count = int(input("Please enter the number of cores you would like to use:"))
-
         if cores > sys_cores:
             raise ValueError(f"Input core count is greater than the available cores on this system.")
         semaphore = asyncio.Semaphore(cores)
