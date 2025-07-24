@@ -7,6 +7,8 @@ This module contains functions and a class for creating freefem files. Created b
 import os, yaml, re, time
 import asyncio, psutil
 import numpy as np
+import pandas as pd
+import ast
 import ipywidgets as widgets
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -176,8 +178,8 @@ class FreeFEM():
         self.savedir = self.config.get("savedir") + "/"
         self.run_from_notebook = run_from_notebook
         self.cc_files = []
-        self.res_files = []
-        self.res_name = []
+        self.res_files = [[] for _ in range(len(self.config.get('extract_opt')))]
+        self.res_name = [None for _ in range(len(self.config.get('extract_opt')))]
         self.logs = ""
 
         self.curvature_config = self.config.get("include_helium_curvature")
@@ -345,7 +347,6 @@ class FreeFEM():
         self.__extract_opt = {}
 
         for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
-            self.res_files.append([])
             addname = extract_cfg['additional_name']
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
@@ -353,10 +354,10 @@ class FreeFEM():
 
             if self.run_from_notebook:
                 name = self.savedir + name
-            self.res_name.append(name)
+            self.res_name[idx] = name
             name += f'_{electrode_name}'
             self.res_files[idx].append(name)
-            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.txt");\n"""
+            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.btxt", binary);\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
         
         return code
@@ -449,6 +450,7 @@ class FreeFEM():
             zcoord_code = f"ax3  = {params['coordinate3']};\n"
         
         name = fem_object_name  #params['quantity']
+
  
         code  = headerFrame("2D DATA EXTRACTION BLOCK START")
         code += "{\n"
@@ -462,9 +464,12 @@ class FreeFEM():
         code += "real[int,int] quantity(n1,n2);\n"
         code += "real[int] xList(n1), yList(n2);\n \n"
 
+        code += f"""{name} << "[['STARTDATA - {electrode_name}'] " << endl;\n"""
+
         code += "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(4) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         code += add_spaces(4) + "xList[i] = ax1;\n"
+        code += add_spaces(4) + f"""{name} << ",[ " << endl;\n"""
         code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
         
         quantity = config_quantity.get(params['quantity'])
@@ -475,10 +480,17 @@ class FreeFEM():
         if self.curvature_config:
             code += add_spaces(8) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
 
-        code += add_spaces(8) + f"quantity(i,j) = {quantity}({xyz});" + "}}\n \n"
-        code += f"""{name} << "startDATA {electrode_name} ";\n"""
-        code += f"""{name} << quantity << endl;\n"""
-        code += f"""{name} << "END" << endl;\n"""
+        code += add_spaces(8) + f"quantity(i,j) = {quantity}({xyz});" + "\n \n"
+        code += add_spaces(8) + """if (j != 0) {;\n"""
+        code += add_spaces(12) + f"""{name} << "," << endl;\n"""
+        code += add_spaces(8) + """}\n"""
+        code += add_spaces(8) + f"""{name} << quantity(i,j) << endl;\n"""
+        code += add_spaces(8) + """}\n"""
+        code += add_spaces(4) + f"""{name} << "]" << endl;\n"""
+        code += add_spaces(4) + """}\n"""
+        code += f"""{name} << "]" << endl;\n"""
+
+        #code += f"""{name} << "END" << endl;\n"""
 
         code += "}\n"
 
@@ -536,15 +548,17 @@ class FreeFEM():
         code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
         code += add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
 
-        code += add_spaces(4) + f"""{name} << "startDATA {electrode_name}" << endl;\n"""
+        code += add_spaces(4) + f"""{name} << "[ " << endl;\n""" 
 
         code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
             code += add_spaces(8) + "zList[m] = bulkHeliumLevels[m];\n"
-
-        code += add_spaces(8) + f"""{name} << "start2DSLICE " << zList[m] + " ";\n"""
+        
+        code += add_spaces(8) + f"""{name} << "[ " << endl;\n"""
+        code += add_spaces(8) + f"""{name} << "['START SLICE - {electrode_name}'] " << endl;\n"""
 
         code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
+        code += add_spaces(8) + f"""{name} << ",[ " << endl;\n"""
         code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         code += add_spaces(12) + "xList[i] = ax1;\n"
         code += add_spaces(12) + "for(int j = 0; j < n2; j++){\n"
@@ -554,14 +568,26 @@ class FreeFEM():
             code += add_spaces(16) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
         
         quantity = config_quantity.get(params['quantity'])
-        code += add_spaces(16) + f"""quantity(i,j) = {quantity}({xyz});""" + "}}\n"
-
-        code += add_spaces(8) + f"""{name} << quantity << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "END" << endl;""" + "}\n"
+        
+        code += add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "\n \n"
+        code += add_spaces(12) + """if (j != 0) {;\n"""
+        code += add_spaces(16) + f"""{name} << "," << endl;\n"""
+        code += add_spaces(12) + """}\n"""
+        code += add_spaces(12) + f"""{name} << quantity(i,j) << endl;\n"""
+        code += add_spaces(12) + """}\n"""
+        code += add_spaces(8) + f"""{name} << "]" << endl;\n"""
+        code += add_spaces(8) + """}\n"""
+        code += add_spaces(8) + f"""{name} << "]" << endl;\n"""
+        code += add_spaces(8) + """if (m != n3 - 1) {"""
+        code += add_spaces(12) + f"""{name} << "," << endl;\n"""
+        code += add_spaces(8) + "}"
     
         code += add_spaces(4) + "}\n"
+        code += add_spaces(4) + f"""{name} << "]" << endl;\n"""
 
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
+
+        code += add_spaces(4) + "}\n"
 
         return code
 
@@ -629,6 +655,19 @@ class FreeFEM():
         progress.value = f"✅ {edp_file} complete"
 
 
+    def write_res_header(self, header_data):
+        code = ""
+        code += [f"CONFIG: \n"]
+        code += [f"    quantity: {header_data['quantity']}\n"]
+        code += [f"    plane: {header_data['plane']}\n"]
+        code += [f"    coordinate1: {header_data['coordinate1']}\n"]
+        code += [f"    coordinate2: {header_data['coordinate2']}\n"]
+        if header_data['coordinate3']:
+            code += [f"    coordinate3: {header_data['coordinate3']}\n"]
+        code += ['\n']
+
+        return code
+
     def gather_results(self, res_num: int=None):
         """
         Gathers the results from the individual FreeFEM result files into a single file.
@@ -639,25 +678,47 @@ class FreeFEM():
         """
         if res_num > 0:
             header_data = self.config.get('extract_opt')[res_num]
-            filename = f"ff_data_{header_data['additional_name']}.txt"
+            filename = f"ff_data_{header_data['additional_name']}"
         else:
-            filename = "ff_data.txt"
+            filename = "ff_data"
             header_data = self.config.get('extract_opt')[0]
-         
-        with open(self.savedir + filename, "w") as res:
-            res.write(f"## CONFIG: \n")
-            res.write(f"    quantity: {header_data['quantity']}\n")
-            res.write(f"    plane: {header_data['plane']}\n")
-            res.write(f"    coordinate1: {header_data['coordinate1']}\n")
-            res.write(f"    coordinate2: {header_data['coordinate2']}\n")
-            if header_data['coordinate3']:
-                res.write(f"    coordinate3: {header_data['coordinate3']}\n")
-            res.write('\n')
-            for file in self.res_files[res_num]:
-                with open(f"{file}.txt", "r") as f:
-                    res.write(f.read())
-                os.remove(f"{file}.txt")
-            self.res_files[res_num].clear()
+        
+        filepath = self.savedir + filename + ".csv"
+
+        open(filepath, "w+").close()
+
+        config = self.config.get('extract_opt')[res_num]
+        pd.DataFrame([[f"QUANTITY: {config['quantity']}"]]).to_csv(filepath, index=False, header=False, mode='a')
+        pd.DataFrame([[f"PLANE: {config['plane']}"]]).to_csv(filepath, index=False, header=False, mode='a')
+        pd.DataFrame([[f"COORDINATE1: {config['coordinate1']}"]]).to_csv(filepath, index=False, header=False, mode='a')
+        pd.DataFrame([[f"COORDINATE2: {config['coordinate2']}"]]).to_csv(filepath, index=False, header=False, mode='a')
+        if config['coordinate3']:
+            pd.DataFrame([[f"COORDINATE3: {config['coordinate3']}"]]).to_csv(filepath, index=False, header=False, mode='a')
+        pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+
+        for file in self.res_files[res_num]:
+            res = open(file + ".btxt") 
+            data = res.read() #this is a 2d array
+            data = data.replace('\n', '')
+            data = data.replace(' ', '')
+            data_list = ast.literal_eval(data)
+            
+            plane = self.config.get('extract_opt')[res_num]['plane']
+            if plane in config_planes_2D:
+                pd.DataFrame([[data_list.pop(0)]]).to_csv(filepath, index=False, header=False, mode='a')
+                frame = pd.DataFrame(data_list)
+                frame.to_csv(filepath, index=False, header=False, mode='a')
+                pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+            elif plane in config_planes_3D:
+                for slice in data_list:
+                    pd.DataFrame([[slice.pop(0)]]).to_csv(filepath, index=False, header=False, mode='a')
+                    frame = pd.DataFrame(slice)
+                    frame.to_csv(filepath, index=False, header=False, mode='a')
+                    pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+
+            res.close()
+            os.remove(f"{file}.btxt")
+        self.res_files[res_num].clear()
 
 
     def log_history(self, edp_code: str, total_time: float):
@@ -743,7 +804,7 @@ class FreeFEM():
             history_content = hist.read()
             code = history_content[code_start + 12:code_end]
             self.cc_files.clear()
-            self.res_files.clear()
+            self.res_files = [[] for _ in range(len(self.config.get('extract_opt')))]
             self.logs = ""
 
             problem_start = code.find("fespace")
@@ -763,7 +824,7 @@ class FreeFEM():
                     self.cc_files.append(f"electrode_{name}")
                     res_name = self.res_name[idx]
                     res_name += f'_{name}'
-                    self.res_files.append(res_name[idx])
+                    self.res_files[idx].append(res_name)
                     new_code = ""
                     temp_code = ""
             await self.run(cores, print_log, freefem_path)
