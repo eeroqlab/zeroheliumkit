@@ -8,7 +8,7 @@ import os, yaml, re, time
 import asyncio, psutil
 import numpy as np
 import pandas as pd
-import ast
+import warnings
 import ipywidgets as widgets
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -188,6 +188,10 @@ class FreeFEM():
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
         if isinstance(self.config.get('extract_opt'), dict):
             self.config['extract_opt'] = [self.config['extract_opt']]
+
+        for config in self.config.get('extract_opt'):
+            if self.curvature_config and config['coordinate3']:
+                warnings.warn("Both a curvature config and coordinate3 has been provided. The value passed in for coordinate3 will be ignored, please use None for coordinate3 with Helium Curvature enabled.") 
         self.write_edpScript()
 
 
@@ -502,7 +506,10 @@ class FreeFEM():
             code (str): code containing the 2D slicing code.
         """
         if params.get('plane')=='xyZ':
-            xyz = "ax1,ax2,zcoords[m]"
+            if self.curvature_config:
+                xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
+            else:
+                xyz = "ax1,ax2,zcoords[m]"
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
 
@@ -524,7 +531,7 @@ class FreeFEM():
             code += add_spaces(4) + f"zmin  = {params['coordinate3'][0]};\n"
             code += add_spaces(4) + f"zmax  = {params['coordinate3'][1]};\n"
 
-        code += add_spaces(4) + f"real[int] zcoords = {list(params['coordinate3'])};\n"
+            code += add_spaces(4) + f"real[int] zcoords = {list(params['coordinate3'])};\n"
 
         code += add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
         code += add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
@@ -629,14 +636,15 @@ class FreeFEM():
 
     def write_res_header(self, header_data):
         code = ""
-        code += [f"CONFIG: \n"]
-        code += [f"    quantity: {header_data['quantity']}\n"]
-        code += [f"    plane: {header_data['plane']}\n"]
-        code += [f"    coordinate1: {header_data['coordinate1']}\n"]
-        code += [f"    coordinate2: {header_data['coordinate2']}\n"]
+        code += f"CONFIG: \n"
+        code += f"    quantity: {header_data['quantity']}\n"
+        code += f"    plane: {header_data['plane']}\n"
+        code += f"    coordinate1: {header_data['coordinate1']}\n"
+        code += f"    coordinate2: {header_data['coordinate2']}\n"
         if header_data['coordinate3']:
-            code += [f"    coordinate3: {header_data['coordinate3']}\n"]
-        code += ['\n']
+            code += f"    coordinate3: {header_data['coordinate3']}\n"
+        code += f"    helium curvature: {bool(self.curvature_config)}"
+        code += '\n'
 
         return code
 
@@ -649,23 +657,17 @@ class FreeFEM():
             - res_num (int): Index of the extract config to gather results for.
         """
         if res_num > 0:
-            header_data = self.config.get('extract_opt')[res_num]
-            filename = f"ff_data_{header_data['additional_name']}"
+            config = self.config.get('extract_opt')[res_num]
+            filename = f"ff_data_{config['additional_name']}"
         else:
             filename = "ff_data"
-            header_data = self.config.get('extract_opt')[0]
+            config = self.config.get('extract_opt')[0]
         
         filepath = self.savedir + filename + ".csv"
 
         open(filepath, "w+").close()
 
-        config = self.config.get('extract_opt')[res_num]
-        pd.DataFrame([[f"QUANTITY: {config['quantity']}"]]).to_csv(filepath, index=False, header=False, mode='a')
-        pd.DataFrame([[f"PLANE: {config['plane']}"]]).to_csv(filepath, index=False, header=False, mode='a')
-        pd.DataFrame([[f"COORDINATE1: {config['coordinate1']}"]]).to_csv(filepath, index=False, header=False, mode='a')
-        pd.DataFrame([[f"COORDINATE2: {config['coordinate2']}"]]).to_csv(filepath, index=False, header=False, mode='a')
-        if config['coordinate3']:
-            pd.DataFrame([[f"COORDINATE3: {config['coordinate3']}"]]).to_csv(filepath, index=False, header=False, mode='a')
+        pd.DataFrame([[self.write_res_header(config)]]).to_csv(filepath, index=False, header=False, mode='a')
         pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
 
         for file in self.res_files[res_num]:
@@ -678,10 +680,12 @@ class FreeFEM():
 
             n1 = config['coordinate1'][2]
             n2 = config['coordinate2'][2]
-            if isinstance(config['coordinate3'], list):
+            if self.curvature_config:
+                n3 = len(self.curvature_config['bulk_helium_distances'])
+            elif isinstance(config['coordinate3'], list):
                 n3 = len(config['coordinate3'])
-            elif isinstance(config['coordinate3'], float):
-                n3 = config['coordinate3']
+            else:
+                n3 = 1
 
             if config['plane'] in config_planes_3D:
                 pd.DataFrame([[f"START SLICE - {electrode_name}"]]).to_csv(filepath, index=False, header=False, mode='a')
