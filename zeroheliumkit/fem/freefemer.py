@@ -679,7 +679,7 @@ class FreeFEM():
             n1 = config['coordinate1'][2]
             n2 = config['coordinate2'][2]
             if isinstance(config['coordinate3'], list):
-                n3 = len(config['coordinate3'][2])
+                n3 = len(config['coordinate3'])
             elif isinstance(config['coordinate3'], float):
                 n3 = config['coordinate3']
 
