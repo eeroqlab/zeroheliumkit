@@ -720,6 +720,9 @@ class FreeFEM():
                 hist.write(str(iteration) + "\n")
                 hist.seek(0, 2) 
                 hist.write(f"\n## [{iteration}] - {curr_date} - Run in {total_time} seconds\n")
+                config = self.config.get('extract_opt')
+                for c in config:
+                    hist.write(f"## QUANTITY: {c['quantity']} - PLANE: {c['plane']} - COORD1: {c['coordinate1']} - COORD2: {c['coordinate2']} - COORD3: {c['coordinate3']}\n")
                 hist.write("```freefem\n")
                 hist.write(edp_code)
                 hist.write("```\n")
