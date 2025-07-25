@@ -464,12 +464,9 @@ class FreeFEM():
         code += "real[int,int] quantity(n1,n2);\n"
         code += "real[int] xList(n1), yList(n2);\n \n"
 
-        code += f"""{name} << "[['STARTDATA - {electrode_name}'] " << endl;\n"""
-
         code += "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(4) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         code += add_spaces(4) + "xList[i] = ax1;\n"
-        code += add_spaces(4) + f"""{name} << ",[ " << endl;\n"""
         code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
         
         quantity = config_quantity.get(params['quantity'])
@@ -480,18 +477,9 @@ class FreeFEM():
         if self.curvature_config:
             code += add_spaces(8) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
 
-        code += add_spaces(8) + f"quantity(i,j) = {quantity}({xyz});" + "\n \n"
-        code += add_spaces(8) + """if (j != 0) {;\n"""
-        code += add_spaces(12) + f"""{name} << "," << endl;\n"""
+        code += add_spaces(8) + f"""{name} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(8) + """}\n"""
-        code += add_spaces(8) + f"""{name} << quantity(i,j) << endl;\n"""
-        code += add_spaces(8) + """}\n"""
-        code += add_spaces(4) + f"""{name} << "]" << endl;\n"""
         code += add_spaces(4) + """}\n"""
-        code += f"""{name} << "]" << endl;\n"""
-
-        #code += f"""{name} << "END" << endl;\n"""
-
         code += "}\n"
 
         code += headerFrame("2D DATA EXTRACTION BLOCK END")
@@ -548,17 +536,11 @@ class FreeFEM():
         code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
         code += add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
 
-        code += add_spaces(4) + f"""{name} << "[ " << endl;\n""" 
-
         code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
             code += add_spaces(8) + "zList[m] = bulkHeliumLevels[m];\n"
         
-        code += add_spaces(8) + f"""{name} << "[ " << endl;\n"""
-        code += add_spaces(8) + f"""{name} << "['START SLICE - {electrode_name}'] " << endl;\n"""
-
         code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
-        code += add_spaces(8) + f"""{name} << ",[ " << endl;\n"""
         code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         code += add_spaces(12) + "xList[i] = ax1;\n"
         code += add_spaces(12) + "for(int j = 0; j < n2; j++){\n"
@@ -568,22 +550,12 @@ class FreeFEM():
             code += add_spaces(16) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
         
         quantity = config_quantity.get(params['quantity'])
-        
-        code += add_spaces(12) + f"quantity(i,j) = {quantity}({xyz});" + "\n \n"
-        code += add_spaces(12) + """if (j != 0) {;\n"""
-        code += add_spaces(16) + f"""{name} << "," << endl;\n"""
+
+        code += add_spaces(16) + f"""{name} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(12) + """}\n"""
-        code += add_spaces(12) + f"""{name} << quantity(i,j) << endl;\n"""
-        code += add_spaces(12) + """}\n"""
-        code += add_spaces(8) + f"""{name} << "]" << endl;\n"""
         code += add_spaces(8) + """}\n"""
-        code += add_spaces(8) + f"""{name} << "]" << endl;\n"""
-        code += add_spaces(8) + """if (m != n3 - 1) {"""
-        code += add_spaces(12) + f"""{name} << "," << endl;\n"""
-        code += add_spaces(8) + "}"
     
         code += add_spaces(4) + "}\n"
-        code += add_spaces(4) + f"""{name} << "]" << endl;\n"""
 
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
 
@@ -697,26 +669,34 @@ class FreeFEM():
         pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
 
         for file in self.res_files[res_num]:
-            res = open(file + ".btxt") 
-            data = res.read() #this is a 2d array
-            data = data.replace('\n', '')
-            data = data.replace(' ', '')
-            data_list = ast.literal_eval(data)
-            
-            plane = self.config.get('extract_opt')[res_num]['plane']
-            if plane in config_planes_2D:
-                pd.DataFrame([[data_list.pop(0)]]).to_csv(filepath, index=False, header=False, mode='a')
-                frame = pd.DataFrame(data_list)
-                frame.to_csv(filepath, index=False, header=False, mode='a')
-                pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-            elif plane in config_planes_3D:
-                for slice in data_list:
-                    pd.DataFrame([[slice.pop(0)]]).to_csv(filepath, index=False, header=False, mode='a')
+            electrode_name = file.split('_')[-1]
+
+            f = open(file + ".btxt", 'r')
+            array = f.read().split('\n')
+            array.pop(-1)
+            array = np.array(array)
+
+            n1 = config['coordinate1'][2]
+            n2 = config['coordinate2'][2]
+            if isinstance(config['coordinate3'], list):
+                n3 = config['coordinate3'][2]
+            elif isinstance(config['coordinate3'], float):
+                n3 = config['coordinate3']
+
+            if config['plane'] in config_planes_3D:
+                pd.DataFrame([[f"START SLICE - {electrode_name}"]]).to_csv(filepath, index=False, header=False, mode='a')
+                new_arr = array.reshape((n3, n1, n2))
+                for slice in new_arr:
                     frame = pd.DataFrame(slice)
                     frame.to_csv(filepath, index=False, header=False, mode='a')
                     pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+            elif config['plane'] in config_planes_2D:
+                pd.DataFrame([[f"START DATA - {electrode_name}"]]).to_csv(filepath, index=False, header=False, mode='a')
+                new_arr = array.reshape((n1, n2))
+                frame = pd.DataFrame(new_arr)
+                frame.to_csv(filepath, index=False, header=False, mode='a')
+                pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
 
-            res.close()
             os.remove(f"{file}.btxt")
         self.res_files[res_num].clear()
 
