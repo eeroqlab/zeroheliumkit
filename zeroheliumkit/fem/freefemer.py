@@ -193,6 +193,27 @@ class FreeFEM():
         self.write_edpScript()
 
 
+    def valid_result(self, config, array_len: int):
+        n1 = config['coordinate1'][2]
+        n2 = config['coordinate2'][2]
+        if self.curvature_config:
+            n3 = len(self.curvature_config['bulk_helium_distances'])
+        elif isinstance(config['coordinate3'], list):
+            n3 = len(config['coordinate3'])
+        else:
+            n3 = 1
+
+        if config['plane'] in config_planes_3D:
+            expected_size = n3 * n1 * n2
+        elif config['plane'] in config_planes_2D:
+            expected_size = n1 * n2
+        else:
+            raise ValueError("Unknown plane type in config.")
+
+        is_valid = array_len == expected_size
+        return is_valid
+
+
     def add_helium_curvature_edp(self) -> str:
         """
         Adds the helium curvature script to the FreeFEM script if the curvature configuration is provided.
@@ -663,46 +684,51 @@ class FreeFEM():
 
         open(filepath, "w+").close()
 
-        for i, _ in enumerate(self.config.get('extract_opt')):
-            config = self.config.get('extract_opt')[i]
+        try:
+            for i, _ in enumerate(self.config.get('extract_opt')):
+                config = self.config.get('extract_opt')[i]
 
-            if not single_data_file and config['additional_name']:
-                filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{config['additional_name']}"
-                filepath = self.savedir + filename + ".csv"
+                if not single_data_file and config['additional_name']:
+                    filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{config['additional_name']}"
+                    filepath = self.savedir + filename + ".csv"
 
-            pd.DataFrame([[self.write_res_header(config)]]).to_csv(filepath, index=False, header=False, mode='a')
-            pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-            
-            for file in self.result_files[i]:
-                electrode_name = file.split('_')[-1]
+                pd.DataFrame([[self.write_res_header(config)]]).to_csv(filepath, index=False, header=False, mode='a')
+                pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+                
+                for file in self.result_files[i]:
+                    electrode_name = file.split('_')[-1]
 
-                array = np.loadtxt(file + ".btxt")
+                    array = np.loadtxt(file + ".btxt")
+                    if not self.valid_result(config, len(array)):
+                        raise ValueError("Values provided for n1, n2, and (n3) do not match with the return result file.")
 
-                n1 = config['coordinate1'][2]
-                n2 = config['coordinate2'][2]
-                if self.curvature_config:
-                    n3 = len(self.curvature_config['bulk_helium_distances'])
-                elif isinstance(config['coordinate3'], list):
-                    n3 = len(config['coordinate3'])
-                else:
-                    n3 = 1
+                    n1 = config['coordinate1'][2]
+                    n2 = config['coordinate2'][2]
+                    if self.curvature_config:
+                        n3 = len(self.curvature_config['bulk_helium_distances'])
+                    elif isinstance(config['coordinate3'], list):
+                        n3 = len(config['coordinate3'])
+                    else:
+                        n3 = 1
 
-                if config['plane'] in config_planes_3D:
-                    pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
-                    new_arr = array.reshape((n3, n1, n2))
-                    for slice in new_arr:
-                        frame = pd.DataFrame(slice)
+                    if config['plane'] in config_planes_3D:
+                        pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                        new_arr = array.reshape((n3, n1, n2))
+                        for slice in new_arr:
+                            frame = pd.DataFrame(slice)
+                            frame.to_csv(filepath, index=False, header=False, mode='a')
+                            pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+                    elif config['plane'] in config_planes_2D:
+                        pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                        new_arr = array.reshape((n1, n2))
+                        frame = pd.DataFrame(new_arr)
                         frame.to_csv(filepath, index=False, header=False, mode='a')
                         pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-                elif config['plane'] in config_planes_2D:
-                    pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
-                    new_arr = array.reshape((n1, n2))
-                    frame = pd.DataFrame(new_arr)
-                    frame.to_csv(filepath, index=False, header=False, mode='a')
-                    pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
 
-                os.remove(f"{file}.btxt")
-            self.result_files[i].clear()
+                    os.remove(f"{file}.btxt")
+                self.result_files[i].clear()
+        except:
+            print("Incorrect matrix parameters for results files.")
 
 
     def log_history(self, edp_code: str, total_time: float):
