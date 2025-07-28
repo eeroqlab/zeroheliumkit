@@ -516,57 +516,57 @@ class FreeFEM():
         name = fem_object_name  # params['quantity']
 
         code  = headerFrame("2D SLICES DATA EXTRACTION BLOCK START")
-        code += add_spaces(4) + "{\n"
+        code += "{\n"
 
         # working along the helium curvature lines if the option is enabled
         if self.curvature_config:
             bulkHelevels = np.asarray(self.curvature_config["bulk_helium_distances"])
             scaling = scaling_size(bulkHelevels)
             surfaceHelevel = self.curvature_config["surface_helium_level"]
-            code += add_spaces(4) + f"n3  = {len(scaling)};\n"
-            code += add_spaces(4) + f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
-            code += add_spaces(4) + f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
+            code += f"n3  = {len(scaling)};\n"
+            code += f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
+            code += f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
         else:
-            code += add_spaces(4) + f"n3  = {params['coordinate3'][2]};\n"
-            code += add_spaces(4) + f"zmin  = {params['coordinate3'][0]};\n"
-            code += add_spaces(4) + f"zmax  = {params['coordinate3'][1]};\n"
+            code += f"n3  = {params['coordinate3'][2]};\n"
+            code += f"zmin  = {params['coordinate3'][0]};\n"
+            code += f"zmax  = {params['coordinate3'][1]};\n"
 
-            code += add_spaces(4) + f"real[int] zcoords = {list(params['coordinate3'])};\n"
+            code += f"real[int] zcoords = {list(params['coordinate3'])};\n"
 
-        code += add_spaces(4) + f"n1 = {params['coordinate1'][2]};\n"
-        code += add_spaces(4) + f"xmin = {params['coordinate1'][0]};\n"
-        code += add_spaces(4) + f"xmax = {params['coordinate1'][1]};\n"
-        code += add_spaces(4) + f"n2 = {params['coordinate2'][2]};\n"
-        code += add_spaces(4) + f"ymin = {params['coordinate2'][0]};\n"
-        code += add_spaces(4) + f"ymax = {params['coordinate2'][1]};\n"
+        code += f"n1 = {params['coordinate1'][2]};\n"
+        code += f"xmin = {params['coordinate1'][0]};\n"
+        code += f"xmax = {params['coordinate1'][1]};\n"
+        code += f"n2 = {params['coordinate2'][2]};\n"
+        code += f"ymin = {params['coordinate2'][0]};\n"
+        code += f"ymax = {params['coordinate2'][1]};\n"
 
-        code += add_spaces(4) + "real[int,int] quantity(n1,n2);\n"
-        code += add_spaces(4) + "real[int] xList(n1), yList(n2), zList(n3);\n \n"
+        code += "real[int,int] quantity(n1,n2);\n"
+        code += "real[int] xList(n1), yList(n2), zList(n3);\n \n"
 
-        code += add_spaces(4) + "for(int m = 0; m < n3; m++){\n"
+        code += "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
-            code += add_spaces(8) + "zList[m] = bulkHeliumLevels[m];\n"
+            code += add_spaces(4) + "zList[m] = bulkHeliumLevels[m];\n"
         
-        code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
-        code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        code += add_spaces(12) + "xList[i] = ax1;\n"
-        code += add_spaces(12) + "for(int j = 0; j < n2; j++){\n"
-        code += add_spaces(16) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        code += add_spaces(16) + "yList[j] = ax2;\n"
+        code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
+        code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += add_spaces(8) + "xList[i] = ax1;\n"
+        code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
+        code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += add_spaces(12) + "yList[j] = ax2;\n"
         if self.curvature_config:
-            code += add_spaces(16) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
+            code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
         
         quantity = config_quantity.get(params['quantity'])
 
-        code += add_spaces(16) + f"""{name} << {quantity}({xyz}) << endl;\n"""
+        code += add_spaces(12) + f"""{name} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(12) + """}\n"""
         code += add_spaces(8) + """}\n"""
     
         code += add_spaces(4) + "}\n"
 
-        code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
+        code += "}\n"
 
-        code += add_spaces(4) + "}\n"
+        code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
 
         return code
 
@@ -673,10 +673,11 @@ class FreeFEM():
         for file in self.res_files[res_num]:
             electrode_name = file.split('_')[-1]
 
-            f = open(file + ".btxt", 'r')
-            array = f.read().split('\n')
-            array.pop(-1)
-            array = np.array(array)
+            # f = open(file + ".btxt", 'r')
+            # array = f.read().split('\n')
+            # array.pop(-1)
+            # array = np.array(array)
+            array = np.loadtxt(file + ".btxt")
 
             n1 = config['coordinate1'][2]
             n2 = config['coordinate2'][2]
