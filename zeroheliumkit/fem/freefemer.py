@@ -164,9 +164,9 @@ class FreeFEM():
         config (str): filepath containing FreeFEM config yaml file.
         savedir (str): Directory name where the FreeFEM files will be saved.
         run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
-        cc_files (list): List of coupling constant files.
-        res_files (list): 2D list of result files based on extract configs.
-        res_name (str): List of names for the result files.
+        electrode_files (list): List of coupling constant files.
+        result_files (list): 2D list of existing electrode result files based on extract configs.
+        extract_names (str): List of names for the cumulative result files based on extract configs.
         logs (str): Log messages from the FreeFEM execution.
     """
     
@@ -178,9 +178,9 @@ class FreeFEM():
             self.config = yaml.safe_load(file)
         self.savedir = self.config.get("savedir") + "/"
         self.run_from_notebook = run_from_notebook
-        self.cc_files = []
-        self.res_files = [[] for _ in range(len(self.config.get('extract_opt')))]
-        self.res_name = [None for _ in range(len(self.config.get('extract_opt')))]
+        self.electrode_files = []
+        self.result_files = [[] for _ in range(len(self.config.get('extract_opt')))]
+        self.extract_names = [None for _ in range(len(self.config.get('extract_opt')))]
         self.logs = ""
 
         self.curvature_config = self.config.get("include_helium_curvature")
@@ -258,7 +258,7 @@ class FreeFEM():
         for electrode in self.physicalSurfs.keys():
             code = self.write_edpContent(electrode)
             filename = "electrode_" + electrode
-            self.cc_files.append(filename)
+            self.electrode_files.append(filename)
                     
             with open(self.savedir + filename + '.edp', 'w') as file:
                 file.write(code)
@@ -356,9 +356,9 @@ class FreeFEM():
 
             if self.run_from_notebook:
                 name = self.savedir + name
-            self.res_name[idx] = name
+            self.extract_names[idx] = name
             name += f'_{electrode_name}'
-            self.res_files[idx].append(name)
+            self.result_files[idx].append(name)
             code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.btxt", binary);\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
         
@@ -629,20 +629,27 @@ class FreeFEM():
 
 
     def write_res_header(self, header_data):
-        code = ""
-        code += f"CONFIG: \n"
-        code += f"    quantity: {header_data['quantity']}\n"
-        code += f"    plane: {header_data['plane']}\n"
-        code += f"    coordinate1: {header_data['coordinate1']}\n"
-        code += f"    coordinate2: {header_data['coordinate2']}\n"
-        if header_data['coordinate3']:
-            code += f"    coordinate3: {header_data['coordinate3']}\n"
-        code += f"    helium curvature: {bool(self.curvature_config)}"
-        code += '\n'
+        lines = []
+        lines.append("---") 
+        if header_data.get('additional_name'):
+            lines.append(f"CONFIG - {header_data['additional_name']}")
+        else:
+            lines.append("CONFIG")
+        lines.append(f"quantity,{header_data['quantity']}")
+        lines.append(f"plane,{header_data['plane']}")
+        lines.append(f"coordinate1,{tuple(header_data['coordinate1'])}")
+        lines.append(f"coordinate2,{tuple(header_data['coordinate2'])}")
+        if header_data.get('coordinate3'):
+            lines.append(f"coordinate3,{header_data['coordinate3']}")
+        if not self.curvature_config:
+            lines.append(f"helium_curvature,{bool(self.curvature_config)}")
+        else:
+            lines.append(f"helium_curvature, {self.curvature_config['bulk_helium_distances']}")
+        lines.append("---")
+        return "\n".join(lines) + "\n"
 
-        return code
 
-    def gather_results(self, res_num: int=None):
+    def gather_results(self, single_data_file: bool=False):
         """
         Gathers the results from the individual FreeFEM result files into a single file.
 
@@ -650,54 +657,52 @@ class FreeFEM():
         -----
             - res_num (int): Index of the extract config to gather results for.
         """
-        if res_num > 0:
-            config = self.config.get('extract_opt')[res_num]
-            filename = f"ff_data_{config['additional_name']}"
-        else:
-            filename = "ff_data"
-            config = self.config.get('extract_opt')[0]
+        filename = "ff_data_" + self.config['meshfile'].split('.')[0]
         
         filepath = self.savedir + filename + ".csv"
 
         open(filepath, "w+").close()
 
-        pd.DataFrame([[self.write_res_header(config)]]).to_csv(filepath, index=False, header=False, mode='a')
-        pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+        for i, _ in enumerate(self.config.get('extract_opt')):
+            config = self.config.get('extract_opt')[i]
 
-        for file in self.res_files[res_num]:
-            electrode_name = file.split('_')[-1]
+            if not single_data_file and config['additional_name']:
+                filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{config['additional_name']}"
+                filepath = self.savedir + filename + ".csv"
 
-            # f = open(file + ".btxt", 'r')
-            # array = f.read().split('\n')
-            # array.pop(-1)
-            # array = np.array(array)
-            array = np.loadtxt(file + ".btxt")
+            pd.DataFrame([[self.write_res_header(config)]]).to_csv(filepath, index=False, header=False, mode='a')
+            pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+            
+            for file in self.result_files[i]:
+                electrode_name = file.split('_')[-1]
 
-            n1 = config['coordinate1'][2]
-            n2 = config['coordinate2'][2]
-            if self.curvature_config:
-                n3 = len(self.curvature_config['bulk_helium_distances'])
-            elif isinstance(config['coordinate3'], list):
-                n3 = len(config['coordinate3'])
-            else:
-                n3 = 1
+                array = np.loadtxt(file + ".btxt")
 
-            if config['plane'] in config_planes_3D:
-                pd.DataFrame([[f"START SLICE - {electrode_name}"]]).to_csv(filepath, index=False, header=False, mode='a')
-                new_arr = array.reshape((n3, n1, n2))
-                for slice in new_arr:
-                    frame = pd.DataFrame(slice)
+                n1 = config['coordinate1'][2]
+                n2 = config['coordinate2'][2]
+                if self.curvature_config:
+                    n3 = len(self.curvature_config['bulk_helium_distances'])
+                elif isinstance(config['coordinate3'], list):
+                    n3 = len(config['coordinate3'])
+                else:
+                    n3 = 1
+
+                if config['plane'] in config_planes_3D:
+                    pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                    new_arr = array.reshape((n3, n1, n2))
+                    for slice in new_arr:
+                        frame = pd.DataFrame(slice)
+                        frame.to_csv(filepath, index=False, header=False, mode='a')
+                        pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+                elif config['plane'] in config_planes_2D:
+                    pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                    new_arr = array.reshape((n1, n2))
+                    frame = pd.DataFrame(new_arr)
                     frame.to_csv(filepath, index=False, header=False, mode='a')
                     pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-            elif config['plane'] in config_planes_2D:
-                pd.DataFrame([[f"START DATA - {electrode_name}"]]).to_csv(filepath, index=False, header=False, mode='a')
-                new_arr = array.reshape((n1, n2))
-                frame = pd.DataFrame(new_arr)
-                frame.to_csv(filepath, index=False, header=False, mode='a')
-                pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
 
-            os.remove(f"{file}.btxt")
-        self.res_files[res_num].clear()
+                os.remove(f"{file}.btxt")
+            self.result_files[i].clear()
 
 
     def log_history(self, edp_code: str, total_time: float):
@@ -785,8 +790,8 @@ class FreeFEM():
             hist.seek(0)
             history_content = hist.read()
             code = history_content[code_start + 12:code_end]
-            self.cc_files.clear()
-            self.res_files = [[] for _ in range(len(self.config.get('extract_opt')))]
+            self.electrode_files.clear()
+            self.result_files = [[] for _ in range(len(self.config.get('extract_opt')))]
             self.logs = ""
 
             problem_start = code.find("fespace")
@@ -803,10 +808,10 @@ class FreeFEM():
                     
                     with open(self.savedir + f"electrode_{name}.edp", 'w+') as edp:
                         edp.write(new_code)
-                    self.cc_files.append(f"electrode_{name}")
-                    res_name = self.res_name[idx]
-                    res_name += f'_{name}'
-                    self.res_files[idx].append(res_name)
+                    self.electrode_files.append(f"electrode_{name}")
+                    extract_names = self.extract_names[idx]
+                    extract_names += f'_{name}'
+                    self.result_files[idx].append(extract_names)
                     new_code = ""
                     temp_code = ""
             await self.run(cores, print_log, freefem_path)
@@ -815,6 +820,7 @@ class FreeFEM():
     async def run(self,
             cores,
             print_log=False,
+            single_data_file=True,
             freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
         """
         Runs the FreeFEM calculations asynchronously with a specified number of cores.
@@ -836,7 +842,7 @@ class FreeFEM():
         try:
             asynch_in = [
                 self.limited_exec(semaphore, edp_name, freefem_path, print_log)
-                for edp_name in self.cc_files
+                for edp_name in self.electrode_files
             ]
 
             await asyncio.gather(*asynch_in)
@@ -849,15 +855,15 @@ class FreeFEM():
         finally:
             with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
-            for i, _ in enumerate(self.config.get('extract_opt')):
-                self.gather_results(i)
-            filename = self.cc_files[0]
+                
+            self.gather_results(single_data_file)
+            filename = self.electrode_files[0]
             with open(self.savedir + filename + ".edp", 'r') as file:
-                skel_name = self.cc_files[0].split('_')[-1]
+                skel_name = self.electrode_files[0].split('_')[-1]
                 edp_skel = file.read()
-            for file in self.cc_files:
+            for file in self.electrode_files:
                 os.remove(self.savedir + file + ".edp")
-            self.cc_files.clear()
+            self.electrode_files.clear()
 
             end_time = time.perf_counter()
             total_time = end_time - start_time
@@ -866,6 +872,17 @@ class FreeFEM():
             self.log_history(edp_skel, total_time)
 
             print(f'Freefem calculations are complete. Ran in {total_time:.2f} seconds.')
+
+
+    def clean_directory(self, keep_files: list=None):
+        for file in os.listdir(f'{self.savedir}'):
+            if file.startswith("ff_data") and file not in keep_files:
+                print(f'Cleaning {file} from directory')
+                os.remove(self.savedir + file)
+            
+            if ".btxt" in file and file not in keep_files:
+                print(f'Cleaning {file} from directory')
+                os.remove(self.savedir + file)
 
 
 if __name__=="__main__":
