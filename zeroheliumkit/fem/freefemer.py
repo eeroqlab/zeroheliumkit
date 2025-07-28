@@ -108,11 +108,8 @@ class ExtractConfig():
             raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
             raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
-        if not isinstance(self.coordinate3, float | list):
+        if not isinstance(self.coordinate3, float | list | None):
             raise TypeError("'coordinate3' parameter must be a list or float")
-
-    def to_dict(self):
-        return self.__dict__
 
 
 @dataclass
@@ -131,26 +128,30 @@ class FFconfigurator():
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
-    extract_opt: list[ExtractConfig] | dict
+    extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
     include_helium_curvature: dict=None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
             gmsh_config = yaml.safe_load(file)
         with open(self.config_file, 'w') as file:
-            mergeddict = None
+            mergeddict = gmsh_config | self.__dict__
             if isinstance(self.extract_opt, list):
-                #if it is a list of ExtractConfig objects
-                mergeddict = gmsh_config | self.__dict__
-                mergeddict['extract_opt'] = [asdict(e) if hasattr(e, '__dict__') else e for e in self.extract_opt]
+                mergeddict["extract_opt"] = [asdict(e) if isinstance(e, ExtractConfig) else e for e in self.extract_opt]
             elif isinstance(self.extract_opt, ExtractConfig):
-                #if it is a singular ExtractConfig object
-                mergeddict = gmsh_config | self.__dict__
-                mergeddict['extract_opt'] = self.extract_opt.to_dict()
+                mergeddict["extract_opt"] = [asdict(self.extract_opt)]
             elif isinstance(self.extract_opt, dict):
-                #if it is a dictionary
-                mergeddict = gmsh_config | self.extract_opt
+                mergeddict["extract_opt"] = [self.extract_opt]
+
             del mergeddict["config_file"]
+
+            if self.include_helium_curvature:
+                for opt in mergeddict["extract_opt"]:
+                    if opt["coordinate3"]:
+                        warnings.warn("Both a curvature config and coordinate3 has been provided." \
+                        "The value passed in for coordinate3 will be ignored," \
+                        "please use None for coordinate3 with Helium Curvature enabled.") 
+                        opt["coordinate3"] = None
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
 
@@ -188,10 +189,7 @@ class FreeFEM():
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
         if isinstance(self.config.get('extract_opt'), dict):
             self.config['extract_opt'] = [self.config['extract_opt']]
-
-        for config in self.config.get('extract_opt'):
-            if self.curvature_config and config['coordinate3']:
-                warnings.warn("Both a curvature config and coordinate3 has been provided. The value passed in for coordinate3 will be ignored, please use None for coordinate3 with Helium Curvature enabled.") 
+                
         self.write_edpScript()
 
 
@@ -530,7 +528,6 @@ class FreeFEM():
             code += f"n3  = {params['coordinate3'][2]};\n"
             code += f"zmin  = {params['coordinate3'][0]};\n"
             code += f"zmax  = {params['coordinate3'][1]};\n"
-
             code += f"real[int] zcoords = {list(params['coordinate3'])};\n"
 
         code += f"n1 = {params['coordinate1'][2]};\n"
@@ -561,11 +558,8 @@ class FreeFEM():
         code += add_spaces(12) + f"""{name} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(12) + """}\n"""
         code += add_spaces(8) + """}\n"""
-    
         code += add_spaces(4) + "}\n"
-
         code += "}\n"
-
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
 
         return code
