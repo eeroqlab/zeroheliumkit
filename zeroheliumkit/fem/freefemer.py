@@ -89,15 +89,16 @@ class ExtractConfig():
         - plane (str): The plane for extraction (e.g., 'xy', 'yz', 'xz', 'xyZ').
         - coordinate1 (tuple): A tuple containing the start and end coordinates and the number of points for the first coordinate.
         - coordinate2 (tuple): A tuple containing the start and end coordinates and the number of points for the second coordinate.
-        - coordinate3 (float | list): A float or list of floats for the third coordinate.
-        - additional_name (str, optional): An additional name to append to the result file name.
+        - coordinate3 (float | list | dict): User can input a float, list, or dictionary depending on their desired configuration. All inputs are converted to a list.
     """ 
+    name: str #making a mandatory name for each extract dataset 
+
     quantity: str
     plane: str
     coordinate1: tuple
     coordinate2: tuple
-    coordinate3: float | list
-    additional_name: str = None
+    coordinate3: list
+    curvature_config: dict = None
 
     def __post_init__(self):
         if self.quantity not in config_quantity.keys():
@@ -108,9 +109,15 @@ class ExtractConfig():
             raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
             raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
-        if not isinstance(self.coordinate3, float | list | None):
-            raise TypeError("'coordinate3' parameter must be a list or float")
-
+        
+        if isinstance(self.coordinate3, float):
+            self.coordinate3 = [float]
+        elif isinstance(self.coordinate3, dict):
+            self.curvature_config = self.coordinate3
+            self.coordinate3 = self.curvature_config['bulk_helium_distances']
+        elif not isinstance(self.coordinate3, list):
+            raise TypeError("'coordinate3' parameter must be a list, float, or helium curvature config dict")
+        
 
 @dataclass
 class FFconfigurator():
@@ -123,13 +130,11 @@ class FFconfigurator():
         - dielectric_constants (dict): Dictionary containing the dielectric constants for different physical volumes.
         - ff_polynomial (int): Polynomial order for the FreeFEM script.
         - extract_opt (list[ExtractConfig] | dict): List of ExtractConfig objects or a dictionary containing extraction options.
-        - include_helium_curvature (dict): Optional dictionary containing helium curvature configuration. 
     """
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
-    include_helium_curvature: dict=None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
@@ -145,13 +150,11 @@ class FFconfigurator():
 
             del mergeddict["config_file"]
 
-            if self.include_helium_curvature:
-                for opt in mergeddict["extract_opt"]:
-                    if opt["coordinate3"]:
-                        warnings.warn("Both a curvature config and coordinate3 has been provided." \
-                        "The value passed in for coordinate3 will be ignored," \
-                        "please use None for coordinate3 with Helium Curvature enabled.") 
-                        opt["coordinate3"] = None
+            # for opt in mergeddict["extract_opt"]:
+            #         if opt["coordinate3"]:
+            #             warnings.warn("Both a curvature config and coordinate3 has been provided." \
+            #             "The value passed in for coordinate3 will be ignored," \
+            #             "please use None for coordinate3 with Helium Curvature enabled.") 
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
 
@@ -183,7 +186,7 @@ class FreeFEM():
         self.extract_names = [None for _ in range(len(self.config.get('extract_opt')))]
         self.logs = ""
 
-        self.curvature_config = self.config.get("include_helium_curvature")
+        # self.curvature_config = self.config.get("include_helium_curvature")
         self.physicalVols = self.config.get('physicalVolumes')
         self.physicalSurfs = self.config.get('physicalSurfaces')
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
@@ -196,23 +199,18 @@ class FreeFEM():
     def __parse_coordinate_counts(self, extract_cfg: ExtractConfig) -> tuple:
         n1 = extract_cfg['coordinate1'][2]
         n2 = extract_cfg['coordinate2'][2]
-        if self.curvature_config:
-            n3 = len(self.curvature_config['bulk_helium_distances'])
-        elif isinstance(extract_cfg['coordinate3'], list):
-            n3 = len(extract_cfg['coordinate3'])
-        else:
-            n3 = 1
+        n3 = len(extract_cfg['coordinate3'])
         return n1, n2, n3
 
 
-    def add_helium_curvature_edp(self) -> str:
+    def add_helium_curvature_edp(self, extract_cfg: ExtractConfig) -> str:
         """
         Adds the helium curvature script to the FreeFEM script if the curvature configuration is provided.
 
         Returns:-
         """
         code  = headerFrame("HELIUM CURVATURE")
-        code += self.curvature_config["script"]
+        code += extract_cfg.get('curvature_config')["script"]
         code += headerFrame("HELIUM CURVATURE")
         return code
     
@@ -230,8 +228,10 @@ class FreeFEM():
             code (str): code containing the entire edp content written for electrode_name.
         """
         code = ''
-        if self.curvature_config:
-            code += self.add_helium_curvature_edp()
+        for c in self.config.get('extract_opt'):
+            if c.get('curvature_config'):
+                code += self.add_helium_curvature_edp(c)
+                break
         code += self.script_create_savefiles(electrode_name)
         code += self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
@@ -361,7 +361,7 @@ class FreeFEM():
         self.__extract_opt = {}
 
         for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
-            addname = extract_cfg['additional_name']
+            addname = extract_cfg['name']
             qty = extract_cfg['quantity']
             pln = extract_cfg['plane']
             name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "")
@@ -457,8 +457,8 @@ class FreeFEM():
             raise KeyError(f'Wrong plane! choose from {config_planes_2D}')
 
         # working along the helium curvature lines if the option is enabled
-        if self.curvature_config:
-            scaling = scaling_size(self.curvature_config["bulk_helium_distances"][0])
+        if params['curvature_config']:
+            scaling = scaling_size(params.get('curvature_config')['bulk_helium_distances'][0])
             zcoord_code = "\n"
         else:
             zcoord_code = f"ax3  = {params['coordinate3']};\n"
@@ -488,8 +488,8 @@ class FreeFEM():
         # code += add_spaces(8) + "yList[j] = ax2;\n"
 
         # working along the helium curvature lines if the option is enabled
-        if self.curvature_config:
-            code += add_spaces(8) + f"ax3 = {scaling} * {self.curvature_config['displacement']}(ax1,ax2);\n"
+        if params['curvature_config']:
+            code += add_spaces(8) + f"ax3 = {scaling} * {params['curvature_config'].get('displacement')}(ax1,ax2);\n"
 
         code += add_spaces(8) + f"""{name} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(8) + """}\n"""
@@ -516,7 +516,7 @@ class FreeFEM():
             code (str): code containing the 2D slicing code.
         """
         if params.get('plane')=='xyZ':
-            if self.curvature_config:
+            if params.get('curvature_config'):
                 xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
             else:
                 xyz = "ax1, ax2, zcoords[m]"
@@ -529,15 +529,15 @@ class FreeFEM():
         code += "{\n"
 
         # working along the helium curvature lines if the option is enabled
-        if self.curvature_config:
-            bulkHelevels = np.asarray(self.curvature_config["bulk_helium_distances"])
+        if params.get('curvature_config'):
+            bulkHelevels = np.asarray(params.get('curvature_config')["bulk_helium_distances"])
             scaling = scaling_size(bulkHelevels)
-            surfaceHelevel = self.curvature_config["surface_helium_level"]
+            surfaceHelevel = params.get('curvature_config')["surface_helium_level"]
             code += f"n3  = {len(scaling)};\n"
             code += f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
             code += f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
         else:
-            code += f"n3  = {len(params['coordinate3'])};\n"
+            code += f"n3  = {params['coordinate3']};\n"
             code += f"zmin  = {params['coordinate3'][0]};\n"
             code += f"zmax  = {params['coordinate3'][1]};\n"
             code += f"real[int] zcoords = {list(params['coordinate3'])};\n"
@@ -553,8 +553,8 @@ class FreeFEM():
         # code += "real[int] xList(n1), yList(n2), zList(n3);\n \n"
 
         code += "for(int m = 0; m < n3; m++){\n"
-        if self.curvature_config:
-            code += add_spaces(4) + "zList[m] = bulkHeliumLevels[m];\n"
+        # if params.get('curvature_config'):
+        #     code += add_spaces(4) + "zList[m] = bulkHeliumLevels[m];\n"
         
         code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
@@ -562,8 +562,8 @@ class FreeFEM():
         code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
         code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
         # code += add_spaces(12) + "yList[j] = ax2;\n"
-        if self.curvature_config:
-            code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
+        if params.get('curvature_config'):
+            code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {params.get('curvature_config')['displacement']}(ax1,ax2);\n"
         
         quantity = config_quantity.get(params['quantity'])
 
@@ -643,20 +643,18 @@ class FreeFEM():
     def write_res_header(self, header_data):
         lines = []
         lines.append("---") 
-        if header_data.get('additional_name'):
-            lines.append(f"CONFIG - {header_data['additional_name']}")
+        if header_data.get('name'):
+            lines.append(f"CONFIG - {header_data['name']}")
         else:
             lines.append("CONFIG")
         lines.append(f"quantity,{header_data['quantity']}")
         lines.append(f"plane,{header_data['plane']}")
         lines.append(f"coordinate1,{tuple(header_data['coordinate1'])}")
         lines.append(f"coordinate2,{tuple(header_data['coordinate2'])}")
-        if header_data.get('coordinate3'):
+        if not header_data.get('curvature_config'):
             lines.append(f"coordinate3,{header_data['coordinate3']}")
-        if not self.curvature_config:
-            lines.append(f"helium_curvature,{bool(self.curvature_config)}")
         else:
-            lines.append(f"helium_curvature, {self.curvature_config['bulk_helium_distances']}")
+            lines.append(f"helium_curvature, {header_data.get('curvature_config')['bulk_helium_distances']}")
         lines.append("---")
         return "\n".join(lines) + "\n"
 
@@ -675,11 +673,10 @@ class FreeFEM():
 
         open(filepath, "w+").close()
 
-        for i, _ in enumerate(self.config.get('extract_opt')):
-            extract_cfg = self.config.get('extract_opt')[i]
+        for i, extract_cfg in enumerate(self.config.get('extract_opt')):
 
-            if not single_data_file and extract_cfg['additional_name']:
-                filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['additional_name']}"
+            if not single_data_file and extract_cfg['name']:
+                filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['name']}"
                 filepath = self.savedir + filename + ".csv"
 
             pd.DataFrame([[self.write_res_header(extract_cfg)]]).to_csv(filepath, index=False, header=False, mode='a')
@@ -690,8 +687,9 @@ class FreeFEM():
                 array = np.loadtxt(file + ".btxt")
 
                 n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
-                assert len(array) == n1 * n2 * n3, ValueError("Values provided for n1, n2, and (n3)" \
-                                                              "do not match with the return result file.")
+                if n3:
+                    assert len(array) == n1 * n2, ValueError("Values provided for n1, n2, and (n3)" \
+                                                                "do not match with the return result file.")
 
                 if extract_cfg['plane'] in config_planes_3D:
                     pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
