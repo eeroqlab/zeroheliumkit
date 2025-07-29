@@ -709,7 +709,7 @@ class FreeFEM():
 
                 if remove_txt_files:
                     os.remove(f"{file}.btxt")
-            self.result_files[i].clear()
+            # self.result_files[i].clear()
 
 
     def log_history(self, edp_code: str, total_time: float):
@@ -828,7 +828,8 @@ class FreeFEM():
             cores,
             print_log=False,
             single_data_file=True,
-            freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
+            freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin",
+            remove_txt_files: bool=True):
         """
         Runs the FreeFEM calculations asynchronously with a specified number of cores.
         
@@ -863,7 +864,7 @@ class FreeFEM():
             with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
                 
-            self.gather_results(single_data_file)
+            self.gather_results(single_data_file, remove_txt_files)
             filename = self.electrode_files[0]
             with open(self.savedir + filename + ".edp", 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]
