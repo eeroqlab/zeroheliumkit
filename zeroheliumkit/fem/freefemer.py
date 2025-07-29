@@ -193,25 +193,16 @@ class FreeFEM():
         self.write_edpScript()
 
 
-    def valid_result(self, config, array_len: int):
-        n1 = config['coordinate1'][2]
-        n2 = config['coordinate2'][2]
+    def __parse_coordinate_counts(self, extract_cfg: ExtractConfig) -> tuple:
+        n1 = extract_cfg['coordinate1'][2]
+        n2 = extract_cfg['coordinate2'][2]
         if self.curvature_config:
             n3 = len(self.curvature_config['bulk_helium_distances'])
-        elif isinstance(config['coordinate3'], list):
-            n3 = len(config['coordinate3'])
+        elif isinstance(extract_cfg['coordinate3'], list):
+            n3 = len(extract_cfg['coordinate3'])
         else:
             n3 = 1
-
-        if config['plane'] in config_planes_3D:
-            expected_size = n3 * n1 * n2
-        elif config['plane'] in config_planes_2D:
-            expected_size = n1 * n2
-        else:
-            raise ValueError("Unknown plane type in config.")
-
-        is_valid = array_len == expected_size
-        return is_valid
+        return n1, n2, n3
 
 
     def add_helium_curvature_edp(self) -> str:
@@ -484,17 +475,17 @@ class FreeFEM():
         code += f"ymin = {params['coordinate2'][0]};\n"
         code += f"ymax = {params['coordinate2'][1]};\n"
         code += zcoord_code
-        code += "real[int,int] quantity(n1,n2);\n"
-        code += "real[int] xList(n1), yList(n2);\n \n"
+        # code += "real[int,int] quantity(n1,n2);\n"
+        # code += "real[int] xList(n1), yList(n2);\n \n"
 
         code += "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(4) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        code += add_spaces(4) + "xList[i] = ax1;\n"
+        # code += add_spaces(4) + "xList[i] = ax1;\n"
         code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
         
         quantity = config_quantity.get(params['quantity'])
         code += add_spaces(8) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        code += add_spaces(8) + "yList[j] = ax2;\n"
+        # code += add_spaces(8) + "yList[j] = ax2;\n"
 
         # working along the helium curvature lines if the option is enabled
         if self.curvature_config:
@@ -528,7 +519,7 @@ class FreeFEM():
             if self.curvature_config:
                 xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
             else:
-                xyz = "ax1,ax2,zcoords[m]"
+                xyz = "ax1, ax2, zcoords[m]"
         else:
             raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
 
@@ -546,7 +537,7 @@ class FreeFEM():
             code += f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
             code += f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
         else:
-            code += f"n3  = {params['coordinate3'][2]};\n"
+            code += f"n3  = {len(params['coordinate3'])};\n"
             code += f"zmin  = {params['coordinate3'][0]};\n"
             code += f"zmax  = {params['coordinate3'][1]};\n"
             code += f"real[int] zcoords = {list(params['coordinate3'])};\n"
@@ -558,8 +549,8 @@ class FreeFEM():
         code += f"ymin = {params['coordinate2'][0]};\n"
         code += f"ymax = {params['coordinate2'][1]};\n"
 
-        code += "real[int,int] quantity(n1,n2);\n"
-        code += "real[int] xList(n1), yList(n2), zList(n3);\n \n"
+        # code += "real[int,int] quantity(n1,n2);\n"
+        # code += "real[int] xList(n1), yList(n2), zList(n3);\n \n"
 
         code += "for(int m = 0; m < n3; m++){\n"
         if self.curvature_config:
@@ -567,10 +558,10 @@ class FreeFEM():
         
         code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        code += add_spaces(8) + "xList[i] = ax1;\n"
+        # code += add_spaces(8) + "xList[i] = ax1;\n"
         code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
         code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        code += add_spaces(12) + "yList[j] = ax2;\n"
+        # code += add_spaces(12) + "yList[j] = ax2;\n"
         if self.curvature_config:
             code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {self.curvature_config['displacement']}(ax1,ax2);\n"
         
@@ -670,7 +661,7 @@ class FreeFEM():
         return "\n".join(lines) + "\n"
 
 
-    def gather_results(self, single_data_file: bool=False):
+    def gather_results(self, single_data_file: bool=False, remove_txt_files: bool=True):
         """
         Gathers the results from the individual FreeFEM result files into a single file.
 
@@ -684,51 +675,41 @@ class FreeFEM():
 
         open(filepath, "w+").close()
 
-        try:
-            for i, _ in enumerate(self.config.get('extract_opt')):
-                config = self.config.get('extract_opt')[i]
+        for i, _ in enumerate(self.config.get('extract_opt')):
+            extract_cfg = self.config.get('extract_opt')[i]
 
-                if not single_data_file and config['additional_name']:
-                    filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{config['additional_name']}"
-                    filepath = self.savedir + filename + ".csv"
+            if not single_data_file and extract_cfg['additional_name']:
+                filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['additional_name']}"
+                filepath = self.savedir + filename + ".csv"
 
-                pd.DataFrame([[self.write_res_header(config)]]).to_csv(filepath, index=False, header=False, mode='a')
-                pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-                
-                for file in self.result_files[i]:
-                    electrode_name = file.split('_')[-1]
+            pd.DataFrame([[self.write_res_header(extract_cfg)]]).to_csv(filepath, index=False, header=False, mode='a')
+            pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+            
+            for file in self.result_files[i]:
+                electrode_name = file.split('_')[-1]
+                array = np.loadtxt(file + ".btxt")
 
-                    array = np.loadtxt(file + ".btxt")
-                    if not self.valid_result(config, len(array)):
-                        raise ValueError("Values provided for n1, n2, and (n3) do not match with the return result file.")
+                n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
+                assert len(array) == n1 * n2 * n3, ValueError("Values provided for n1, n2, and (n3)" \
+                                                              "do not match with the return result file.")
 
-                    n1 = config['coordinate1'][2]
-                    n2 = config['coordinate2'][2]
-                    if self.curvature_config:
-                        n3 = len(self.curvature_config['bulk_helium_distances'])
-                    elif isinstance(config['coordinate3'], list):
-                        n3 = len(config['coordinate3'])
-                    else:
-                        n3 = 1
-
-                    if config['plane'] in config_planes_3D:
-                        pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
-                        new_arr = array.reshape((n3, n1, n2))
-                        for slice in new_arr:
-                            frame = pd.DataFrame(slice)
-                            frame.to_csv(filepath, index=False, header=False, mode='a')
-                            pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-                    elif config['plane'] in config_planes_2D:
-                        pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
-                        new_arr = array.reshape((n1, n2))
-                        frame = pd.DataFrame(new_arr)
+                if extract_cfg['plane'] in config_planes_3D:
+                    pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                    new_arr = array.reshape((n3, n1, n2))
+                    for slice in new_arr:
+                        frame = pd.DataFrame(slice)
                         frame.to_csv(filepath, index=False, header=False, mode='a')
                         pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
+                elif extract_cfg['plane'] in config_planes_2D:
+                    pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                    new_arr = array.reshape((n1, n2))
+                    frame = pd.DataFrame(new_arr)
+                    frame.to_csv(filepath, index=False, header=False, mode='a')
+                    pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
 
+                if remove_txt_files:
                     os.remove(f"{file}.btxt")
-                self.result_files[i].clear()
-        except:
-            print("Incorrect matrix parameters for results files.")
+            self.result_files[i].clear()
 
 
     def log_history(self, edp_code: str, total_time: float):
