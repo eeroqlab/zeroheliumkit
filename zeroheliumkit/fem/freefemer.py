@@ -7,8 +7,6 @@ This module contains functions and a class for creating freefem files. Created b
 import os, yaml, re, time
 import asyncio, psutil
 import numpy as np
-import pandas as pd
-import warnings
 import ipywidgets as widgets
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -566,6 +564,16 @@ class FreeFEM():
             lines.append(f"helium_curvature, {header_data.get('curvature_config')['bulk_helium_distances']}")
         lines.append("---")
         return "\n".join(lines) + "\n"
+    
+
+    def pad_dataframe(self, arr: list, max_width: int):
+        padded_rows = []
+        for row in arr:
+            if len(row) < max_width:
+                padded_rows.append(row + [""] * (max_width - len(row)))
+            else:
+                padded_rows.append(row)
+        return padded_rows
 
 
     def gather_results(self, single_data_file: bool=False, remove_txt_files: bool=True):
@@ -576,48 +584,39 @@ class FreeFEM():
         -----
             - res_num (int): Index of the extract config to gather results for.
         """
-        filename = "ff_data_" + self.config['meshfile'].split('.')[0]
-        
+        filename = f"ff_data_{self.config['meshfile'].split('.')[0]}"
         filepath = self.savedir + filename + ".csv"
 
-        open(filepath, "w+").close()
+        with open(filepath, 'w') as f:
+            for i, extract_cfg in enumerate(self.config.get('extract_opt')):
 
-        for i, extract_cfg in enumerate(self.config.get('extract_opt')):
+                if not single_data_file and extract_cfg['name']:
+                    filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['name']}"
+                    filepath = self.savedir + filename + ".csv"
 
-            if not single_data_file and extract_cfg['name']:
-                filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['name']}"
-                filepath = self.savedir + filename + ".csv"
+                
+                f.write(self.write_res_header(extract_cfg))
 
-            pd.DataFrame([[self.write_res_header(extract_cfg)]]).to_csv(filepath, index=False, header=False, mode='a')
-            pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-            
-            for file in self.result_files[i]:
-                electrode_name = file.split('_')[-1]
-                array = np.loadtxt(file + ".btxt")
-
-                n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
-                if n3:
-                    assert len(array) == n1 * n2 * n3, ValueError("Values provided for n1, n2, and (n3)" \
-                                                                "do not match with the return result file.")
-
-                if extract_cfg['plane'] in config_planes:
-                    pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
+                for file in self.result_files[i]:
+                    electrode_name = file.split('_')[-1]
+                    array = np.loadtxt(file + ".btxt")
+                    
+                    f.write(f"[START SLICE - {electrode_name}]\n")
+                    
+                    n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
+                    if n3:
+                        assert len(array) == n1 * n2 * n3, ValueError("...")
+                    
                     new_arr = array.reshape((n3, n1, n2))
-                    for slice in new_arr:
-                        frame = pd.DataFrame(slice)
-                        frame.to_csv(filepath, index=False, header=False, mode='a')
-                        pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-
-                elif extract_cfg['plane'] in config_planes:
-                    pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
-                    new_arr = array.reshape((n1, n2))
-                    frame = pd.DataFrame(new_arr)
-                    frame.to_csv(filepath, index=False, header=False, mode='a')
-                    pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-
-                if remove_txt_files:
-                    os.remove(f"{file}.btxt")
-            # self.result_files[i].clear()
+                    
+                    for slice_arr in new_arr:
+                        padded_slice = self.pad_dataframe([slice_arr], n2)[0]
+                        for row in padded_slice:
+                            f.write(','.join(map(str, row)) + '\n')
+                        f.write('\n')  
+                        
+                    if remove_txt_files:
+                        os.remove(f"{file}.btxt")
 
 
     def log_history(self, edp_code: str, total_time: float):
