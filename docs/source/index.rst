@@ -31,3 +31,4 @@ Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
    routing
    importing
    
+   freefemer

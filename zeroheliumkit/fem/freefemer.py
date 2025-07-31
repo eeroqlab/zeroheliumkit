@@ -30,7 +30,7 @@ def scaling_size(bulk_helium_distance: float=1e-1):
 
     Args:
     -----
-        bulk_helium_distance (float): The distance between the bulk helium atoms in meters. Default is 1e-1 m.
+        - bulk_helium_distance (float): The distance between the bulk helium atoms in meters. Default is 1e-1 m.
 
     Returns:
     --------
@@ -46,7 +46,7 @@ def headerFrame(header: str) -> str:
 
     Args:
     -----
-        header (str): The header text to be included in the frame.
+        - header (str): The header text to be included in the frame.
 
     Returns:
     --------
@@ -66,7 +66,7 @@ def add_spaces(num: int) -> str:
 
     Args:
     -----
-        num (int): The number of spaces to add.
+        - num (int): The number of spaces to add.
 
     Returns:
     --------
@@ -159,13 +159,13 @@ class FreeFEM():
 
     Attributes:
     -----------
-        config (str): filepath containing FreeFEM config yaml file.
-        savedir (str): Directory name where the FreeFEM files will be saved.
-        run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
-        electrode_files (list): List of coupling constant files.
-        result_files (list): 2D list of existing electrode result files based on extract configs.
-        extract_names (str): List of names for the cumulative result files based on extract configs.
-        logs (str): Log messages from the FreeFEM execution.
+        - config (str): filepath containing FreeFEM config yaml file.
+        - savedir (str): Directory name where the FreeFEM files will be saved.
+        - run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
+        - electrode_files (list): List of coupling constant files.
+        - result_files (list): 2D list of existing electrode result files based on extract configs.
+        - extract_names (str): List of names for the cumulative result files based on extract configs.
+        - logs (str): Log messages from the FreeFEM execution.
     """
     
     def __init__(self,
@@ -202,7 +202,13 @@ class FreeFEM():
         """
         Adds the helium curvature script to the FreeFEM script if the curvature configuration is provided.
 
-        Returns:-
+        Args:
+        -----
+            - extract_cfg (dict): Dictionary containing the extraction configuration.
+
+        Returns:
+        --------
+            code (str): code containing the helium curvature script.
         """
         code  = headerFrame("HELIUM CURVATURE")
         code += extract_cfg.get('curvature_config')["script"]
@@ -308,10 +314,6 @@ class FreeFEM():
     def script_create_coupling_const_matrix(self) -> str:
         """
         Creates the coupling constant matrix for the FreeFEM script, which is used to define the interaction between electrodes.
-
-        Returns:
-        --------
-            code (str): code containing the coupling constant matrix
 
         Returns:
         --------
@@ -594,7 +596,6 @@ class FreeFEM():
                     filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['name']}"
                     filepath = self.savedir + filename + ".csv"
 
-                
                 f.write(self.write_res_header(extract_cfg))
 
                 for file in self.result_files[i]:
@@ -742,9 +743,9 @@ class FreeFEM():
         
         Args:
         -----
-            cores (int): Number of cores to use for the calculations.
-            print_log (bool): Flag to indicate whether to print the output log.
-            freefem_path (str): Path to the FreeFEM executable.
+            - cores (int): Number of cores to use for the calculations.
+            - print_log (bool): Flag to indicate whether to print the output log.
+            - freefem_path (str): Path to the FreeFEM executable.
         """
         
         sys_cores = psutil.cpu_count(logical=False)
