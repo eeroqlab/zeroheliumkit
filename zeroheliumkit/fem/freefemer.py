@@ -18,8 +18,7 @@ from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
 
 
-config_planes_2D = ['xy', 'yz', 'xz']
-config_planes_3D = ['xyZ']
+config_planes = ['xy', 'yz', 'xz', 'xyZ']
 config_quantity = {'phi': 'u',
                    'Ex': 'dx(u)',
                    'Ey': 'dy(u)',
@@ -85,6 +84,7 @@ class ExtractConfig():
 
     Attributes:
     -----------
+        - name (str): The name of the extract config; acts as a label for the data configuration.
         - quantity (str): The quantity to be extracted (e.g., 'phi', 'Ex', 'Ey', 'Ez', 'Cm').
         - plane (str): The plane for extraction (e.g., 'xy', 'yz', 'xz', 'xyZ').
         - coordinate1 (tuple): A tuple containing the start and end coordinates and the number of points for the first coordinate.
@@ -103,15 +103,16 @@ class ExtractConfig():
     def __post_init__(self):
         if self.quantity not in config_quantity.keys():
             raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
-        if self.plane not in config_planes_2D + config_planes_3D:
-            raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+        if self.plane not in config_planes:
+            raise KeyError(f'Wrong plane! choose from {config_planes}')
         if not isinstance(self.coordinate1, tuple):
             raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
             raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
         
         if isinstance(self.coordinate3, float):
-            self.coordinate3 = [float]
+            print(self.coordinate3)
+            self.coordinate3 = [self.coordinate3]
         elif isinstance(self.coordinate3, dict):
             self.curvature_config = self.coordinate3
             self.coordinate3 = self.curvature_config['bulk_helium_distances']
@@ -142,6 +143,7 @@ class FFconfigurator():
         with open(self.config_file, 'w') as file:
             mergeddict = gmsh_config | self.__dict__
             if isinstance(self.extract_opt, list):
+                print(self.extract_opt)
                 mergeddict["extract_opt"] = [asdict(e) if isinstance(e, ExtractConfig) else e for e in self.extract_opt]
             elif isinstance(self.extract_opt, ExtractConfig):
                 mergeddict["extract_opt"] = [asdict(self.extract_opt)]
@@ -150,11 +152,6 @@ class FFconfigurator():
 
             del mergeddict["config_file"]
 
-            # for opt in mergeddict["extract_opt"]:
-            #         if opt["coordinate3"]:
-            #             warnings.warn("Both a curvature config and coordinate3 has been provided." \
-            #             "The value passed in for coordinate3 will be ignored," \
-            #             "please use None for coordinate3 with Helium Curvature enabled.") 
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
 
@@ -252,12 +249,10 @@ class FreeFEM():
             else:
                 # extract electrostatic field solutions
                 plane = extract_config.get('plane')
-                if plane in config_planes_2D:
-                    code += self.script_save_data_2D(extract_config, fem_object_name, electrode_name)
-                elif plane in config_planes_3D:
-                    code += self.script_save_data_3D(extract_config, fem_object_name, electrode_name)
+                if plane in config_planes:
+                    code += self.script_save_data(extract_config, fem_object_name)
                 else:
-                    raise KeyError(f'Wrong plane! choose from {config_planes_2D} or {config_planes_3D}')
+                    raise KeyError(f'Wrong plane! choose from {config_planes}')
         
         return code
     
@@ -287,7 +282,6 @@ class FreeFEM():
         code = """load "msh3"\n"""
         code += """load "gmsh"\n"""
         code += """load "medit"\n"""
-        #code += f"""system("mkdir -p {self.savedir}");\n"""
         code += "\n"
         if self.run_from_notebook:
             path_meshfile = self.savedir + self.config["meshfile"]
@@ -305,17 +299,11 @@ class FreeFEM():
         --------
             code (str): code containing the necessary variable declarations.
         """
-        electrode_names = list(self.physicalSurfs.keys())
-        electrode_id = list(self.physicalSurfs.values())
 
         code = "\n"
         code += "int n1, n2, n3;\n"
-        code += "real xmin, xmax, ymin, ymax, ax3, zmin, zmax;\n"
+        code += "real xmin, xmax, ymin, ymax, ax3;\n"
 
-        # electrodestring_name = '"' + '","'.join(electrode_names) + '"'
-        # code += f"string[int] electrodenames = [{electrodestring_name}];\n"
-
-        # code += f"int[int] electrodeid = {electrode_id};\n"
         return code
 
 
@@ -431,150 +419,71 @@ class FreeFEM():
         code += """cout << "calculations are finished, saving data" << endl;\n \n"""
 
         return code
+    
 
+    def script_save_data(self, config: dict, fem_object_name: str) -> str:
 
-    def script_save_data_2D(self, params: dict, fem_object_name: str, electrode_name: str) -> str:
-        """
-        Saves 2D data extraction based on the provided parameters and the FreeFEM object name.
-        
-        Args:
-        -----
-            - params (dict): Dictionary containing the parameters for the 2D data extraction.
-            - fem_object_name (str): Name of the FreeFEM object to save the data to.
-            - electrode_name (str): of the electrode for which the data is being saved.
+        name = fem_object_name
+        plane = config.get('plane')
 
-        Returns:
-        --------
-            code (str): code containing the 2D data saving code.
-        """
-        if params.get('plane')=='xy':
-            xyz = "ax1,ax2,ax3"
-        elif params.get('plane')=='yz':
-            xyz = "ax3,ax1,ax2"
-        elif params.get('plane')=='xz':
-            xyz = "ax1,ax3,ax2"
-        else:
-            raise KeyError(f'Wrong plane! choose from {config_planes_2D}')
+        axis_ordering = {
+            'xy':   ['ax1, ax2, ax3'],
+            'xz':   ['ax1, ax3, ax2'],
+            'yz':   ['ax3, ax1, ax2']
+        }
 
-        # working along the helium curvature lines if the option is enabled
-        if params['curvature_config']:
-            scaling = scaling_size(params.get('curvature_config')['bulk_helium_distances'][0])
-            zcoord_code = "\n"
-        else:
-            zcoord_code = f"ax3  = {params['coordinate3']};\n"
-        
-        name = fem_object_name  #params['quantity']
-
- 
-        code  = headerFrame("2D DATA EXTRACTION BLOCK START")
-        code += "{\n"
-        code += f"n1 = {params['coordinate1'][2]};\n"
-        code += f"n2 = {params['coordinate2'][2]};\n"
-        code += f"xmin = {params['coordinate1'][0]};\n"
-        code += f"xmax = {params['coordinate1'][1]};\n"
-        code += f"ymin = {params['coordinate2'][0]};\n"
-        code += f"ymax = {params['coordinate2'][1]};\n"
-        code += zcoord_code
-        # code += "real[int,int] quantity(n1,n2);\n"
-        # code += "real[int] xList(n1), yList(n2);\n \n"
-
-        code += "for(int i = 0; i < n1; i++){\n"
-        code += add_spaces(4) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        # code += add_spaces(4) + "xList[i] = ax1;\n"
-        code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
-        
-        quantity = config_quantity.get(params['quantity'])
-        code += add_spaces(8) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        # code += add_spaces(8) + "yList[j] = ax2;\n"
-
-        # working along the helium curvature lines if the option is enabled
-        if params['curvature_config']:
-            code += add_spaces(8) + f"ax3 = {scaling} * {params['curvature_config'].get('displacement')}(ax1,ax2);\n"
-
-        code += add_spaces(8) + f"""{name} << {quantity}({xyz}) << endl;\n"""
-        code += add_spaces(8) + """}\n"""
-        code += add_spaces(4) + """}\n"""
-        code += "}\n"
-
-        code += headerFrame("2D DATA EXTRACTION BLOCK END")
-
-        return code  
-
-
-    def script_save_data_3D(self, params: dict, fem_object_name: str, electrode_name: str) -> str:
-        """
-        Saves 3D data extraction based on the provided parameters and the FreeFEM object name.
-
-        Args:
-        -----
-            - params (dict): Dictionary containing the parameters for the 3D data extraction.
-            - fem_object_name (str): Name of the FreeFEM object to save the data to.
-            - electrode_name (str): Name of the electrode for which the data is being saved.
-
-        Returns:
-        --------
-            code (str): code containing the 2D slicing code.
-        """
-        if params.get('plane')=='xyZ':
-            if params.get('curvature_config'):
+        if plane == 'xyZ':
+            if config.get('curvature_config'):
                 xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
             else:
                 xyz = "ax1, ax2, zcoords[m]"
         else:
-            raise KeyError(f'Wrong plane! choose from {config_planes_3D}')
-
-        name = fem_object_name  # params['quantity']
+            xyz = axis_ordering[plane][0]
 
         code  = headerFrame("2D SLICES DATA EXTRACTION BLOCK START")
         code += "{\n"
+        
+        code += f"n1 = {config['coordinate1'][2]};\n"
+        code += f"n2 = {config['coordinate2'][2]};\n"
+        code += f"xmin = {config['coordinate1'][0]};\n"
+        code += f"xmax = {config['coordinate1'][1]};\n"
+        code += f"ymin = {config['coordinate2'][0]};\n"
+        code += f"ymax = {config['coordinate2'][1]};\n"
+        code += f"n3 = {len(config['coordinate3'])};\n"
 
-        # working along the helium curvature lines if the option is enabled
-        if params.get('curvature_config'):
-            bulkHelevels = np.asarray(params.get('curvature_config')["bulk_helium_distances"])
+        if config.get('curvature_config'):
+            bulkHelevels = np.asarray(config.get('curvature_config')["bulk_helium_distances"])
             scaling = scaling_size(bulkHelevels)
-            surfaceHelevel = params.get('curvature_config')["surface_helium_level"]
-            code += f"n3  = {len(scaling)};\n"
+            surfaceHelevel = config.get('curvature_config')["surface_helium_level"]
             code += f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
             code += f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
-        else:
-            code += f"n3  = {params['coordinate3']};\n"
-            code += f"zmin  = {params['coordinate3'][0]};\n"
-            code += f"zmax  = {params['coordinate3'][1]};\n"
-            code += f"real[int] zcoords = {list(params['coordinate3'])};\n"
+        elif plane == 'xyZ':
 
-        code += f"n1 = {params['coordinate1'][2]};\n"
-        code += f"xmin = {params['coordinate1'][0]};\n"
-        code += f"xmax = {params['coordinate1'][1]};\n"
-        code += f"n2 = {params['coordinate2'][2]};\n"
-        code += f"ymin = {params['coordinate2'][0]};\n"
-        code += f"ymax = {params['coordinate2'][1]};\n"
+            code += f"real[int] zcoords = {config['coordinate3']};\n"
 
-        # code += "real[int,int] quantity(n1,n2);\n"
-        # code += "real[int] xList(n1), yList(n2), zList(n3);\n \n"
-
+        #first for loop, going over the slices
         code += "for(int m = 0; m < n3; m++){\n"
-        # if params.get('curvature_config'):
-        #     code += add_spaces(4) + "zList[m] = bulkHeliumLevels[m];\n"
         
+        #second for loop
         code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
-        # code += add_spaces(8) + "xList[i] = ax1;\n"
         code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
         code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
-        # code += add_spaces(12) + "yList[j] = ax2;\n"
-        if params.get('curvature_config'):
-            code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {params.get('curvature_config')['displacement']}(ax1,ax2);\n"
+        if config.get('curvature_config'):
+            code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {config.get('curvature_config')['displacement']}(ax1,ax2);\n"
         
-        quantity = config_quantity.get(params['quantity'])
+        quantity = config_quantity.get(config['quantity'])
 
         code += add_spaces(12) + f"""{name} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(12) + """}\n"""
         code += add_spaces(8) + """}\n"""
         code += add_spaces(4) + "}\n"
         code += "}\n"
+
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
 
         return code
+
 
 
     def script_save_cmatrix(self, params: dict, fem_object_name: str) -> str:
@@ -688,17 +597,18 @@ class FreeFEM():
 
                 n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
                 if n3:
-                    assert len(array) == n1 * n2, ValueError("Values provided for n1, n2, and (n3)" \
+                    assert len(array) == n1 * n2 * n3, ValueError("Values provided for n1, n2, and (n3)" \
                                                                 "do not match with the return result file.")
 
-                if extract_cfg['plane'] in config_planes_3D:
+                if extract_cfg['plane'] in config_planes:
                     pd.DataFrame([[f"[START SLICE - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
                     new_arr = array.reshape((n3, n1, n2))
                     for slice in new_arr:
                         frame = pd.DataFrame(slice)
                         frame.to_csv(filepath, index=False, header=False, mode='a')
                         pd.DataFrame([[]]).to_csv(filepath, index=False, header=False, mode='a')
-                elif extract_cfg['plane'] in config_planes_2D:
+
+                elif extract_cfg['plane'] in config_planes:
                     pd.DataFrame([[f"[START DATA - {electrode_name}]"]]).to_csv(filepath, index=False, header=False, mode='a')
                     new_arr = array.reshape((n1, n2))
                     frame = pd.DataFrame(new_arr)
