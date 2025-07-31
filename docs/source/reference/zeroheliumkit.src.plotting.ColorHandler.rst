@@ -30,7 +30,8 @@
 
    .. autosummary::
    
-      ~ColorHandler.color_cycle
+      ~ColorHandler.slots
       ~ColorHandler.colors
+      ~ColorHandler.color_cycle
    
    
