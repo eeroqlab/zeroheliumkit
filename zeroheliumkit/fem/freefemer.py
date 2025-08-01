@@ -16,7 +16,11 @@ from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
 
 
-config_planes = ['xy', 'yz', 'xz', 'xyZ']
+# config_planes = ['xy', 'yz', 'xz', 'xyZ']
+axis_ordering = {'xy':   'ax1,ax2,ax3',
+                 'xz':   'ax1,ax3,ax2',
+                 'yz':   'ax3,ax1,ax2'
+}
 config_quantity = {'phi': 'u',
                    'Ex': 'dx(u)',
                    'Ey': 'dy(u)',
@@ -101,8 +105,8 @@ class ExtractConfig():
     def __post_init__(self):
         if self.quantity not in config_quantity.keys():
             raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
-        if self.plane not in config_planes:
-            raise KeyError(f'Wrong plane! choose from {config_planes}')
+        if self.plane not in axis_ordering.keys():
+            raise KeyError(f'Wrong plane! choose from {axis_ordering.keys()}')
         if not isinstance(self.coordinate1, tuple):
             raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
@@ -252,12 +256,8 @@ class FreeFEM():
                 code += self.script_save_cmatrix(extract_config, fem_object_name)
             else:
                 # extract electrostatic field solutions
-                plane = extract_config.get('plane')
-                if plane in config_planes:
-                    code += self.script_save_data(extract_config, fem_object_name)
-                else:
-                    raise KeyError(f'Wrong plane! choose from {config_planes}')
-        
+                code += self.script_save_data(extract_config, fem_object_name)
+
         return code
     
 
@@ -426,19 +426,14 @@ class FreeFEM():
         name = fem_object_name
         plane = config.get('plane')
 
-        axis_ordering = {
-            'xy':   ['ax1, ax2, ax3'],
-            'xz':   ['ax1, ax3, ax2'],
-            'yz':   ['ax3, ax1, ax2']
-        }
-
-        if plane == 'xyZ':
-            if config.get('curvature_config'):
-                xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
-            else:
-                xyz = "ax1, ax2, zcoords[m]"
-        else:
-            xyz = axis_ordering[plane][0]
+        # if plane == 'xyZ':
+        #     if config.get('curvature_config'):
+        #         xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
+        #     else:
+        #         xyz = "ax1, ax2, zcoords[m]"
+        # else:
+        #     xyz = axis_ordering[plane][0]
+        xyz = axis_ordering[plane]
 
         code  = headerFrame("2D SLICES DATA EXTRACTION BLOCK START")
         code += "{\n"
@@ -457,16 +452,17 @@ class FreeFEM():
             surfaceHelevel = config.get('curvature_config')["surface_helium_level"]
             code += f"real[int] bulkHeliumLevels = {np.array2string(bulkHelevels, separator=', ')};\n"
             code += f"real[int] bulkHeliumLevelDispScales = {np.array2string(scaling, separator=', ')};\n"
-        elif plane == 'xyZ':
-
+        else:
             code += f"real[int] zcoords = {config['coordinate3']};\n"
 
-        #first for loop, going over the slices
+        # first for loop, going over the slices
         code += "for(int m = 0; m < n3; m++){\n"
-        
-        #second for loop
+        if not config.get('curvature_config'):
+            code += add_spaces(4) + "real ax3 = zcoords[m];\n"
+        # second for loop
         code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
         code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        # third for loop
         code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
         code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
         if config.get('curvature_config'):
