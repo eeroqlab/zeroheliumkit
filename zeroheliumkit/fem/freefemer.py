@@ -564,14 +564,14 @@ class FreeFEM():
         return "\n".join(lines) + "\n"
     
 
-    def pad_dataframe(self, arr: list, max_width: int):
-        padded_rows = []
-        for row in arr:
-            if len(row) < max_width:
-                padded_rows.append(row + [""] * (max_width - len(row)))
-            else:
-                padded_rows.append(row)
-        return padded_rows
+    # def pad_dataframe(self, arr: list, max_width: int):
+    #     padded_rows = []
+    #     for row in arr:
+    #         if len(row) < max_width:
+    #             padded_rows.append(row + [""] * (max_width - len(row)))
+    #         else:
+    #             padded_rows.append(row)
+    #     return padded_rows
 
 
     def gather_results(self, single_data_file: bool=False, remove_txt_files: bool=True):
@@ -607,8 +607,8 @@ class FreeFEM():
                     new_arr = array.reshape((n3, n1, n2))
                     
                     for slice_arr in new_arr:
-                        padded_slice = self.pad_dataframe([slice_arr], n2)[0]
-                        for row in padded_slice:
+                        #padded_slice = self.pad_dataframe([slice_arr], n2)[0]
+                        for row in slice_arr:
                             f.write(','.join(map(str, row)) + '\n')
                         f.write('\n')  
                         
