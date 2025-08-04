@@ -246,57 +246,6 @@ def read_ff_output(filename: str, ff_type: str) -> dict:
     return data
 
 
-def read_ff_output_new(filename: str) -> dict:
-    data = []
-    
-    with open(filename) as f:
-        for line in f:
-            if "CONFIG" in line:
-                extract_name = line.split('-')[-1].strip()
-                extract_data = {"name": extract_name}
-
-                header_data = {}
-                for _ in range(5):  
-                    key, value = f.readline().strip().split(",", 1)
-                    key, value = key.strip(), value.strip()
-
-                    header_data[key] = value
-
-                extract_data["header"] = header_data
-                data.append(extract_data)
-            
-            slices = {}
-            while True:
-               # get slice_line here
-                if not slice_line: 
-                    break
-                slice_line = slice_line.strip()
-
-                if slice_line.startswith("CONFIG"):
-                    buffered_line = slice_line  # buffer for next iteration
-                    break
-
-                if slice_line.startswith("[START SLICE"):
-                    slice_name = slice_line.split("-")[-1].strip(" ]")
-                    rows = []
-                    while True:
-                        data_line = get_line()
-                        if not data_line:
-                            break
-                        data_line = data_line.strip()
-                        if (not data_line or data_line.startswith("[START SLICE") or data_line.startswith("CONFIG")):
-                            buffered_line = data_line
-                            break
-                        row = [float(x) for x in data_line.split(",")]
-                        rows.append(row)
-                    slices[slice_name] = rows
-
-            extract_data["slices"] = slices
-            data.append(extract_data)
-
-    print(data)
-
-
 ###########################
 #### Main Reader Class ####
 ###########################

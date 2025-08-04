@@ -6,6 +6,7 @@ This module contains functions and a class for creating freefem files. Created b
 
 import os, yaml, re, time
 import asyncio, psutil
+import polars as pl
 import numpy as np
 import ipywidgets as widgets
 from dataclasses import dataclass, asdict
@@ -359,7 +360,7 @@ class FreeFEM():
             self.extract_names[idx] = name
             name += f'_{electrode_name}'
             self.result_files[idx].append(name)
-            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.btxt", binary);\n"""
+            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.npy", binary);\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
         
         return code
@@ -564,14 +565,110 @@ class FreeFEM():
         return "\n".join(lines) + "\n"
     
 
-    # def pad_dataframe(self, arr: list, max_width: int):
-    #     padded_rows = []
-    #     for row in arr:
-    #         if len(row) < max_width:
-    #             padded_rows.append(row + [""] * (max_width - len(row)))
-    #         else:
-    #             padded_rows.append(row)
-    #     return padded_rows
+    def write_res_header_new(self, header_data):
+        data = {}
+
+        data['Extract Name'] = header_data['name']
+        data['Quantity'] = header_data['quantity']
+        data['Plane'] = header_data['plane']
+        data['X Min'] = header_data['coordinate1'][0]
+        data['X Max'] = header_data['coordinate1'][1]
+        data['Y Min'] = header_data['coordinate2'][0]
+        data['Y Max'] = header_data['coordinate2'][1]
+        data['Slices'] = len(header_data['coordinate3'])
+        data['Electrodes'] = []
+        return data
+        
+
+    def gather_results_new(self, single_data_file: bool=False, remove_files: bool=True):
+        """
+        (temp docstring)
+        new version of gather results that:
+        - grabs each .npy file
+        - creates output parquet and yaml files
+        - for each of the result files, maps the indices of the flattened data
+        - stores the flattened data in a polars dataframe, which is stored in the parquet file
+        - this can be indexed into 
+        """
+
+        for i, extract_cfg in enumerate(self.config.get('extract_opt')):
+            extract_name = extract_cfg.get("name")
+            base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
+            outfile_name = (
+                f"{base_name}_{extract_name}.parquet" if not single_data_file else f"{base_name}.parquet"
+            )
+            outfile_path = os.path.join(self.savedir, outfile_name)
+
+            yaml_filename = f"{base_name}_header.yaml"
+            yaml_path = os.path.join(self.savedir, yaml_filename)
+
+            header_data = self.write_res_header_new(extract_cfg)
+            
+            all_electrodes = []
+            all_z_indices = []
+            all_x_indices = []
+            all_y_indices = []
+            all_values = []
+            for file in self.result_files[i]:
+                electrode_name = file.split('_')[-1]
+                header_data['Electrodes'].append(electrode_name)
+
+                array = np.load(f"{file}.npy")
+
+                n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
+                assert len(array) == n1 * n2 * n3, f"Array shape mismatch in {file}"
+                array = array.reshape((n3, n1, n2))
+
+                num_points = array.size
+                z_idx = np.repeat(np.arange(array.shape[0]), array.shape[1] * array.shape[2])
+                x_idx = np.tile(np.repeat(np.arange(array.shape[1]), array.shape[2]), array.shape[0])
+                y_idx = np.tile(np.arange(array.shape[2]), array.shape[0] * array.shape[1])
+                
+                all_electrodes.extend([electrode_name] * num_points)
+                all_z_indices.extend(z_idx)
+                all_x_indices.extend(x_idx)
+                all_y_indices.extend(y_idx)
+                all_values.extend(array.flatten())
+
+                if remove_files:
+                    os.remove(os.path.join(self.savedir, file + ".npy"))
+
+                del array
+
+            combined_df = pl.DataFrame({
+                "electrode": all_electrodes,
+                "z_index": all_z_indices,
+                "x_index": all_x_indices,
+                "y_index": all_y_indices,
+                "value": all_values
+            })
+            
+            combined_df.write_parquet(outfile_path, compression="zstd")
+
+            with open(yaml_path, 'w') as f:
+                yaml.dump(header_data, f)
+
+
+
+    def query_value_at(ff_file: str, electrode: str, x: int, y: int, z: int = 0):
+        """
+        (temp docstring)
+        method to query a value based on the electrode and the x, y, z index
+
+        **** not sure if this is the desired functionality for parsing, but i think it would be helpful
+        """
+        df = pl.read_parquet(ff_file)
+        result = df.filter(
+            (pl.col("electrode") == electrode) &
+            (pl.col("x_index") == x) &
+            (pl.col("y_index") == y) &
+            (pl.col("z_index") == z)
+        )
+
+        if result.height == 0:
+            raise ValueError(f"No value found at ({x}, {y}, {z}) for electrode '{electrode}'")
+
+        return result["value"][0]
 
 
     def gather_results(self, single_data_file: bool=False, remove_txt_files: bool=True):
@@ -596,12 +693,13 @@ class FreeFEM():
 
                 for file in self.result_files[i]:
                     electrode_name = file.split('_')[-1]
-                    array = np.loadtxt(file + ".btxt")
+                    array = np.load(file + ".npy")
                     
                     f.write(f"[START SLICE - {electrode_name}]\n")
                     
                     n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
                     if n3:
+                        
                         assert len(array) == n1 * n2 * n3, ValueError("...")
                     
                     new_arr = array.reshape((n3, n1, n2))
@@ -792,7 +890,7 @@ class FreeFEM():
                 print(f'Cleaning {file} from directory')
                 os.remove(self.savedir + file)
             
-            if ".btxt" in file and file not in keep_files:
+            if ".npy" in file and file not in keep_files:
                 print(f'Cleaning {file} from directory')
                 os.remove(self.savedir + file)
 
