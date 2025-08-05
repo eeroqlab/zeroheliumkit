@@ -576,7 +576,6 @@ class FreeFEM():
         data['Y Min'] = header_data['coordinate2'][0]
         data['Y Max'] = header_data['coordinate2'][1]
         data['Slices'] = len(header_data['coordinate3'])
-        data['Electrodes'] = []
         return data
         
 
@@ -590,17 +589,18 @@ class FreeFEM():
         - stores the flattened data in a polars dataframe, which is stored in the parquet file
         - this can be indexed into 
         """
+        base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
+        yaml_filename = f"{base_name}_header.yaml"
+        yaml_path = os.path.join(self.savedir, yaml_filename)
+
+        os.remove(yaml_path)
 
         for i, extract_cfg in enumerate(self.config.get('extract_opt')):
             extract_name = extract_cfg.get("name")
-            base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
             outfile_name = (
                 f"{base_name}_{extract_name}.parquet" if not single_data_file else f"{base_name}.parquet"
             )
             outfile_path = os.path.join(self.savedir, outfile_name)
-
-            yaml_filename = f"{base_name}_header.yaml"
-            yaml_path = os.path.join(self.savedir, yaml_filename)
 
             header_data = self.write_res_header_new(extract_cfg)
             
@@ -611,9 +611,8 @@ class FreeFEM():
             all_values = []
             for file in self.result_files[i]:
                 electrode_name = file.split('_')[-1]
-                header_data['Electrodes'].append(electrode_name)
 
-                array = np.load(f"{file}.npy")
+                array = np.loadtxt(f"{file}.npy", dtype=float)
 
                 n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
                 assert len(array) == n1 * n2 * n3, f"Array shape mismatch in {file}"
@@ -631,7 +630,7 @@ class FreeFEM():
                 all_values.extend(array.flatten())
 
                 if remove_files:
-                    os.remove(os.path.join(self.savedir, file + ".npy"))
+                    os.remove(file + ".npy")
 
                 del array
 
@@ -645,30 +644,52 @@ class FreeFEM():
             
             combined_df.write_parquet(outfile_path, compression="zstd")
 
-            with open(yaml_path, 'w') as f:
+            with open(yaml_path, 'a') as f:
                 yaml.dump(header_data, f)
 
 
 
-    def query_value_at(ff_file: str, electrode: str, x: int, y: int, z: int = 0):
+    def query_value_at(self, ff_file: str, electrode: str, x: int, y: int, z: int = 0):
         """
         (temp docstring)
         method to query a value based on the electrode and the x, y, z index
 
         **** not sure if this is the desired functionality for parsing, but i think it would be helpful
         """
-        df = pl.read_parquet(ff_file)
-        result = df.filter(
+        df = pl.read_parquet(self.savedir + ff_file)
+        val = df.filter(
             (pl.col("electrode") == electrode) &
             (pl.col("x_index") == x) &
             (pl.col("y_index") == y) &
             (pl.col("z_index") == z)
         )
 
-        if result.height == 0:
+        if val.height == 0:
             raise ValueError(f"No value found at ({x}, {y}, {z}) for electrode '{electrode}'")
+        
+        result = {"value": val['value'][0], "electrode": electrode, "(x, y, z)": (x, y, z)}
 
-        return result["value"][0]
+        return result
+
+
+    def query_all(self, ff_file: str, electrode: str=None, res_file: str=None):
+        df = pl.read_parquet(os.path.join(self.savedir, ff_file))
+        if electrode:
+            result = df.filter(pl.col("electrode") == electrode)
+        else:
+            result = df
+
+        if result.height == 0:
+            raise ValueError(f"No values found for electrode '{electrode}'")
+        
+        result = result.to_pandas().to_string()
+        
+        if res_file:
+            with open(os.path.join(self.savedir, res_file), 'w') as f:
+                f.write(result)
+            return f"Results have been written to {res_file}"
+        else:
+            return result
 
 
     def gather_results(self, single_data_file: bool=False, remove_txt_files: bool=True):
@@ -866,7 +887,7 @@ class FreeFEM():
             with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
                 
-            self.gather_results(single_data_file, remove_txt_files)
+            self.gather_results_new(single_data_file, remove_txt_files)
             filename = self.electrode_files[0]
             with open(self.savedir + filename + ".edp", 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]
