@@ -568,7 +568,6 @@ class FreeFEM():
     def write_res_header_new(self, header_data):
         data = {}
 
-        data['Extract Name'] = header_data['name']
         data['Quantity'] = header_data['quantity']
         data['Plane'] = header_data['plane']
         data['X Min'] = header_data['coordinate1'][0]
@@ -576,33 +575,36 @@ class FreeFEM():
         data['Y Min'] = header_data['coordinate2'][0]
         data['Y Max'] = header_data['coordinate2'][1]
         data['Slices'] = len(header_data['coordinate3'])
+        data['X Num'] = header_data['coordinate1'][2]
+        data['Y Num'] = header_data['coordinate2'][2]
+        data['Electrodes'] = list(self.physicalSurfs.keys())
         return data
         
 
-    def gather_results_new(self, single_data_file: bool=False, remove_files: bool=True):
+    def gather_results_new(self, remove_files: bool=True):
         """
-        (temp docstring)
-        new version of gather results that:
-        - grabs each .npy file
-        - creates output parquet and yaml files
-        - for each of the result files, maps the indices of the flattened data
-        - stores the flattened data in a polars dataframe, which is stored in the parquet file
-        - this can be indexed into 
+        Gathers results for all electrodes into one polars DataFrame for each extract config. Redirected to .parquet files for easy parsing.
+
+        Args:
+        -----
+            - remove_files (bool): Whether or not to remove the .npy files in the user's file system. Defaults to True.
         """
         base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
         yaml_filename = f"{base_name}_header.yaml"
         yaml_path = os.path.join(self.savedir, yaml_filename)
 
         os.remove(yaml_path)
+        yaml_data = {}
 
         for i, extract_cfg in enumerate(self.config.get('extract_opt')):
             extract_name = extract_cfg.get("name")
             outfile_name = (
-                f"{base_name}_{extract_name}.parquet" if not single_data_file else f"{base_name}.parquet"
+                f"{base_name}_{extract_name}.parquet" 
             )
             outfile_path = os.path.join(self.savedir, outfile_name)
 
             header_data = self.write_res_header_new(extract_cfg)
+            yaml_data[extract_cfg['name']] = header_data
             
             all_electrodes = []
             all_z_indices = []
@@ -639,100 +641,33 @@ class FreeFEM():
                 "z_index": all_z_indices,
                 "x_index": all_x_indices,
                 "y_index": all_y_indices,
+                ""
                 "value": all_values
             })
             
             combined_df.write_parquet(outfile_path, compression="zstd")
 
-            with open(yaml_path, 'a') as f:
-                yaml.dump(header_data, f)
+        with open(yaml_path, 'w') as f:
+            yaml.dump(yaml_data, f)
 
 
-
-    def query_value_at(self, ff_file: str, electrode: str, x: int, y: int, z: int = 0):
+    def get_parquet_names(self) -> list:
         """
-        (temp docstring)
-        method to query a value based on the electrode and the x, y, z index
+        Gets the names of each extract config's .parquet file name for easy passing into the fieldreader module's parser.
 
-        **** not sure if this is the desired functionality for parsing, but i think it would be helpful
+        Returns:
+        --------
+            names (list): list of existing parquet file names for each extract config, including the save directory
         """
-        df = pl.read_parquet(self.savedir + ff_file)
-        val = df.filter(
-            (pl.col("electrode") == electrode) &
-            (pl.col("x_index") == x) &
-            (pl.col("y_index") == y) &
-            (pl.col("z_index") == z)
-        )
-
-        if val.height == 0:
-            raise ValueError(f"No value found at ({x}, {y}, {z}) for electrode '{electrode}'")
-        
-        result = {"value": val['value'][0], "electrode": electrode, "(x, y, z)": (x, y, z)}
-
-        return result
-
-
-    def query_all(self, ff_file: str, electrode: str=None, res_file: str=None):
-        df = pl.read_parquet(os.path.join(self.savedir, ff_file))
-        if electrode:
-            result = df.filter(pl.col("electrode") == electrode)
-        else:
-            result = df
-
-        if result.height == 0:
-            raise ValueError(f"No values found for electrode '{electrode}'")
-        
-        result = result.to_pandas().to_string()
-        
-        if res_file:
-            with open(os.path.join(self.savedir, res_file), 'w') as f:
-                f.write(result)
-            return f"Results have been written to {res_file}"
-        else:
-            return result
-
-
-    def gather_results(self, single_data_file: bool=False, remove_txt_files: bool=True):
-        """
-        Gathers the results from the individual FreeFEM result files into a single file.
-
-        Args:
-        -----
-            - res_num (int): Index of the extract config to gather results for.
-        """
-        filename = f"ff_data_{self.config['meshfile'].split('.')[0]}"
-        filepath = self.savedir + filename + ".csv"
-
-        with open(filepath, 'w') as f:
-            for i, extract_cfg in enumerate(self.config.get('extract_opt')):
-
-                if not single_data_file and extract_cfg['name']:
-                    filename = f"ff_data_{self.config['meshfile'].split('.')[0]}_{extract_cfg['name']}"
-                    filepath = self.savedir + filename + ".csv"
-
-                f.write(self.write_res_header(extract_cfg))
-
-                for file in self.result_files[i]:
-                    electrode_name = file.split('_')[-1]
-                    array = np.load(file + ".npy")
-                    
-                    f.write(f"[START SLICE - {electrode_name}]\n")
-                    
-                    n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
-                    if n3:
-                        
-                        assert len(array) == n1 * n2 * n3, ValueError("...")
-                    
-                    new_arr = array.reshape((n3, n1, n2))
-                    
-                    for slice_arr in new_arr:
-                        #padded_slice = self.pad_dataframe([slice_arr], n2)[0]
-                        for row in slice_arr:
-                            f.write(','.join(map(str, row)) + '\n')
-                        f.write('\n')  
-                        
-                    if remove_txt_files:
-                        os.remove(f"{file}.btxt")
+        names = []
+        base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
+        for extract_cfg in self.config.get('extract_opt'):
+            extract_name = extract_cfg.get("name")
+            outfile_name = (
+                f"{base_name}_{extract_name}.parquet" 
+            )
+            names.append(os.path.join(self.savedir, outfile_name))
+        return names
 
 
     def log_history(self, edp_code: str, total_time: float):
@@ -850,7 +785,6 @@ class FreeFEM():
     async def run(self,
             cores,
             print_log=False,
-            single_data_file=True,
             freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin",
             remove_txt_files: bool=True):
         """
@@ -887,7 +821,7 @@ class FreeFEM():
             with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
                 
-            self.gather_results_new(single_data_file, remove_txt_files)
+            self.gather_results_new(remove_txt_files)
             filename = self.electrode_files[0]
             with open(self.savedir + filename + ".edp", 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]

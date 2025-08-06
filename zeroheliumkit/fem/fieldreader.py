@@ -27,7 +27,8 @@ Classes:
 - FieldAnalyzer: A class for analyzing and plotting field data extracted from FEM simulations.
 """
 
-
+import yaml
+import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -217,7 +218,7 @@ def read_ff_output(filename: str, ff_type: str) -> dict:
                     array.append([float(item) for item in line.split()])
 
     elif ff_type == '2Dslices':
-        # handles a multiple 2Dmaps which contains multiple coupling constants
+        # handles a multiple 2Dmaps which contains multiple coupling constant.
         data = {}
         with open(filename) as file:
             for line in file:
@@ -243,6 +244,35 @@ def read_ff_output(filename: str, ff_type: str) -> dict:
                 else:
                     s_array.append([float(item) for item in line.split()])
     else: pass
+    return data
+
+
+def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
+    data = {}
+
+    with open(yaml_file, 'r') as file:
+        yaml_data = yaml.load(file, Loader=yaml.FullLoader)
+
+    for parquet_file in parquet_files:
+        df = pl.read_parquet(parquet_file)
+        config = parquet_file.split(".")[0].split("_")[-1]
+
+        extract_result = {}
+        header_data = yaml_data[config]
+
+        electrodes = header_data['Electrodes']
+        shape = (header_data['X Num'], header_data['Y Num'], header_data['Slices'])
+
+        for electrode in electrodes:
+            extract_result[electrode] = {}
+            electrode_res = df.filter(pl.col("electrode") == electrode)['value']
+
+            array = np.reshape(electrode_res, shape)
+            for i, slice in enumerate(array):
+                extract_result[electrode][i] = slice
+
+        data[config] = extract_result
+            
     return data
 
 
