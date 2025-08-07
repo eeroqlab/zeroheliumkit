@@ -248,6 +248,18 @@ def read_ff_output(filename: str, ff_type: str) -> dict:
 
 
 def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
+    """
+    Parses polars DataFrames and returns electrode values for each extract config based on provided parquet files.
+
+    Args:
+    -----
+        - parquet_files (str | list): List of parquet file names or single file name. Can be passed in with the get_parquet_names() method from the FreeFEM class.
+        - yaml_file (str): Header file name containing extraction metadata.
+
+    Returns:
+    --------
+        - 
+    """
     data = {}
 
     with open(yaml_file, 'r') as file:

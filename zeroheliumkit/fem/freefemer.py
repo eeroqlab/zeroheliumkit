@@ -241,8 +241,9 @@ class FreeFEM():
         code += self.script_create_savefiles(electrode_name)
         code += self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
-        code += self.script_create_coupling_const_matrix()
+        code += self.script_create_coupling_const_matrix(electrode_name)
         code += self.script_problem_definition(electrode_name)
+        code += self.script_save_cmatrix(electrode_name)
 
         for i, extract_config in enumerate(self.config.get('extract_opt')):
             if isinstance(extract_config, ExtractConfig):
@@ -252,12 +253,7 @@ class FreeFEM():
             if extract_config.get("quantity") not in config_quantity.keys():
                 raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
 
-            if extract_config.get("quantity") == 'Cm':
-                # extract capacitance matrix
-                code += self.script_save_cmatrix(extract_config, fem_object_name)
-            else:
-                # extract electrostatic field solutions
-                code += self.script_save_data(extract_config, fem_object_name)
+            code += self.script_save_data(extract_config, fem_object_name)
 
         return code
     
@@ -312,7 +308,7 @@ class FreeFEM():
         return code
 
 
-    def script_create_coupling_const_matrix(self) -> str:
+    def script_create_coupling_const_matrix(self, main_electrode: int) -> str:
         """
         Creates the coupling constant matrix for the FreeFEM script, which is used to define the interaction between electrodes.
 
@@ -321,15 +317,13 @@ class FreeFEM():
             code (str): code containing the coupling constant matrix.
         """
         number_of_electrodes = len(list(self.physicalSurfs.keys()))
+        electrode_list = [self.physicalSurfs[main_electrode]] + [item for item in self.physicalSurfs.values() if item != self.physicalSurfs[main_electrode]]
 
         code = "\n"
         code += f"int numV = {number_of_electrodes};\n"
-
         code += "\n"
-        code += "real[int, int] CapacitanceMatrix(numV, numV);\n"
-        code += "for (int i = 0; i < numV; i+= 1){\n"
-        code += add_spaces(4) + "for (int j = 0; j < numV; j+= 1){\n"
-        code += add_spaces(8) + "CapacitanceMatrix(i, j) = 0.0;}}\n"
+        code += f"real[int] electrodeid = {electrode_list};"
+        code += "\n"
 
         return code
 
@@ -482,8 +476,7 @@ class FreeFEM():
         return code
 
 
-
-    def script_save_cmatrix(self, params: dict, fem_object_name: str) -> str:
+    def script_save_cmatrix(self, electrode: str) -> str:
         """
         Saves the capacitance matrix based on the provided parameters and the FreeFEM object name.
         
@@ -496,18 +489,14 @@ class FreeFEM():
         --------
             code (str): code containing the Capacitance Matrix.
         """
-        name = fem_object_name  # params['quantity']
 
-        code = add_spaces(4) + "{\n"
-        code += add_spaces(4) + "for(int i = k; i < numV; i++){\n"
-        code += add_spaces(8) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
-        code += add_spaces(46) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
-        code += add_spaces(8) + "CapacitanceMatrix(k,i) = charge;\n"
-        code += add_spaces(8) + "CapacitanceMatrix(i,k) = charge;}\n"
-        code += add_spaces(4) + """if (k == numV - 1){\n"""
-        code += add_spaces(8) + f"{name} << electrodenames << endl;\n"
-        code += add_spaces(8) + f"{name} << CapacitanceMatrix << endl;" + "}\n"
-        code += add_spaces(4) + "}\n"
+        code = f"""ofstream cmextract("{self.savedir + 'cm_' + electrode}.txt");\n"""
+        code += "\n"
+        code += "for(int i = 0; i < numV; i++){\n"
+        code += add_spaces(4) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
+        code += add_spaces(42) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
+        code += add_spaces(4) + f"cmextract << charge << endl;\n"
+        code += "}\n"
 
         return code
 
@@ -581,7 +570,7 @@ class FreeFEM():
         return data
         
 
-    def gather_results_new(self, remove_files: bool=True):
+    def gather_results(self, remove_files: bool=True):
         """
         Gathers results for all electrodes into one polars DataFrame for each extract config. Redirected to .parquet files for easy parsing.
 
@@ -668,6 +657,24 @@ class FreeFEM():
             )
             names.append(os.path.join(self.savedir, outfile_name))
         return names
+    
+
+    def gather_cm_results(self) -> list:
+        base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
+        yaml_filename = f"{base_name}_header.yaml"
+        yaml_path = os.path.join(self.savedir, yaml_filename)
+
+        capacitance_matrix = []
+
+        with open(yaml_path, 'a') as file:
+            for electrode in list(self.physicalSurfs.keys()):
+                row = np.loadtxt(os.path.join(self.savedir, f"cm_{electrode}.txt"))
+                row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
+                capacitance_matrix.append(row)
+
+            data = {"Capacitance Matrix": capacitance_matrix}
+            yaml.dump(data, file, default_flow_style=True)
+
 
 
     def log_history(self, edp_code: str, total_time: float):
@@ -821,7 +828,8 @@ class FreeFEM():
             with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
                 
-            self.gather_results_new(remove_txt_files)
+            self.gather_results(remove_txt_files)
+            self.gather_cm_results()
             filename = self.electrode_files[0]
             with open(self.savedir + filename + ".edp", 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]
