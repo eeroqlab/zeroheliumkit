@@ -243,6 +243,7 @@ class FreeFEM():
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix(electrode_name)
         code += self.script_problem_definition(electrode_name)
+        code += self.script_refine_mesh()
         code += self.script_save_cmatrix(electrode_name)
 
         for i, extract_config in enumerate(self.config.get('extract_opt')):
@@ -281,6 +282,7 @@ class FreeFEM():
             code (str): code containing the necessary FreeFEM packages and mesh file declarations.
         """
         code = """load "msh3"\n"""
+        code += """load "TetGen"\n"""
         code += """load "gmsh"\n"""
         code += """load "medit"\n"""
         code += "\n"
@@ -317,7 +319,7 @@ class FreeFEM():
             code (str): code containing the coupling constant matrix.
         """
         number_of_electrodes = len(list(self.physicalSurfs.keys()))
-        electrode_list = [self.physicalSurfs[main_electrode]] + [item for item in self.physicalSurfs.values() if item != self.physicalSurfs[main_electrode]]
+        electrode_list = list(self.physicalSurfs.values())
 
         code = "\n"
         code += f"int numV = {number_of_electrodes};\n"
@@ -499,6 +501,15 @@ class FreeFEM():
         code += "}\n"
 
         return code
+    
+
+    def script_refine_mesh(self) -> str:
+        code = "\n"
+        code += f"""meshS surf = readmeshS("{os.path.join(self.savedir, self.config["meshfile"])}");\n"""
+        code += f"""Th = tetg(surf);\n"""
+        code += f"""Electro;\n"""
+
+        return code
 
 
     async def edp_exec(self, edp_file: str, filepath: str, print_log: bool=False):
@@ -582,7 +593,7 @@ class FreeFEM():
         yaml_filename = f"{base_name}_header.yaml"
         yaml_path = os.path.join(self.savedir, yaml_filename)
 
-        os.remove(yaml_path)
+        # os.remove(yaml_path)
         yaml_data = {}
 
         for i, extract_cfg in enumerate(self.config.get('extract_opt')):
@@ -636,8 +647,10 @@ class FreeFEM():
             
             combined_df.write_parquet(outfile_path, compression="zstd")
 
+        yaml_data['Capacitance Matrix'] = self.gather_cm_results()
+
         with open(yaml_path, 'w') as f:
-            yaml.dump(yaml_data, f)
+            yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
 
 
     def get_parquet_names(self) -> list:
@@ -660,23 +673,17 @@ class FreeFEM():
     
 
     def gather_cm_results(self) -> list:
-        base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
-        yaml_filename = f"{base_name}_header.yaml"
-        yaml_path = os.path.join(self.savedir, yaml_filename)
 
         capacitance_matrix = []
 
-        with open(yaml_path, 'a') as file:
-            for electrode in list(self.physicalSurfs.keys()):
-                row = np.loadtxt(os.path.join(self.savedir, f"cm_{electrode}.txt"))
-                row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
-                capacitance_matrix.append(row)
+        for electrode in list(self.physicalSurfs.keys()):
+            row = np.loadtxt(os.path.join(self.savedir, f"cm_{electrode}.txt"))
+            row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
+            capacitance_matrix.append(row)
 
-            data = {"Capacitance Matrix": capacitance_matrix}
-            yaml.dump(data, file, default_flow_style=True)
+        return capacitance_matrix
 
-
-
+        
     def log_history(self, edp_code: str, total_time: float):
         """
         Logs the current run and edp code to an existing, running history file (ff_history.md)
