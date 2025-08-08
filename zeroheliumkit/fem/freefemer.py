@@ -139,6 +139,7 @@ class FFconfigurator():
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
+    additional_dir: str = None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
@@ -165,12 +166,16 @@ class FreeFEM():
     Attributes:
     -----------
         - config (str): filepath containing FreeFEM config yaml file.
-        - savedir (str): Directory name where the FreeFEM files will be saved.
+        - savedir (str | tuple): Directory name where the FreeFEM files will be saved. 
+            Tuple containing two options if provided with an additional directory.
         - run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
         - electrode_files (list): List of coupling constant files.
         - result_files (list): 2D list of existing electrode result files based on extract configs.
         - extract_names (str): List of names for the cumulative result files based on extract configs.
         - logs (str): Log messages from the FreeFEM execution.
+
+        //idea
+        - has_additional_dir (bool): indicates whether or not another directory has been provided
     """
     
     def __init__(self,
@@ -179,7 +184,12 @@ class FreeFEM():
 
         with open(config_file, 'r') as file:
             self.config = yaml.safe_load(file)
-        self.savedir = self.config.get("savedir") + "/"
+
+        if self.config.get("additional_dir"):
+            self.savedir = [self.config.get("savedir") + "/", self.config.get("additional_dir") + "/"]
+        else:
+            self.savedir = self.config.get("savedir") + "/"
+
         self.run_from_notebook = run_from_notebook
         self.electrode_files = []
         self.result_files = [[] for _ in range(len(self.config.get('extract_opt')))]
@@ -356,7 +366,7 @@ class FreeFEM():
             self.extract_names[idx] = name
             name += f'_{electrode_name}'
             self.result_files[idx].append(name)
-            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.btxt", binary);\n"""
+            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.npy", binary);\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
         
         return code
@@ -609,12 +619,12 @@ class FreeFEM():
             dataframe = pl.DataFrame({})
             for file in self.result_files[i]:
                 electrode_name = file.split('_')[-1]
-                data = pl.read_csv(f"{file}.btxt", has_header=False, new_columns=[electrode_name],  schema_overrides={electrode_name: pl.Float64})
+                data = pl.read_csv(f"{file}.npy", has_header=False, new_columns=[electrode_name],  schema_overrides={electrode_name: pl.Float64})
 
                 dataframe = pl.concat([dataframe, data], how="horizontal")
 
                 if remove_files:
-                    os.remove(file + ".btxt")
+                    os.remove(file + ".npy")
             
             dataframe.write_parquet(outfile_path, compression="zstd")
             print(dataframe)
