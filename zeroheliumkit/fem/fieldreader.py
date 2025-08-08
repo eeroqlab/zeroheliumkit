@@ -277,7 +277,7 @@ def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
 
         for electrode in electrodes:
             extract_result[electrode] = {}
-            electrode_res = df.filter(pl.col("electrode") == electrode)['value']
+            electrode_res = df[electrode]
 
             array = np.reshape(electrode_res, shape)
             for i, slice in enumerate(array):

@@ -243,7 +243,7 @@ class FreeFEM():
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix(electrode_name)
         code += self.script_problem_definition(electrode_name)
-        code += self.script_refine_mesh()
+        # code += self.script_refine_mesh()
         code += self.script_save_cmatrix(electrode_name)
 
         for i, extract_config in enumerate(self.config.get('extract_opt')):
@@ -282,7 +282,7 @@ class FreeFEM():
             code (str): code containing the necessary FreeFEM packages and mesh file declarations.
         """
         code = """load "msh3"\n"""
-        code += """load "TetGen"\n"""
+        # code += """load "TetGen"\n"""
         code += """load "gmsh"\n"""
         code += """load "medit"\n"""
         code += "\n"
@@ -356,7 +356,7 @@ class FreeFEM():
             self.extract_names[idx] = name
             name += f'_{electrode_name}'
             self.result_files[idx].append(name)
-            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.npy", binary);\n"""
+            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.btxt", binary);\n"""
             self.__extract_opt[idx] = f"extract{idx}{qty}"
         
         return code
@@ -606,46 +606,18 @@ class FreeFEM():
             header_data = self.write_res_header_new(extract_cfg)
             yaml_data[extract_cfg['name']] = header_data
             
-            all_electrodes = []
-            all_z_indices = []
-            all_x_indices = []
-            all_y_indices = []
-            all_values = []
+            dataframe = pl.DataFrame({})
             for file in self.result_files[i]:
                 electrode_name = file.split('_')[-1]
+                data = pl.read_csv(f"{file}.btxt", has_header=False, new_columns=[electrode_name],  schema_overrides={electrode_name: pl.Float64})
 
-                array = np.loadtxt(f"{file}.npy", dtype=float)
-
-                n1, n2, n3 = self.__parse_coordinate_counts(extract_cfg)
-                assert len(array) == n1 * n2 * n3, f"Array shape mismatch in {file}"
-                array = array.reshape((n3, n1, n2))
-
-                num_points = array.size
-                z_idx = np.repeat(np.arange(array.shape[0]), array.shape[1] * array.shape[2])
-                x_idx = np.tile(np.repeat(np.arange(array.shape[1]), array.shape[2]), array.shape[0])
-                y_idx = np.tile(np.arange(array.shape[2]), array.shape[0] * array.shape[1])
-                
-                all_electrodes.extend([electrode_name] * num_points)
-                all_z_indices.extend(z_idx)
-                all_x_indices.extend(x_idx)
-                all_y_indices.extend(y_idx)
-                all_values.extend(array.flatten())
+                dataframe = pl.concat([dataframe, data], how="horizontal")
 
                 if remove_files:
-                    os.remove(file + ".npy")
-
-                del array
-
-            combined_df = pl.DataFrame({
-                "electrode": all_electrodes,
-                "z_index": all_z_indices,
-                "x_index": all_x_indices,
-                "y_index": all_y_indices,
-                ""
-                "value": all_values
-            })
+                    os.remove(file + ".btxt")
             
-            combined_df.write_parquet(outfile_path, compression="zstd")
+            dataframe.write_parquet(outfile_path, compression="zstd")
+            print(dataframe)
 
         yaml_data['Capacitance Matrix'] = self.gather_cm_results()
 
