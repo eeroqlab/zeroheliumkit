@@ -17,7 +17,6 @@ from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
 
 
-# config_planes = ['xy', 'yz', 'xz', 'xyZ']
 axis_ordering = {'xy':   'ax1,ax2,ax3',
                  'xz':   'ax1,ax3,ax2',
                  'yz':   'ax3,ax1,ax2'
@@ -25,8 +24,7 @@ axis_ordering = {'xy':   'ax1,ax2,ax3',
 config_quantity = {'phi': 'u',
                    'Ex': 'dx(u)',
                    'Ey': 'dy(u)',
-                   'Ez': 'dz(u)',
-                   'Cm': None}
+                   'Ez': 'dz(u)'}
 
 
 def scaling_size(bulk_helium_distance: float=1e-1):
@@ -95,7 +93,6 @@ class ExtractConfig():
         - coordinate3 (float | list | dict): User can input a float, list, or dictionary depending on their desired configuration. All inputs are converted to a list.
     """ 
     name: str #making a mandatory name for each extract dataset 
-
     quantity: str
     plane: str
     coordinate1: tuple
@@ -179,30 +176,25 @@ class FreeFEM():
     """
     
     def __init__(self,
-                 config_file: str,
-                 run_from_notebook: bool=False):
+                 config_file: str):
 
         with open(config_file, 'r') as file:
             self.config = yaml.safe_load(file)
 
-        if self.config.get("additional_dir"):
-            self.savedir = [self.config.get("savedir") + "/", self.config.get("additional_dir") + "/"]
-        else:
-            self.savedir = self.config.get("savedir") + "/"
+        self.savedir = Path(self.config["savedir"])
+        if self.config["additional_dir"]:
+            self.savedir = self.savedir / Path(self.config["additional_dir"])
 
-        self.run_from_notebook = run_from_notebook
         self.electrode_files = []
-        self.result_files = [[] for _ in range(len(self.config.get('extract_opt')))]
-        self.extract_names = [None for _ in range(len(self.config.get('extract_opt')))]
+        # self.result_files = [[]] * len(self.config.get('extract_opt'))
+        self.extract_names = [eo['name'] for eo in self.config.get('extract_opt')]
         self.logs = ""
-
-        # self.curvature_config = self.config.get("include_helium_curvature")
         self.physicalVols = self.config.get('physicalVolumes')
         self.physicalSurfs = self.config.get('physicalSurfaces')
         self.num_electrodes = len(list(self.physicalSurfs.keys()))
         if isinstance(self.config.get('extract_opt'), dict):
             self.config['extract_opt'] = [self.config['extract_opt']]
-                
+
         self.write_edpScript()
 
 
@@ -251,20 +243,13 @@ class FreeFEM():
         code += self.script_create_savefiles(electrode_name)
         code += self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
-        code += self.script_create_coupling_const_matrix(electrode_name)
+        code += self.script_create_coupling_const_matrix()
         code += self.script_problem_definition(electrode_name)
         # code += self.script_refine_mesh()
         code += self.script_save_cmatrix(electrode_name)
 
-        for i, extract_config in enumerate(self.config.get('extract_opt')):
-            if isinstance(extract_config, ExtractConfig):
-                extract_config = asdict(extract_config)
-            fem_object_name = self.__extract_opt[i] + electrode_name
-            # check supported parameters for extraction
-            if extract_config.get("quantity") not in config_quantity.keys():
-                raise KeyError(f'unsupported extract quantity. Supported quantity types are {config_quantity}')
-
-            code += self.script_save_data(extract_config, fem_object_name)
+        for extract_config in self.config.get('extract_opt'):
+            code += self.script_save_data(extract_config)
 
         return code
     
@@ -276,10 +261,9 @@ class FreeFEM():
         #create new files for each electrode, only inputting the lines of code needed
         for electrode in self.physicalSurfs.keys():
             code = self.write_edpContent(electrode)
-            filename = "electrode_" + electrode
+            filename = "electrode_" + electrode + ".edp"
             self.electrode_files.append(filename)
-                    
-            with open(self.savedir + filename + '.edp', 'w') as file:
+            with open(self.savedir / filename, 'w') as file:
                 file.write(code)
 
 
@@ -296,10 +280,7 @@ class FreeFEM():
         code += """load "gmsh"\n"""
         code += """load "medit"\n"""
         code += "\n"
-        if self.run_from_notebook:
-            path_meshfile = self.savedir + self.config["meshfile"]
-        else:
-            path_meshfile = self.config["meshfile"] + '.msh2'
+        path_meshfile = self.savedir / self.config["meshfile"]
         code += f"""mesh3 Th = gmshload3("{path_meshfile}");\n"""
         return code
 
@@ -320,7 +301,7 @@ class FreeFEM():
         return code
 
 
-    def script_create_coupling_const_matrix(self, main_electrode: int) -> str:
+    def script_create_coupling_const_matrix(self) -> str:
         """
         Creates the coupling constant matrix for the FreeFEM script, which is used to define the interaction between electrodes.
 
@@ -332,6 +313,7 @@ class FreeFEM():
         electrode_list = list(self.physicalSurfs.values())
 
         code = "\n"
+
         code += f"int numV = {number_of_electrodes};\n"
         code += "\n"
         code += f"real[int] electrodeid = {electrode_list};"
@@ -353,21 +335,12 @@ class FreeFEM():
             code (str): string containing the necessary lines of code to save the data.
         """
         code = "\n"
-        self.__extract_opt = {}
 
-        for idx, extract_cfg in enumerate(self.config.get('extract_opt')):
-            addname = extract_cfg['name']
-            qty = extract_cfg['quantity']
-            pln = extract_cfg['plane']
-            name = (addname + "_" if addname else "") + qty + ("_" + pln if pln else "")
-
-            if self.run_from_notebook:
-                name = self.savedir + name
-            self.extract_names[idx] = name
-            name += f'_{electrode_name}'
-            self.result_files[idx].append(name)
-            code += f"""ofstream extract{idx}{qty}{electrode_name}("{name}.npy", binary);\n"""
-            self.__extract_opt[idx] = f"extract{idx}{qty}"
+        for extract_cfg in self.config.get('extract_opt'):
+            name = extract_cfg['name']
+            code += f"""ofstream {name}"""
+            name += f"_{electrode_name}"
+            code += f"""("{self.savedir / name}.npy", binary);\n"""
         
         return code
 
@@ -428,19 +401,9 @@ class FreeFEM():
         return code
     
 
-    def script_save_data(self, config: dict, fem_object_name: str) -> str:
+    def script_save_data(self, config: dict) -> str:
 
-        name = fem_object_name
-        plane = config.get('plane')
-
-        # if plane == 'xyZ':
-        #     if config.get('curvature_config'):
-        #         xyz = "ax1, ax2, bulkHeliumLevelDispScales[m]"
-        #     else:
-        #         xyz = "ax1, ax2, zcoords[m]"
-        # else:
-        #     xyz = axis_ordering[plane][0]
-        xyz = axis_ordering[plane]
+        xyz = axis_ordering[config.get('plane')]
 
         code  = headerFrame("2D SLICES DATA EXTRACTION BLOCK START")
         code += "{\n"
@@ -477,7 +440,7 @@ class FreeFEM():
         
         quantity = config_quantity.get(config['quantity'])
 
-        code += add_spaces(12) + f"""{name} << {quantity}({xyz}) << endl;\n"""
+        code += add_spaces(12) + f"""{config['name']} << {quantity}({xyz}) << endl;\n"""
         code += add_spaces(12) + """}\n"""
         code += add_spaces(8) + """}\n"""
         code += add_spaces(4) + "}\n"
@@ -501,21 +464,22 @@ class FreeFEM():
         --------
             code (str): code containing the Capacitance Matrix.
         """
-
-        code = f"""ofstream cmextract("{self.savedir + 'cm_' + electrode}.txt");\n"""
+        code = headerFrame("START / Calculate Capacitance Matrix")
+        code += f"""ofstream cmextract("{self.savedir / Path('cm_' + electrode)}.txt");\n"""
         code += "\n"
         code += "for(int i = 0; i < numV; i++){\n"
         code += add_spaces(4) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
         code += add_spaces(42) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
         code += add_spaces(4) + f"cmextract << charge << endl;\n"
         code += "}\n"
+        code += headerFrame("END / Calculate Capacitance Matrix")
 
         return code
     
 
     def script_refine_mesh(self) -> str:
         code = "\n"
-        code += f"""meshS surf = readmeshS("{os.path.join(self.savedir, self.config["meshfile"])}");\n"""
+        code += f"""meshS surf = readmeshS("{self.savedir / self.config["meshfile"]}");\n"""
         code += f"""Th = tetg(surf);\n"""
         code += f"""Electro;\n"""
 
@@ -535,7 +499,7 @@ class FreeFEM():
         progress = widgets.Label(f"⏳ Running calculations for {edp_file}")
         display(progress)
 
-        bashCommand = ['freefem++', self.savedir + edp_file + '.edp']
+        bashCommand = ['freefem++', self.savedir / edp_file]
         env = os.environ.copy()
         env['PATH'] += filepath
         process = await asyncio.create_subprocess_exec(
@@ -575,21 +539,35 @@ class FreeFEM():
         return "\n".join(lines) + "\n"
     
 
-    def write_res_header_new(self, header_data):
+    def __write_res_header_new(self, header_data):
         data = {}
 
         data['Quantity'] = header_data['quantity']
         data['Plane'] = header_data['plane']
         data['X Min'] = header_data['coordinate1'][0]
         data['X Max'] = header_data['coordinate1'][1]
+        data['X Num'] = header_data['coordinate1'][2]
         data['Y Min'] = header_data['coordinate2'][0]
         data['Y Max'] = header_data['coordinate2'][1]
-        data['Slices'] = len(header_data['coordinate3'])
-        data['X Num'] = header_data['coordinate1'][2]
         data['Y Num'] = header_data['coordinate2'][2]
+        data['Slices'] = len(header_data['coordinate3'])
         data['Electrodes'] = list(self.physicalSurfs.keys())
         return data
-        
+
+
+    def __create_polarsdf(self, filenames: dict, remove_original: bool=True):
+        dataframe = pl.DataFrame({})
+        for elname, fname in filenames.items():
+            data = pl.read_csv(source=self.savedir / fname,
+                               has_header=False,
+                               new_columns=[elname],
+                               schema_overrides={elname: pl.Float64})
+
+            dataframe = pl.concat([dataframe, data], how="horizontal")
+            if remove_original:
+                os.remove(fname)
+        return dataframe
+
 
     def gather_results(self, remove_files: bool=True):
         """
@@ -601,31 +579,22 @@ class FreeFEM():
         """
         base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
         yaml_filename = f"{base_name}_header.yaml"
-        yaml_path = os.path.join(self.savedir, yaml_filename)
+        yaml_path = self.savedir / yaml_filename
 
         # os.remove(yaml_path)
         yaml_data = {}
 
-        for i, extract_cfg in enumerate(self.config.get('extract_opt')):
-            extract_name = extract_cfg.get("name")
-            outfile_name = (
-                f"{base_name}_{extract_name}.parquet" 
-            )
-            outfile_path = os.path.join(self.savedir, outfile_name)
+        for eo in self.config.get('extract_opt'):
+            exname = eo.get("name")
+            header_data = self.__write_res_header_new(eo)
+            yaml_data[exname] = header_data
 
-            header_data = self.write_res_header_new(extract_cfg)
-            yaml_data[extract_cfg['name']] = header_data
-            
-            dataframe = pl.DataFrame({})
-            for file in self.result_files[i]:
-                electrode_name = file.split('_')[-1]
-                data = pl.read_csv(f"{file}.npy", has_header=False, new_columns=[electrode_name],  schema_overrides={electrode_name: pl.Float64})
+            filenames = {}
+            for elname in self.physicalSurfs.keys():
+                filenames[elname] = exname + "_" + elname + ".npy"
+            dataframe = self.__create_polarsdf(filenames, remove_files)
 
-                dataframe = pl.concat([dataframe, data], how="horizontal")
-
-                if remove_files:
-                    os.remove(file + ".npy")
-            
+            outfile_path = self.savedir / f"{base_name}_{exname}.parquet" 
             dataframe.write_parquet(outfile_path, compression="zstd")
             print(dataframe)
 
@@ -650,7 +619,7 @@ class FreeFEM():
             outfile_name = (
                 f"{base_name}_{extract_name}.parquet" 
             )
-            names.append(os.path.join(self.savedir, outfile_name))
+            names.append(self.savedir / outfile_name)
         return names
     
 
@@ -659,7 +628,7 @@ class FreeFEM():
         capacitance_matrix = []
 
         for electrode in list(self.physicalSurfs.keys()):
-            row = np.loadtxt(os.path.join(self.savedir, f"cm_{electrode}.txt"))
+            row = np.loadtxt(self.savedir / f"cm_{electrode}.txt")
             row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
             capacitance_matrix.append(row)
 
@@ -677,7 +646,7 @@ class FreeFEM():
         """
         curr_date = datetime.now()
         try:
-            with open(self.savedir + 'ff_history.md', 'r+', encoding='utf-8') as hist:
+            with open(self.savedir / 'ff_history.md', 'r+', encoding='utf-8') as hist:
                 contents = hist.read()
                 start_header = contents.find("\n")
                 iteration = int(contents[0:start_header]) + 1 if contents else 1
@@ -692,7 +661,7 @@ class FreeFEM():
                 hist.write(edp_code)
                 hist.write("```\n")
         except FileNotFoundError:
-            with open(self.savedir + 'ff_history.md', 'w', encoding='utf-8') as hist:
+            with open(self.savedir / 'ff_history.md', 'w', encoding='utf-8') as hist:
                 hist.seek(0)
                 hist.write('1')
                 hist.write(f"\n## [1] - {curr_date} - Run in {total_time} seconds\n")
@@ -734,7 +703,7 @@ class FreeFEM():
             names = [electrode_name]
 
         pattern = rf'^##\s+\[({iteration})]'
-        with open(self.savedir + "ff_history.md", 'r+') as hist:
+        with open(self.savedir / "ff_history.md", 'r+') as hist:
             history_content = hist.read()
             match = re.search(pattern, history_content, re.MULTILINE)
 
@@ -767,7 +736,7 @@ class FreeFEM():
                     new_code = code[0:problem_start] + temp_code + code[problem_end + 5::]
                     new_code = new_code.replace('k', name)
                     
-                    with open(self.savedir + f"electrode_{name}.edp", 'w+') as edp:
+                    with open(self.savedir / f"electrode_{name}.edp", 'w+') as edp:
                         edp.write(new_code)
                     self.electrode_files.append(f"electrode_{name}")
                     extract_names = self.extract_names[idx]
@@ -814,17 +783,17 @@ class FreeFEM():
             self.logs += message
 
         finally:
-            with open(os.path.join(self.savedir, 'ff_logs.txt'), 'w') as outfile:
+            with open(self.savedir / 'ff_logs.txt', 'w') as outfile:
                 outfile.write(self.logs)
                 
             self.gather_results(remove_txt_files)
             self.gather_cm_results()
             filename = self.electrode_files[0]
-            with open(self.savedir + filename + ".edp", 'r') as file:
+            with open(self.savedir / filename, 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]
                 edp_skel = file.read()
             for file in self.electrode_files:
-                os.remove(self.savedir + file + ".edp")
+                os.remove(self.savedir / file)
             self.electrode_files.clear()
 
             end_time = time.perf_counter()
@@ -840,11 +809,11 @@ class FreeFEM():
         for file in os.listdir(f'{self.savedir}'):
             if file.startswith("ff_data") and file not in keep_files:
                 print(f'Cleaning {file} from directory')
-                os.remove(self.savedir + file)
+                os.remove(self.savedir / file)
             
             if ".npy" in file and file not in keep_files:
                 print(f'Cleaning {file} from directory')
-                os.remove(self.savedir + file)
+                os.remove(self.savedir / file)
 
 
 if __name__=="__main__":
