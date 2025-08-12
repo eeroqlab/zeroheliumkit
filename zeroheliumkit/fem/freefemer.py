@@ -111,7 +111,6 @@ class ExtractConfig():
             raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
         
         if isinstance(self.coordinate3, float):
-            print(self.coordinate3)
             self.coordinate3 = [self.coordinate3]
         elif isinstance(self.coordinate3, dict):
             self.curvature_config = self.coordinate3
@@ -136,7 +135,7 @@ class FFconfigurator():
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
-    additional_dir: str = None
+    msh_refinements: int = None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
@@ -163,16 +162,10 @@ class FreeFEM():
     Attributes:
     -----------
         - config (str): filepath containing FreeFEM config yaml file.
-        - savedir (str | tuple): Directory name where the FreeFEM files will be saved. 
-            Tuple containing two options if provided with an additional directory.
-        - run_from_notebook (bool): Flag indicating if the script is run from a Jupyter notebook.
         - electrode_files (list): List of coupling constant files.
         - result_files (list): 2D list of existing electrode result files based on extract configs.
         - extract_names (str): List of names for the cumulative result files based on extract configs.
         - logs (str): Log messages from the FreeFEM execution.
-
-        //idea
-        - has_additional_dir (bool): indicates whether or not another directory has been provided
     """
     
     def __init__(self,
@@ -182,11 +175,7 @@ class FreeFEM():
             self.config = yaml.safe_load(file)
 
         self.savedir = Path(self.config["savedir"])
-        if self.config["additional_dir"]:
-            self.savedir = self.savedir / Path(self.config["additional_dir"])
-
         self.electrode_files = []
-        # self.result_files = [[]] * len(self.config.get('extract_opt'))
         self.extract_names = [eo['name'] for eo in self.config.get('extract_opt')]
         self.logs = ""
         self.physicalVols = self.config.get('physicalVolumes')
@@ -245,7 +234,8 @@ class FreeFEM():
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix()
         code += self.script_problem_definition(electrode_name)
-        # code += self.script_refine_mesh()
+        if self.config.get('msh_refinements'):
+            code += self.script_refine_mesh(self.config.get('msh_refinements'))
         code += self.script_save_cmatrix(electrode_name)
 
         for extract_config in self.config.get('extract_opt'):
@@ -276,9 +266,10 @@ class FreeFEM():
             code (str): code containing the necessary FreeFEM packages and mesh file declarations.
         """
         code = """load "msh3"\n"""
-        # code += """load "TetGen"\n"""
         code += """load "gmsh"\n"""
         code += """load "medit"\n"""
+        code += """load "mshmet"\n"""
+        code += """load "tetgen"\n"""
         code += "\n"
         path_meshfile = self.savedir / self.config["meshfile"]
         code += f"""mesh3 Th = gmshload3("{path_meshfile}");\n"""
@@ -396,7 +387,6 @@ class FreeFEM():
         code += add_spaces(16) + ";\n"
 
         code += "Electro;\n"
-        code += """cout << "calculations are finished, saving data" << endl;\n \n"""
 
         return code
     
@@ -477,11 +467,29 @@ class FreeFEM():
         return code
     
 
-    def script_refine_mesh(self) -> str:
+    def script_refine_mesh(self, iterations: int=3) -> str:
+        
         code = "\n"
-        code += f"""meshS surf = readmeshS("{self.savedir / self.config["meshfile"]}");\n"""
-        code += f"""Th = tetg(surf);\n"""
-        code += f"""Electro;\n"""
+        code += """real errm=1e-2;\n"""
+        code += "\n"
+        code += f"""for(int i=0; i<{iterations}; i++)\n"""
+        code += """{\n"""
+        code += "Electro;\n"
+        code += """cout <<" u min, max = " <<  u[].min << " "<< u[].max << endl;\n"""
+        code += """fespace VhMetric(Th, P23d);\n"""
+        code += """real[int] metric = mshmet(Th, u, hmin=1e-2,hmax=0.3,err=errm);\n"""
+        code += "\n"
+        code += """cout <<" h min, max = " <<  metric.min << " "<< metric.max << " " << metric.n << " " << Th.nv << endl;\n"""
+        code += "\n"
+        code += """fespace Ph(Th, P1);\n"""
+        code += """Ph vol;\n"""
+        code += """vol[] = metric;"""
+        code += "\n"
+        code += """errm*= 0.8;\n"""
+        code += """cout << " Th" << Th.nv << " " << Th.nt << endl;\n"""
+        code += """Th=tetgreconstruction(Th,switch="raAQ",sizeofvolume=vol);\n"""
+        code += "\n"
+        code += """}\n"""
 
         return code
 
@@ -565,7 +573,7 @@ class FreeFEM():
 
             dataframe = pl.concat([dataframe, data], how="horizontal")
             if remove_original:
-                os.remove(fname)
+                os.remove(self.savedir / fname)
         return dataframe
 
 
@@ -596,13 +604,12 @@ class FreeFEM():
 
             outfile_path = self.savedir / f"{base_name}_{exname}.parquet" 
             dataframe.write_parquet(outfile_path, compression="zstd")
-            print(dataframe)
 
         yaml_data['Capacitance Matrix'] = self.gather_cm_results()
 
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
-
+  
 
     def get_parquet_names(self) -> list:
         """

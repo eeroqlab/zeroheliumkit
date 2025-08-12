@@ -267,7 +267,7 @@ def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
 
     for parquet_file in parquet_files:
         df = pl.read_parquet(parquet_file)
-        config = parquet_file.split(".")[0].split("_")[-1]
+        config = str(parquet_file).split(".")[0].split("_")[-1]
 
         extract_result = {}
         header_data = yaml_data[config]
