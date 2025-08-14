@@ -219,9 +219,6 @@ class Entity(_Base):
         - mirror(aroundaxis, keep_original=True, update_labels=False): Mirrors all objects.
         - add_anchor(points): Adds anchors to the 'anchors' class attribute.
         - get_anchor(label): Returns the Anchor class with the given label.
-        - append(structure, anchoring=None, direction_snap=False, remove_anchor=False, upd_alabels=None):
-            Appends an Entity or Structure to the Structure.
-        - return_mirrored(aroundaxis, **kwargs): Returns a mirrored copy of the Structure class.
     """
 
     def __init__(self):
