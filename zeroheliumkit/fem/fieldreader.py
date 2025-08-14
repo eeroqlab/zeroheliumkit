@@ -177,18 +177,21 @@ def symmetrise_symmetric(data: np.ndarray, config: SymmetryConfig) -> np.ndarray
     return symm_array if config.axis == 'x' else symm_array.T
 
 
-def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
+def read_ff_output(parquet_files: str | list, yaml_file: str) -> dict:
     """
     Parses polars DataFrames and returns electrode values for each extract config based on provided parquet files.
 
     Args:
     -----
         - parquet_files (str | list): List of parquet file names or single file name. Can be passed in with the get_parquet_names() method from the FreeFEM class.
+            Include any directory path if files are not in the current working directory.
         - yaml_file (str): Header file name containing extraction metadata.
+            Include any directory path if files are not in the current working directory.
 
     Returns:
     --------
-        - 
+        - data (dict): A dictionary where each key corresponds to a configuration extracted from the parquet files. 
+                        Each value is another dictionary containing electrode data structured by slices.
     """
     data = {}
 

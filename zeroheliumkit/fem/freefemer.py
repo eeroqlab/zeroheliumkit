@@ -653,6 +653,7 @@ class FreeFEM():
             row = np.loadtxt(self.savedir / f"cm_{electrode}.txt")
             row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
             capacitance_matrix.append(row)
+            os.remove(self.savedir / f"cm_{electrode}.txt")
 
         return capacitance_matrix
 
