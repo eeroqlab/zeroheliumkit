@@ -27,7 +27,8 @@ Classes:
 - FieldAnalyzer: A class for analyzing and plotting field data extracted from FEM simulations.
 """
 
-
+import yaml
+import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -176,73 +177,44 @@ def symmetrise_symmetric(data: np.ndarray, config: SymmetryConfig) -> np.ndarray
     return symm_array if config.axis == 'x' else symm_array.T
 
 
-def read_ff_output(filename: str, ff_type: str) -> dict:
-    """ Reads the output file and extract the data based on the specified ff_type.
-        Returns a dictionary with coupling constant matricies and 'x' and 'y' lists.
+def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
+    """
+    Parses polars DataFrames and returns electrode values for each extract config based on provided parquet files.
 
     Args:
-    ____
-    filename (str): The path to the input file.
-    ff_type (str): The type of the extracted data.
-                   Choose from '2Dmap' (single) or '2Dslices' (multiple).
+    -----
+        - parquet_files (str | list): List of parquet file names or single file name. Can be passed in with the get_parquet_names() method from the FreeFEM class.
+        - yaml_file (str): Header file name containing extraction metadata.
 
-    Raises:
-    ----
-    Exception: If the specified ff_type is incorrect.
+    Returns:
+    --------
+        - 
     """
+    data = {}
 
-    if ff_type not in ff_types:
-        raise TypeError(f"Incorrect {ff_type}, choose from {ff_types}")
+    with open(yaml_file, 'r') as file:
+        yaml_data = yaml.load(file, Loader=yaml.FullLoader)
 
-    if ff_type == '2Dmap':
-        # handles a single 2Dmap which has multiple coupling constants
-        data = {}
-        with open(filename) as file:
-            for line in file:
-                if line[:9] == 'startDATA':
-                    t = line.split()
-                    key, array, dtype = (t[1], [], 'data')
-                elif line[:7] == 'startXY':
-                    t = line.split()
-                    key, array, dtype = (t[1], [], 'xy')
-                elif line[:3] == 'END':
-                    if dtype == 'data':
-                        data.update({key: np.asarray(array, dtype=float)})
-                    elif dtype == 'xy':
-                        data.update({key: np.asarray(flatten(array), dtype=float)})
-                    else: pass
-                elif line.split() == []:
-                    pass
-                else:
-                    array.append([float(item) for item in line.split()])
+    for parquet_file in parquet_files:
+        df = pl.read_parquet(parquet_file)
+        config = str(parquet_file).split(".")[0].split("_")[-1]
 
-    elif ff_type == '2Dslices':
-        # handles a multiple 2Dmaps which contains multiple coupling constants
-        data = {}
-        with open(filename) as file:
-            for line in file:
-                if line[:9] == 'startDATA':
-                    t = line.split()
-                    key, array, dtype = (t[1], {}, 'data')
-                elif line[:12] == 'start2DSLICE':
-                    t = line.split()
-                    s_key, s_array = (t[1], [])
-                elif line[:7] == 'startXY':
-                    t = line.split()
-                    key, s_array, dtype = (t[1], [], 'xy')
-                elif line[:3] == 'end':
-                    array.update({s_key: np.asarray(s_array, dtype=float)})
-                elif line[:3] == 'END':
-                    if dtype == 'data':
-                        data.update({key: array})
-                    elif dtype == 'xy':
-                        data.update({key: np.asarray(flatten(s_array), dtype=float)})
-                    else: pass
-                elif line.split() == []:
-                    pass
-                else:
-                    s_array.append([float(item) for item in line.split()])
-    else: pass
+        extract_result = {}
+        header_data = yaml_data[config]
+
+        electrodes = header_data['Electrodes']
+        shape = (header_data['X Num'], header_data['Y Num'], header_data['Slices'])
+
+        for electrode in electrodes:
+            extract_result[electrode] = {}
+            electrode_res = df[electrode]
+
+            array = np.reshape(electrode_res, shape)
+            for i, slice in enumerate(array):
+                extract_result[electrode][i] = slice
+
+        data[config] = extract_result
+            
     return data
 
 
