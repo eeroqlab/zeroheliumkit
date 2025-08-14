@@ -268,11 +268,32 @@ class ColorHandler():
     """
     __slots__ = "colors", "color_cycle"
 
-    def __init__(self, colors):
+    def __init__(self, colors: dict):
         self.colors = tuplify_colors(colors)
         """Dictionary mapping of layer names to (color, transparancy) tuples."""
         self.color_cycle = cycle(COLORS)
         """Itercycle object that cycles through color names when no color name is provided."""
+
+
+    def __repr__(self):
+        name = f"<COLORHANDLER ({self.colors})>"
+        max_length = 75
+        if len(name) > max_length:
+            return f"{name[: max_length - 3]}...>"
+
+        return name
+
+    @property
+    def is_empty(self) -> bool:
+        """
+        Checks if the colors attribute is empty.
+
+        Returns:
+        --------
+            bool: True if the colors attribute is empty, False otherwise.
+        """
+        return not bool(self.colors)
+
 
     def change_color(self, lname: str, new_color: str | tuple | float) -> 'ColorHandler':
         """
@@ -302,12 +323,13 @@ class ColorHandler():
         elif isinstance(new_color, str):
             if not bool(mc.is_color_like(new_color)):
                 raise ValueError("Input color is not a valid color.")
-        
+
             if lname in self.colors:
                 self.colors[lname][0] = new_color
 
         return self
-    
+
+
     def update_colors(self, layers: list) -> 'ColorHandler':
         """
         Updates colors when layers are imported from external files.
@@ -326,11 +348,12 @@ class ColorHandler():
                 self.colors[l] = (color, 1.0)
 
         return self
-    
+
+
     def add_color(self, layer: str, color: str | None, alpha: float | None) -> 'ColorHandler':
         """
         Adds a color to the colors list when a layer is added.
-        
+
         Args:
         -----
             - layer (str): layer name to add to the list.
@@ -338,13 +361,14 @@ class ColorHandler():
         """
         if color is None:
             color = next(self.color_cycle)
-        
+
         if alpha is None:
             alpha = 1.0
-        
+
         self.colors[layer] = (color, alpha)
         return self
-    
+
+
     def rename_color(self, old_color: str, new_color: str) -> 'ColorHandler':
         """
         Renames a color when a layer is renamed.
@@ -361,7 +385,8 @@ class ColorHandler():
             print(f"Layer '{old_color}' not found in colors.")
 
         return self
-    
+
+
     def remove_color(self, color: str) -> 'ColorHandler':
         """
         Removes a color when a layer is removed.
@@ -377,7 +402,8 @@ class ColorHandler():
             print(f"Layer '{color}' not found in colors.")
 
         return self
-    
+
+
     def move_layer_back(self, layer: str, move_by: int):
         """
         Moves a layer back by a given number of indices in the color dictionary.
@@ -400,7 +426,7 @@ class ColorHandler():
         except IndexError:
             print("Out of bounds! Please choose a different offset.")
 
-    
+
     def move_layer_forward(self, layer: str, move_by: int):
         """
         Moves a layer back by a given number of indices in the color dictionary.
