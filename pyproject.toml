@@ -1,0 +1,22 @@
+[build-system]
+requires = ["pdm-backend >= 2.4.0"]
+build-backend = "pdm.backend"
+
+[project]
+name = "zeroheliumkit"
+version = "0.5.1"
+authors = [
+  { name="Niyaz Beysengulov", email="nbeysengulov@eeroq.com" },
+]
+description = "--"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+
+[project.urls]
+Homepage = "https://github.com/eeroqlab/zeroheliumkit"
