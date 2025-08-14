@@ -919,7 +919,6 @@ class Entity(_Base):
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
         plot_config = tuplify_colors(color_config) if color_config else self.colors.colors
-
         if "anchors" in plot_config:
             anchor_color = plot_config.pop("anchors")[0]
         else:
@@ -935,7 +934,7 @@ class Entity(_Base):
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
 
         #plot layers
-        layer_colors = [plot_config[k][0] for k in plot_config]
+        layer_colors = [plot_config[k] for k in plot_config]
         layers = list(plot_config.keys())
         self.plot(ax=ax, layer=layers, color=layer_colors, show_idx=show_idx, labels=labels, **kwargs)
 

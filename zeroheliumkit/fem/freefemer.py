@@ -97,7 +97,7 @@ class ExtractConfig():
     plane: str
     coordinate1: tuple
     coordinate2: tuple
-    coordinate3: list
+    coordinate3: int | float | list | dict
     curvature_config: dict = None
 
     def __post_init__(self):
@@ -109,8 +109,8 @@ class ExtractConfig():
             raise TypeError("'coordinate1' parameter must be a tuple (x1, x2, num)")
         if not isinstance(self.coordinate2, tuple):
             raise TypeError("'coordinate2' parameter must be a tuple (y1, y2, num)")
-        
-        if isinstance(self.coordinate3, float):
+
+        if isinstance(self.coordinate3, (float, int)):
             self.coordinate3 = [self.coordinate3]
         elif isinstance(self.coordinate3, dict):
             self.curvature_config = self.coordinate3
