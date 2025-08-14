@@ -1024,11 +1024,11 @@ class Structure(Entity):
         # appending polygons
         for a in self.layers:
             if not hasattr(self, a):
-                value = self.append_geometry(MultiPolygon(), getattr(s, a))
+                value = getattr(s, a)
             elif not hasattr(s, a):
-                value = self.append_geometry(getattr(self, a), MultiPolygon())
+                value = getattr(self, a)
             else:
-                value = self.append_geometry(getattr(self, a), getattr(s, a))
+                value = append_geometry(getattr(self, a), getattr(s, a))
             setattr(self, a, value)
 
         # appending skeletones
