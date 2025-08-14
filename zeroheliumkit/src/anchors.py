@@ -41,9 +41,26 @@ class Anchor():
 
     Example:
     --------
+        >>> from zeroheliumkit import Anchor
         >>> anchor = Anchor((0, 0), 45, "A")
+        >>> print(anchor)
+        <ANCHOR (POINT (0 0), 45.0, A)>
         >>> anchor.properties  # prints the properties of the anchor
-        >>> distance = anchor.distance_to((3, 4))
+        -----  ----------  ---------
+        label  coords      direction
+        A      (0.0, 0.0)  45.0
+        -----  ----------  ---------
+        >>> anchor.x
+        0.0
+        >>> anchor.y
+        0.0
+        >>> anchor.coords
+        (0.0, 0.0)
+        >>> anchor.direction
+        45.0
+        >>> anchor.label
+        'A'
+
     """
 
     __slots__ = "point", "direction", "label"
@@ -293,25 +310,34 @@ class Anchor():
 
 class MultiAnchor():
     """ 
-        Represents a collection of multiple anchor points.
-        Provides methods for manipulating and visualizing multiple anchor points.
+    Represents a collection of multiple anchor points.
+    Provides methods for manipulating and visualizing multiple anchor points.
 
-        Attributes:
-        ----------
-            - multipoint (list): A list of Anchor objects.
+    Attributes:
+    ----------
+        - multipoint (list): A list of Anchor objects.
 
-        Example:
-        -------
-            >>> anchor1 = Anchor(Point(0, 0), 0, "A")
-            >>> anchor2 = Anchor(Point(1, 1), 45, "B")
-            >>> multi_anchor = MultiAnchor([anchor1, anchor2])
-            >>> multi_anchor.labels
-                ['A', 'B']
-            >>> multi_anchor.label_exist('A')
-                True
-            >>> multi_anchor.label_exist('C')
-                False
-            >>> multi_anchor.rotate(90, (0, 0))
+    Example:
+    -------
+        >>> from zeroheliumkit import MultiAnchor, Anchor
+        >>> anchor1 = Anchor((0, 0), 0, "A")
+        >>> anchor2 = Anchor((1, 1), 45, "B")
+        >>> ma = MultiAnchor([anchor1, anchor2])
+        >>> print(ma)
+        <MULTIANCHOR ['A', 'B']>
+        >>> ma.labels
+        ['A', 'B']
+        >>> ma.label_exist('A')
+        True
+        >>> ma.label_exist('C')
+        False
+        >>> ma["B]
+        <ANCHOR (POINT (1 1), 45.0, B)>
+        >>> ma.add(Anchor((2, 2), 90, "C"))
+        >>> ma.remove("A")
+        >>> print(ma)
+        <MULTIANCHOR ['B', 'C']>
+
     """
 
     __slots__ = "multipoint"
@@ -339,7 +365,7 @@ class MultiAnchor():
         return [p.label for p in self.multipoint]
 
 
-    def __getitem__(self, label: str | int) -> Anchor | list[Anchor]:
+    def __getitem__(self, label: str | int | list[str]) -> Anchor | list[Anchor]:
         """ 
         Returns an anchor or list of anchors by label or index.
 
@@ -358,7 +384,11 @@ class MultiAnchor():
         if isinstance(label, int):
             return self.multipoint[label]
         elif isinstance(label, str):
-            return self.point(label)
+            idx = self.labels.index(label)
+            return self.multipoint[idx]
+        elif isinstance(label, (list, tuple)):
+            idx_list = [self.labels.index(l) for l in label if l in self.labels]
+            return [self.multipoint[idx] for idx in idx_list]
         else:
             raise TypeError("label must be a string or an integer")
         
@@ -481,31 +511,6 @@ class MultiAnchor():
         return self
 
 
-    def __point(self, label: str):
-        idx = self.labels.index(label)
-        return self.multipoint[idx]
-
-
-    def point(self, labels: list[str]) -> Anchor | list[Anchor]:
-        """ 
-        Returns an anchor or list of anchors of the given labels.
-
-        Args:
-        ----
-            - labels (list[str]): A list of labels for which to retrieve the anchors.
-
-        Returns:
-        -------
-            Anchor or list of Anchor objects corresponding to the given labels.
-        """
-        existing_labels = self.labels
-        if isinstance(labels, (list, tuple)):
-            return [self.__point(l) for l in labels if l in existing_labels]
-        if labels in self.labels:
-            return self.__point(labels)
-        return None
-
-
     def remove(self, labels: list | str) -> 'MultiAnchor':
         """ 
         Removes the specified anchors from the multipoint.
@@ -520,7 +525,7 @@ class MultiAnchor():
         """
         if isinstance(labels, str):
             labels = [labels]
-        S1 = set(self.point(labels))
+        S1 = set(self[labels])
         S2 = set(self.multipoint)
         self.multipoint = list(S2.difference(S1))
 
@@ -543,11 +548,11 @@ class MultiAnchor():
             Updated instance (self) of the class with the modified anchor.
         """
         if new_xy:
-            self.__point(label).coords = new_xy
+            self[label].coords = new_xy
         if new_direction:
-            self.__point(label).direction = new_direction
+            self[label].direction = new_direction
         if new_name:
-            self.__point(label).label = new_name
+            self[label].label = new_name
 
         return self
 

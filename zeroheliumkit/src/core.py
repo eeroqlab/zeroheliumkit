@@ -315,11 +315,11 @@ class Entity(_Base):
         --------
             Updated instance (self) of the class with all objects moved to the new anchor point.
         """
-        old_anchor_coord = self.anchors.point(anchor).coords
+        old_anchor_coord = self.anchors[anchor].coords
         if isinstance(to_point, tuple):
             new_anchor_coord = to_point
         elif isinstance(to_point, str):
-            new_anchor_coord = self.anchors.point(to_point).coords
+            new_anchor_coord = self.anchors[to_point].coords
         elif isinstance(to_point, Point):
             new_anchor_coord = to_point.xy
         else:
@@ -428,7 +428,7 @@ class Entity(_Base):
         --------
             Anchor: The Anchor object with the specified label.
         """
-        return self.anchors.point(label)
+        return self.anchors[label]
 
 
     def modify_anchor(self,
