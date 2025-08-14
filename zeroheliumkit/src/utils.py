@@ -1,5 +1,4 @@
 import numpy as np
-import warnings
 from typing import Tuple, List
 from math import fmod, sqrt
 
@@ -1075,3 +1074,24 @@ def calculate_label_pos(x: float, y: float, centroid: Point, label_distance: flo
     label_y = (unit_y * label_distance) + y
 
     return (label_x, label_y)
+
+
+def append_geometry(core_objs, appending_objs):
+    """ 
+    Appends single or multiple shapely geometries.
+
+    Args:
+    -----
+        - core_objs: shapely geometries to be appended.
+        - appending_objs: shapely geometries to append.
+
+    Returns:
+    --------
+        Multi-Geometry: Union of all the geometries.
+
+    Note:
+    -----
+        This function works with LineString, Polygon, and multi-geometries.
+    """
+    geom_list = create_list_geoms(core_objs) + create_list_geoms(appending_objs)
+    return unary_union(geom_list)

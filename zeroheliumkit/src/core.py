@@ -26,7 +26,7 @@ from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, create_list_geoms, polygonize_text, has_interior
+from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior
 
 
 class _Base:
@@ -315,11 +315,11 @@ class Entity(_Base):
         --------
             Updated instance (self) of the class with all objects moved to the new anchor point.
         """
-        old_anchor_coord = self.anchors.point(anchor).coords
+        old_anchor_coord = self.anchors[anchor].coords
         if isinstance(to_point, tuple):
             new_anchor_coord = to_point
         elif isinstance(to_point, str):
-            new_anchor_coord = self.anchors.point(to_point).coords
+            new_anchor_coord = self.anchors[to_point].coords
         elif isinstance(to_point, Point):
             new_anchor_coord = to_point.xy
         else:
@@ -428,7 +428,7 @@ class Entity(_Base):
         --------
             Anchor: The Anchor object with the specified label.
         """
-        return self.anchors.point(label)
+        return self.anchors[label]
 
 
     def modify_anchor(self,
@@ -1024,11 +1024,11 @@ class Structure(Entity):
         # appending polygons
         for a in self.layers:
             if not hasattr(self, a):
-                value = self._append_geometry(MultiPolygon(), getattr(s, a))
+                value = getattr(s, a)
             elif not hasattr(s, a):
-                value = self._append_geometry(getattr(self, a), MultiPolygon())
+                value = getattr(self, a)
             else:
-                value = self._append_geometry(getattr(self, a), getattr(s, a))
+                value = append_geometry(getattr(self, a), getattr(s, a))
             setattr(self, a, value)
 
         # appending skeletones
@@ -1049,52 +1049,6 @@ class Structure(Entity):
         self.add_anchor(s.anchors.multipoint)
 
         return self
-
-
-    # def _combine_objects(self,
-    #                      obj1: Polygon| MultiPolygon | None,
-    #                      obj2: Polygon| MultiPolygon | None):
-    #     """ Merge two geometries and return the result
-
-    #     Args:
-    #     ----
-    #     obj1 (Polygon | MultiPolygon | None): first geometry.
-    #     obj2 (Polygon | MultiPolygon | None): second geometry.
-
-    #     Raises:
-    #     ------
-    #     TypeError: Raised if the appending object
-    #                is not [Polygon, MultiPolygon].
-    #     ValueError: Raised if error with merging the geometries.
-    #                 Call _errors to inspect the problem.
-    #     """
-    #     merged = MultiPolygon()
-    #     if obj1:
-    #         merged = self._append_geometry(merged, obj1)
-    #     if obj2:
-    #         merged = self._append_geometry(merged, obj2)
-    #     return merged
-
-
-    def _append_geometry(self, core_objs, appending_objs):
-        """ 
-        Appends single or multiple shapely geometries.
-
-        Args:
-        -----
-            - core_objs: shapely geometries to be appended.
-            - appending_objs: shapely geometries to append.
-
-        Returns:
-        --------
-            Multi-Geometry: Union of all the geometries.
-
-        Note:
-        -----
-            This method works with LineString, Polygon, and multi-geometries.
-        """
-        geom_list = create_list_geoms(core_objs) + create_list_geoms(appending_objs)
-        return unary_union(geom_list)
 
 
     def return_mirrored(self, aroundaxis: str, **kwargs) -> 'Structure':
@@ -1121,7 +1075,7 @@ class GeomCollection(Structure):
     
     Attributes:
     -----------
-        - layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors.
+        - layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors/colors.
     """
     def __init__(self, layers: dict=None):
         super().__init__()
