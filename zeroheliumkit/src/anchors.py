@@ -609,10 +609,14 @@ class Skeletone():
 
         Example:
         -------
+            >>> from zeroheliumkit import Skeletone
+            >>> from zeroheliumkit.settings import DARKGRAY
+            >>> from shapely.geometry import MultiLineString, LineString
             >>> skeletone = Skeletone(MultiLineString([LineString([(0, 0), (1, 1)])]))
+            <SKELETONE MULTILINESTRING ((0 0, 1 1))>
             >>> skeletone.add_line(LineString([(1, 1), (2, 2)]))
-            >>> skeletone.length 
-                2.8284271247461903
+            >>> print(skeletone.length)
+            2.8284271247461903
             >>> skeletone.rotate(90, origin=(0, 0))
             >>> skeletone.move(xoff=1, yoff=1)
             >>> skeletone.plot(color=DARKGRAY)
@@ -756,7 +760,10 @@ class Skeletone():
         -------
             Updated instance (self) of the class with the appended line.
         """
-        self.lines = append_line(self.lines, line, direction, ignore_crossing, chaining)
+        if isinstance(self.lines, MultiLineString) or isinstance(line, MultiLineString):
+            self.lines = append_line(self.lines, line, direction, ignore_crossing, chaining=False)
+        else:
+            self.lines = append_line(self.lines, line, direction, ignore_crossing, chaining)
         return self
 
 
