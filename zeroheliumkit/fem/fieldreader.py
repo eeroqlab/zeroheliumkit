@@ -186,7 +186,6 @@ class FreeFemResultParser():
         self.print_table()
         print("Control Electrodes: " + str(self.metadata["Control Electrodes"]))
 
-
     def print_table(self):
         exclude_list = ["Capacitance Matrix", "Control Electrodes"]
         meta = {k: v for k, v in self.metadata.items() if k not in exclude_list}
