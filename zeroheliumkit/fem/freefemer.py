@@ -537,7 +537,7 @@ class FreeFEM():
         await process.wait()
         progress.value = f"✅ {edp_file} complete"
 
-
+    # do we need this method anymore?
     def write_res_header(self, header_data):
         lines = []
         lines.append("---") 
@@ -559,7 +559,6 @@ class FreeFEM():
 
     def __write_res_header_new(self, header_data):
         data = {}
-
         data['Quantity'] = header_data['quantity']
         data['Plane'] = header_data['plane']
         data['X Min'] = header_data['coordinate1'][0]
@@ -569,11 +568,13 @@ class FreeFEM():
         data['Y Max'] = header_data['coordinate2'][1]
         data['Y Num'] = header_data['coordinate2'][2]
         data['Slices'] = len(header_data['coordinate3'])
-        data['Electrodes'] = list(self.physicalSurfs.keys())
+        data['Slice Values'] = header_data['coordinate3']
+        data['Curved Surface'] = bool(header_data['curvature_config'])
+        data['Schema'] = str((len(header_data['coordinate3']), header_data['coordinate2'][2], header_data['coordinate1'][2]))
         return data
 
 
-    def __create_polarsdf(self, filenames: dict, remove_original: bool=True):
+    def __create_polarsdf(self, filenames: dict, remove_files: bool=True):
         dataframe = pl.DataFrame({})
         for elname, fname in filenames.items():
             data = pl.read_csv(source=self.savedir / fname,
@@ -582,7 +583,7 @@ class FreeFEM():
                                schema_overrides={elname: pl.Float64})
 
             dataframe = pl.concat([dataframe, data], how="horizontal")
-            if remove_original:
+            if remove_files:
                 os.remove(self.savedir / fname)
         return dataframe
 
@@ -595,9 +596,7 @@ class FreeFEM():
         -----
             - remove_files (bool): Whether or not to remove the .npy files in the user's file system. Defaults to True.
         """
-        base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
-        yaml_filename = f"{base_name}_header.yaml"
-        yaml_path = self.savedir / yaml_filename
+        yaml_path = self.savedir / "metadata.yaml"
         yaml_data = {}
 
         for eo in self.config.get('extract_opt'):
@@ -610,10 +609,11 @@ class FreeFEM():
                 filenames[elname] = exname + "_" + elname + ".npy"
             dataframe = self.__create_polarsdf(filenames, remove_files)
 
-            outfile_path = self.savedir / f"{base_name}_{exname}.parquet" 
+            outfile_path = self.savedir / f"{exname}.parquet" 
             dataframe.write_parquet(outfile_path, compression="zstd")
 
-        yaml_data['Capacitance Matrix'] = self.gather_cm_results()
+        yaml_data['Capacitance Matrix'] = self.gather_cm_results(remove_files)
+        yaml_data['Control Electrodes'] = list(self.physicalSurfs.keys())
 
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
@@ -638,7 +638,7 @@ class FreeFEM():
         return names
     
 
-    def gather_cm_results(self) -> list:
+    def gather_cm_results(self, remove_original: bool=True) -> list:
         """
         Gathers the capacitance matrix results from the saved text files into a 2D list.
         
@@ -653,6 +653,8 @@ class FreeFEM():
             row = np.loadtxt(self.savedir / f"cm_{electrode}.txt")
             row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
             capacitance_matrix.append(row)
+            if remove_original:
+                os.remove(self.savedir / f"cm_{electrode}.txt")
 
         return capacitance_matrix
 
@@ -806,7 +808,7 @@ class FreeFEM():
                 outfile.write(self.logs)
                 
             self.gather_results(remove_txt_files)
-            self.gather_cm_results()
+
             filename = self.electrode_files[0]
             with open(self.savedir / filename, 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]
