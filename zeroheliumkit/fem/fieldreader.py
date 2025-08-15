@@ -32,6 +32,7 @@ import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
 
+from tabulate import tabulate
 from typing import Callable
 from numpy import ma
 from numpy.typing import ArrayLike
@@ -177,7 +178,59 @@ def symmetrise_symmetric(data: np.ndarray, config: SymmetryConfig) -> np.ndarray
     return symm_array if config.axis == 'x' else symm_array.T
 
 
-def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
+class FreeFemResultParser():
+
+    def __init__(self, metadata_file: str):
+        with open(metadata_file, 'r') as file:
+            self.metadata = yaml.load(file, Loader=yaml.FullLoader)
+        self.print_table()
+        print("Control Electrodes: " + str(self.metadata["Control Electrodes"]))
+
+
+    def print_table(self):
+        exclude_list = ["Capacitance Matrix", "Control Electrodes"]
+        meta = {k: v for k, v in self.metadata.items() if k not in exclude_list}
+        col_names = list(meta.keys())
+        row_names = meta[col_names[0]].keys()
+        table = []
+        for rname in row_names:
+            row = [rname]
+            for _, v in meta.items():
+                row.append(v[rname])
+            table.append(row)
+        print(tabulate(table, headers=col_names))
+
+
+    def load_data(self, savedir: str, fname: str):
+        df = pl.read_parquet(savedir + fname + ".parquet")
+
+        data = {}
+
+        for electrode in df.columns:
+            data[electrode] = {}
+            electrode_res = df[electrode].to_numpy()
+
+            schema = self.metadata[fname]["Schema"]
+            num_strings = schema[1:-1].split(", ")
+            shape = tuple(int(num) for num in num_strings)
+
+            array = np.reshape(electrode_res, shape)
+            for i, slice in enumerate(array):
+                slice_value = self.metadata[fname]["Slice Values"][i]
+                data[electrode][slice_value] = slice
+
+        data['xlist'] = np.linspace(self.metadata[fname]["X Min"], self.metadata[fname]["X Max"], self.metadata[fname]["X Num"], endpoint=True)
+        data['ylist'] = np.linspace(self.metadata[fname]["Y Min"], self.metadata[fname]["Y Max"], self.metadata[fname]["Y Num"], endpoint=True)
+
+        return data
+
+
+    def get_capacitance_matrix(self):
+        return self.metadata["Capacitance Matrix"]
+
+
+
+def read_ff_output_new(parquet_file: str , yaml_file: str) -> dict:
     """
     Parses polars DataFrames and returns electrode values for each extract config based on provided parquet files.
 
@@ -195,25 +248,24 @@ def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
     with open(yaml_file, 'r') as file:
         yaml_data = yaml.load(file, Loader=yaml.FullLoader)
 
-    for parquet_file in parquet_files:
-        df = pl.read_parquet(parquet_file)
-        config = str(parquet_file).split(".")[0].split("_")[-1]
+    df = pl.read_parquet(parquet_file)
+    config = str(parquet_file).split(".")[0].split("_")[-1]
 
-        extract_result = {}
-        header_data = yaml_data[config]
+    extract_result = {}
+    header_data = yaml_data[config]
 
-        electrodes = header_data['Electrodes']
-        shape = (header_data['X Num'], header_data['Y Num'], header_data['Slices'])
+    electrodes = header_data['Electrodes']
+    shape = (header_data['X Num'], header_data['Y Num'], header_data['Slices'])
 
-        for electrode in electrodes:
-            extract_result[electrode] = {}
-            electrode_res = df[electrode]
+    for electrode in electrodes:
+        extract_result[electrode] = {}
+        electrode_res = df[electrode]
 
-            array = np.reshape(electrode_res, shape)
-            for i, slice in enumerate(array):
-                extract_result[electrode][i] = slice
+        array = np.reshape(electrode_res, shape)
+        for i, slice in enumerate(array):
+            extract_result[electrode][i] = slice
 
-        data[config] = extract_result
+    data[config] = extract_result
             
     return data
 
@@ -224,9 +276,8 @@ def read_ff_output_new(parquet_files: str | list, yaml_file: str) -> dict:
 class FieldAnalyzer():
     """ A class for analyzing and plotting field data extracted from FEM."""
 
-    def __init__(self, *filename_args: tuple[str, str, str]):
-        for fname, attrname, dtype in filename_args:
-            data = read_ff_output(fname, dtype)
+    def __init__(self, *filename_args: tuple[str, str]):
+        for attrname, data in filename_args:
             setattr(self, attrname, data)
 
     def potential(self, couplingConst: dict, voltages: dict, zlevel_key=None) -> tuple:

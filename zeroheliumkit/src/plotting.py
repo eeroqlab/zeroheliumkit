@@ -102,7 +102,8 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None,
                      color=color, 
                      add_points=add_points, 
                      alpha=alpha, 
-                     edgecolor=edgecolor)
+                     edgecolor=edgecolor,
+                     **kwargs)
         if show_idx:
             plot_polygon_idx(geometry, ax=ax, color=color)
         if alpha!=1:
