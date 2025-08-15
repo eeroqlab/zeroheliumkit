@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Reader\_Pickle
-==========================================
+Reader\_Pickle
+==============
 
 .. currentmodule:: zeroheliumkit.src.importing
 

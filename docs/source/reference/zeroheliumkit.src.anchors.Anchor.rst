@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.anchors.Anchor
-================================
+Anchor
+======
 
 .. currentmodule:: zeroheliumkit.src.anchors
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.fem.freefemer.FFconfigurator
-==========================================
+FFconfigurator
+==============
 
 .. currentmodule:: zeroheliumkit.fem.freefemer
 

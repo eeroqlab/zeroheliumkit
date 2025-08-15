@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.MicroChannels
-==========================================
+MicroChannels
+=============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

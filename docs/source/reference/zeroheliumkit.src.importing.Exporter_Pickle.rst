@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Exporter\_Pickle
-============================================
+Exporter\_Pickle
+================
 
 .. currentmodule:: zeroheliumkit.src.importing
 

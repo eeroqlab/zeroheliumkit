@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.SpiralInductor
-===========================================
+SpiralInductor
+==============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Reader\_SVG
-=======================================
+Reader\_SVG
+===========
 
 .. currentmodule:: zeroheliumkit.src.importing
 

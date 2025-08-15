@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.supercore.SuperStructure
-==========================================
+SuperStructure
+==============
 
 .. currentmodule:: zeroheliumkit.src.supercore
 

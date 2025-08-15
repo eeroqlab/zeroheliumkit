@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.supercore.ObjsAlongConfig
-===========================================
+ObjsAlongConfig
+===============
 
 .. currentmodule:: zeroheliumkit.src.supercore
 

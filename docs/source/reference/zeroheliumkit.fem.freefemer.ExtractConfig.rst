@@ -1,5 +1,5 @@
-﻿zeroheliumkit.fem.freefemer.ExtractConfig
-=========================================
+ExtractConfig
+=============
 
 .. currentmodule:: zeroheliumkit.fem.freefemer
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Reader\_DXF
-=======================================
+Reader\_DXF
+===========
 
 .. currentmodule:: zeroheliumkit.src.importing
 

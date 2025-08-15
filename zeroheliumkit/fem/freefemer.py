@@ -441,21 +441,20 @@ class FreeFEM():
         return code
 
 
-    def script_save_cmatrix(self, electrode: str) -> str:
+    def script_save_cmatrix(self, electrode_name: str) -> str:
         """
         Saves the capacitance matrix based on the provided parameters and the FreeFEM object name.
         
         Args:
         -----
-            - params (dict): Dictionary containing the parameters for the capacitance matrix extraction.
-            - fem_object_name (str): Name of the FreeFEM object to save the capacitance matrix to.
+            - electrode_name (str): Name of the electrode for the capacitance matrix extraction.
 
         Returns:
         --------
             code (str): code containing the Capacitance Matrix.
         """
         code = headerFrame("START / Calculate Capacitance Matrix")
-        code += f"""ofstream cmextract("{self.savedir / Path('cm_' + electrode)}.txt");\n"""
+        code += f"""ofstream cmextract("{self.savedir / Path('cm_' + electrode_name)}.txt");\n"""
         code += "\n"
         code += "for(int i = 0; i < numV; i++){\n"
         code += add_spaces(4) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
@@ -536,28 +535,9 @@ class FreeFEM():
 
         await process.wait()
         progress.value = f"✅ {edp_file} complete"
-
-    # do we need this method anymore?
-    def write_res_header(self, header_data):
-        lines = []
-        lines.append("---") 
-        if header_data.get('name'):
-            lines.append(f"CONFIG - {header_data['name']}")
-        else:
-            lines.append("CONFIG")
-        lines.append(f"quantity,{header_data['quantity']}")
-        lines.append(f"plane,{header_data['plane']}")
-        lines.append(f"coordinate1,{tuple(header_data['coordinate1'])}")
-        lines.append(f"coordinate2,{tuple(header_data['coordinate2'])}")
-        if not header_data.get('curvature_config'):
-            lines.append(f"coordinate3,{header_data['coordinate3']}")
-        else:
-            lines.append(f"helium_curvature, {header_data.get('curvature_config')['bulk_helium_distances']}")
-        lines.append("---")
-        return "\n".join(lines) + "\n"
     
 
-    def __write_res_header_new(self, header_data):
+    def __write_res_header(self, header_data):
         data = {}
         data['Quantity'] = header_data['quantity']
         data['Plane'] = header_data['plane']
@@ -601,7 +581,7 @@ class FreeFEM():
 
         for eo in self.config.get('extract_opt'):
             exname = eo.get("name")
-            header_data = self.__write_res_header_new(eo)
+            header_data = self.__write_res_header(eo)
             yaml_data[exname] = header_data
 
             filenames = {}
@@ -617,25 +597,6 @@ class FreeFEM():
 
         with open(yaml_path, 'w') as f:
             yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
-  
-
-    def get_parquet_names(self) -> list:
-        """
-        Gets the names of each extract config's .parquet file name for easy passing into the fieldreader module's parser.
-
-        Returns:
-        --------
-            names (list): list of existing parquet file names for each extract config, including the save directory
-        """
-        names = []
-        base_name = f"ff_data_{self.config['meshfile'].split('.')[0]}"
-        for extract_cfg in self.config.get('extract_opt'):
-            extract_name = extract_cfg.get("name")
-            outfile_name = (
-                f"{base_name}_{extract_name}.parquet" 
-            )
-            names.append(self.savedir / outfile_name)
-        return names
     
 
     def gather_cm_results(self, remove_original: bool=True) -> list:

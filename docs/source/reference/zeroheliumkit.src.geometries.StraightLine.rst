@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.StraightLine
-=========================================
+StraightLine
+============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

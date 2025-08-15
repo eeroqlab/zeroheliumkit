@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.core.GeomCollection
-=====================================
+GeomCollection
+==============
 
 .. currentmodule:: zeroheliumkit.src.core
 

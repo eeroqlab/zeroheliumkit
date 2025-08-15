@@ -39,10 +39,44 @@ html_theme_options = {
     "use_repository_button": True
 }
 
-def setup(app):
-    app.add_css_file("custom.css")
+# def setup(app):
+#     app.add_css_file("custom.css")
 
 autodoc_default_options = {
     'members': True,
     'undoc-members': False,
 }
+
+add_module_names = False
+
+from typing import Any
+from sphinx.application import Sphinx
+
+def shorten_autosummary_titles(app: Sphinx, *args: Any) -> None:
+    """Remove module and class from the autosummary titles."""
+    autosummary_dir = os.path.join(app.srcdir, "reference") # Adjust "api" and "_autosummary" if your autosummary output directory is different
+    if not os.path.exists(autosummary_dir):
+        return
+
+    for filename in os.listdir(autosummary_dir):
+        if not filename.endswith(".rst"):
+            continue
+
+        path = os.path.join(autosummary_dir, filename)
+        with open(path, "r") as f:
+            lines = f.readlines()
+
+        # Skip if missing a title or if already shortened
+        if not lines or lines[0].count(".") < 2:
+            continue
+
+        short = lines[0].strip().rsplit(".", 1)[-1]
+        lines[0] = short + "\n"
+        lines[1] = "=" * len(short) + "\n" # Adjust for underline length
+
+        with open(path, "w") as f:
+            f.writelines(lines)
+
+def setup(app: Sphinx) -> None:
+    app.connect("env-before-read-docs", shorten_autosummary_titles)
+    app.add_css_file("custom.css")

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.supercore.RoutingConfig
-=========================================
+RoutingConfig
+=============
 
 .. currentmodule:: zeroheliumkit.src.supercore
 

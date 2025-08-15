@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.Taper
-==================================
+Taper
+=====
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

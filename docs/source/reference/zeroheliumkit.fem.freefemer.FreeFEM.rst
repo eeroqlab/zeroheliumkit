@@ -1,5 +1,5 @@
-﻿zeroheliumkit.fem.freefemer.FreeFEM
-===================================
+FreeFEM
+=======
 
 .. currentmodule:: zeroheliumkit.fem.freefemer
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.anchors.MultiAnchor
-=====================================
+MultiAnchor
+===========
 
 .. currentmodule:: zeroheliumkit.src.anchors
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.core.Entity
-=============================
+Entity
+======
 
 .. currentmodule:: zeroheliumkit.src.core
 

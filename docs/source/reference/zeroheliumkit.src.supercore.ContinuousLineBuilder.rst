@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.supercore.ContinuousLineBuilder
-=================================================
+ContinuousLineBuilder
+=====================
 
 .. currentmodule:: zeroheliumkit.src.supercore
 

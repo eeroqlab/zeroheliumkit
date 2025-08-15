@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.ColorHandler
-=======================================
+ColorHandler
+============
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

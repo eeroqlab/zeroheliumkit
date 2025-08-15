@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Exporter\_DXF
-=========================================
+Exporter\_DXF
+=============
 
 .. currentmodule:: zeroheliumkit.src.importing
 

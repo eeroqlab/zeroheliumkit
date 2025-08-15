@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.IDC
-================================
+IDC
+===
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

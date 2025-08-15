@@ -11,6 +11,7 @@ Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
 .. toctree::
    :maxdepth: 2
    :caption: User Guide
+   :hidden:
 
    installation
    user_manual
@@ -20,9 +21,10 @@ Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
 .. toctree::
    :maxdepth: 1
    :caption: API Reference
+   :hidden:
 
-   core
    anchors
+   core
    supercore
    geometries
    utils
@@ -30,5 +32,4 @@ Welcome to the documentation page for EeroQ's ZeroHeliumKit package.
    plotting
    routing
    importing
-   
    freefemer

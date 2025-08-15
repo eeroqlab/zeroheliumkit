@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.anchors.Skeletone
-===================================
+Skeletone
+=========
 
 .. currentmodule:: zeroheliumkit.src.anchors
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.core.\_Base
-=============================
+\_Base
+======
 
 .. currentmodule:: zeroheliumkit.src.core
 

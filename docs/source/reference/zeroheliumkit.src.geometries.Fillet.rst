@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.Fillet
-===================================
+Fillet
+======
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

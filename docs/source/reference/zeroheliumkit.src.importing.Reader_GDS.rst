@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Reader\_GDS
-=======================================
+Reader\_GDS
+===========
 
 .. currentmodule:: zeroheliumkit.src.importing
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.core.Structure
-================================
+Structure
+=========
 
 .. currentmodule:: zeroheliumkit.src.core
 

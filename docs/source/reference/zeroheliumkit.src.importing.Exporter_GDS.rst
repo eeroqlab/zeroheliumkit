@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.importing.Exporter\_GDS
-=========================================
+Exporter\_GDS
+=============
 
 .. currentmodule:: zeroheliumkit.src.importing
 
