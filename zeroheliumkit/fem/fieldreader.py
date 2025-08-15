@@ -230,46 +230,6 @@ class FreeFemResultParser():
 
 
 
-def read_ff_output_new(parquet_file: str , yaml_file: str) -> dict:
-    """
-    Parses polars DataFrames and returns electrode values for each extract config based on provided parquet files.
-
-    Args:
-    -----
-        - parquet_files (str | list): List of parquet file names or single file name. Can be passed in with the get_parquet_names() method from the FreeFEM class.
-        - yaml_file (str): Header file name containing extraction metadata.
-
-    Returns:
-    --------
-        - 
-    """
-    data = {}
-
-    with open(yaml_file, 'r') as file:
-        yaml_data = yaml.load(file, Loader=yaml.FullLoader)
-
-    df = pl.read_parquet(parquet_file)
-    config = str(parquet_file).split(".")[0].split("_")[-1]
-
-    extract_result = {}
-    header_data = yaml_data[config]
-
-    electrodes = header_data['Electrodes']
-    shape = (header_data['X Num'], header_data['Y Num'], header_data['Slices'])
-
-    for electrode in electrodes:
-        extract_result[electrode] = {}
-        electrode_res = df[electrode]
-
-        array = np.reshape(electrode_res, shape)
-        for i, slice in enumerate(array):
-            extract_result[electrode][i] = slice
-
-    data[config] = extract_result
-            
-    return data
-
-
 ###########################
 #### Main Reader Class ####
 ###########################
