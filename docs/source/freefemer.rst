@@ -1,7 +1,7 @@
-Freefemer.py
+freefemer.py
 ===========
 
-The following classes and functions exist in the module for handling FreeFem calculations and data extraction:
+The following classes exist in the FreeFemer module for FEM configuration and calculation:
 
 .. currentmodule:: zeroheliumkit.fem.freefemer
 
@@ -11,10 +11,3 @@ The following classes and functions exist in the module for handling FreeFem cal
    ExtractConfig
    FFconfigurator
    FreeFEM
-
-.. autosummary::
-   :toctree: functions/
-
-   scaling_size
-   headerFrame
-   add_spaces

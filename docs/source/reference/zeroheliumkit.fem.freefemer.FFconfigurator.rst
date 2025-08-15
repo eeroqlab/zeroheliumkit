@@ -23,6 +23,8 @@
 
    .. autosummary::
    
+      ~FFconfigurator.additional_dir
+      ~FFconfigurator.msh_refinements
       ~FFconfigurator.config_file
       ~FFconfigurator.dielectric_constants
       ~FFconfigurator.ff_polynomial

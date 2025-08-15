@@ -21,7 +21,6 @@
       ~MultiAnchor.modify
       ~MultiAnchor.move
       ~MultiAnchor.plot
-      ~MultiAnchor.point
       ~MultiAnchor.remove
       ~MultiAnchor.rotate
       ~MultiAnchor.scale
