@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.adjust\_lightness
-============================================
+adjust\_lightness
+=================
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

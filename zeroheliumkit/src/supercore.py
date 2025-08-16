@@ -227,7 +227,7 @@ class SuperStructure(Structure):
                 self.bufferize_routing_line(route_line, layers, keep_line=False)
                 # remove or not to remove route line
                 if not rm_route:
-                    self.add_line(route_line, chaining=False)
+                    self.add_line(route_line, chaining=False, ignore_crossing=True)
 
             # remove temporary anchors
             self.remove_anchor(temporary_anchors)
@@ -636,7 +636,7 @@ class ContinuousLineBuilder():
         if not self.routing:
             raise ValueError("Routing config is not set. Provide dict with keys 'radius' and 'num_segments'")
         self.add_anchor("temp")
-        new_line = create_route(self.anchors.point("temp"),
+        new_line = create_route(self.anchors["temp"],
                                 anchor,
                                 self.routing.radius,
                                 self.routing.num_segments,

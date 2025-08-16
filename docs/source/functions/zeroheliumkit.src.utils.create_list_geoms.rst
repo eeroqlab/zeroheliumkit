@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.create\_list\_geoms
-===========================================
+create\_list\_geoms
+===================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

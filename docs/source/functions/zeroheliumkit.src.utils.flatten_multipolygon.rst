@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.flatten\_multipolygon
-=============================================
+flatten\_multipolygon
+=====================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

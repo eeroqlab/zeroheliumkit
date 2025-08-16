@@ -1,4 +1,4 @@
-Plotting.py
+Plotting
 ===========
 Plotting contains the ColorHandler class and functions for plotting geometries using matplotlib.
 

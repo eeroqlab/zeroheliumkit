@@ -1,4 +1,4 @@
-Functions.py
+Functions
 ===========
 Functions contains utility functions for geometric operations, such as calculating distances, creating boundary anchors, and extracting coordinates from points.
 

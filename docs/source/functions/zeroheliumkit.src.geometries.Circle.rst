@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.Circle
-===================================
+Circle
+======
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

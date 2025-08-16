@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.plot\_geometry
-=========================================
+plot\_geometry
+==============
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

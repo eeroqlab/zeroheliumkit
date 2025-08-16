@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.routing.normalize\_anchors
-============================================
+normalize\_anchors
+==================
 
 .. currentmodule:: zeroheliumkit.src.routing
 

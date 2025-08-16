@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.midpoint
-================================
+midpoint
+========
 
 .. currentmodule:: zeroheliumkit.src.utils
 

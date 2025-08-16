@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.set\_limits
-======================================
+set\_limits
+===========
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

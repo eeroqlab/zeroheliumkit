@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.get\_normals\_along\_line
-=================================================
+get\_normals\_along\_line
+=========================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

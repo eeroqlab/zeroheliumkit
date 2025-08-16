@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.functions.get\_distance
-=========================================
+get\_distance
+=============
 
 .. currentmodule:: zeroheliumkit.src.functions
 

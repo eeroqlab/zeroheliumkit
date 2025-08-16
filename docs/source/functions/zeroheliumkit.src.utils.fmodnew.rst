@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.fmodnew
-===============================
+fmodnew
+=======
 
 .. currentmodule:: zeroheliumkit.src.utils
 

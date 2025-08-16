@@ -52,24 +52,14 @@ add_module_names = False
 from typing import Any
 from sphinx.application import Sphinx
 
-def shorten_autosummary_titles(app: Sphinx, *args: Any) -> None:
-    """Remove module and class from the autosummary titles."""
-    autosummary_dir = os.path.join(app.srcdir, "reference") # Adjust "api" and "_autosummary" if your autosummary output directory is different
-    if not os.path.exists(autosummary_dir):
-        return
+def shorten_autosummary_titles(autosummary_dir) -> None:
 
     for filename in os.listdir(autosummary_dir):
-        if not filename.endswith(".rst"):
-            continue
 
         path = os.path.join(autosummary_dir, filename)
         with open(path, "r") as f:
             lines = f.readlines()
-
-        # Skip if missing a title or if already shortened
-        if not lines or lines[0].count(".") < 2:
-            continue
-
+        
         short = lines[0].strip().rsplit(".", 1)[-1]
         lines[0] = short + "\n"
         lines[1] = "=" * len(short) + "\n" # Adjust for underline length
@@ -77,6 +67,16 @@ def shorten_autosummary_titles(app: Sphinx, *args: Any) -> None:
         with open(path, "w") as f:
             f.writelines(lines)
 
+
+def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
+    """Remove module and class from the autosummary titles."""
+    autosummary_dir = os.path.join(app.srcdir, "reference")
+    shorten_autosummary_titles(autosummary_dir)
+
+    autosummary_dir = os.path.join(app.srcdir, "functions")
+    shorten_autosummary_titles(autosummary_dir)
+
+
 def setup(app: Sphinx) -> None:
-    app.connect("env-before-read-docs", shorten_autosummary_titles)
+    app.connect("env-before-read-docs", shorten_autosummary_titles_all)
     app.add_css_file("custom.css")

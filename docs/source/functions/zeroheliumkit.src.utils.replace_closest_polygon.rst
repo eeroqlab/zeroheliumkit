@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.replace\_closest\_polygon
-=================================================
+replace\_closest\_polygon
+=========================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

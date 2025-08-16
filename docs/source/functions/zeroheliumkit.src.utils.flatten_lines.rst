@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.flatten\_lines
-======================================
+flatten\_lines
+==============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

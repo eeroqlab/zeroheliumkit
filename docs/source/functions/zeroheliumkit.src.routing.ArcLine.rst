@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.routing.ArcLine
-=================================
+ArcLine
+=======
 
 .. currentmodule:: zeroheliumkit.src.routing
 

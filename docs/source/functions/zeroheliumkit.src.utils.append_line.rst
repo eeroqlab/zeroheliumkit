@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.append\_line
-====================================
+append\_line
+============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

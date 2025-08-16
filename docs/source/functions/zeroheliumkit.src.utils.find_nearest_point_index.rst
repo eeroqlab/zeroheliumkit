@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.find\_nearest\_point\_index
-===================================================
+find\_nearest\_point\_index
+===========================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.plot\_line\_idx\_in\_polygon
-=======================================================
+plot\_line\_idx\_in\_polygon
+============================
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

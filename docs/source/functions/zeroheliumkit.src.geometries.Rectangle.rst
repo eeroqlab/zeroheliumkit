@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.Rectangle
-======================================
+Rectangle
+=========
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

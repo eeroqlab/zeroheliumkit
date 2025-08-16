@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.CornerRounder
-==========================================
+CornerRounder
+=============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

@@ -1,4 +1,4 @@
-Utils.py
+Utils
 ===========
 Utils contains functions used across multiple classes to create, edit, and plot Structures.
 

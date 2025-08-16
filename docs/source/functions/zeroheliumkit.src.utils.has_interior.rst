@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.has\_interior
-=====================================
+has\_interior
+=============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

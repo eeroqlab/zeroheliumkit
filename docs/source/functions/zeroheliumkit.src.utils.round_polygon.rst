@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.round\_polygon
-======================================
+round\_polygon
+==============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

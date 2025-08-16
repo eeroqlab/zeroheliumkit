@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.interactive\_widget\_handler
-=======================================================
+interactive\_widget\_handler
+============================
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

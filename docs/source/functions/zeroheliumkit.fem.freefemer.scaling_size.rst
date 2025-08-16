@@ -1,5 +1,5 @@
-﻿zeroheliumkit.fem.freefemer.scaling\_size
-=========================================
+scaling\_size
+=============
 
 .. currentmodule:: zeroheliumkit.fem.freefemer
 

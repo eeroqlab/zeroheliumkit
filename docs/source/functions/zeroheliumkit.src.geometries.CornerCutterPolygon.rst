@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.CornerCutterPolygon
-================================================
+CornerCutterPolygon
+===================
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

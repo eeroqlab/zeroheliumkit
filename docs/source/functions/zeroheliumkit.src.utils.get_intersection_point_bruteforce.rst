@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.get\_intersection\_point\_bruteforce
-============================================================
+get\_intersection\_point\_bruteforce
+====================================
 
 .. currentmodule:: zeroheliumkit.src.utils
 
