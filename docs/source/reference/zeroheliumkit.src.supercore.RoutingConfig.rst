@@ -4,16 +4,14 @@ RoutingConfig
 .. currentmodule:: zeroheliumkit.src.supercore
 
 .. autoclass:: RoutingConfig
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~RoutingConfig.__init__
    
    
 

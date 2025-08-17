@@ -4,16 +4,14 @@ Structure
 .. currentmodule:: zeroheliumkit.src.core
 
 .. autoclass:: Structure
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Structure.__init__
       ~Structure.add_anchor
       ~Structure.add_layer
       ~Structure.add_line
@@ -61,6 +59,8 @@ Structure
 
    .. autosummary::
    
+      ~Structure.colors
+      ~Structure.errors
       ~Structure.layers
    
    

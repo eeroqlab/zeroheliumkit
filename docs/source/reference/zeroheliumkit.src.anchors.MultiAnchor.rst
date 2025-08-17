@@ -4,16 +4,14 @@ MultiAnchor
 .. currentmodule:: zeroheliumkit.src.anchors
 
 .. autoclass:: MultiAnchor
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~MultiAnchor.__init__
       ~MultiAnchor.add
       ~MultiAnchor.copy
       ~MultiAnchor.label_exist

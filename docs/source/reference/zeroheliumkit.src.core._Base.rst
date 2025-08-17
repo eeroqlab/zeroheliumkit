@@ -4,16 +4,14 @@
 .. currentmodule:: zeroheliumkit.src.core
 
 .. autoclass:: _Base
-
+   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~_Base.__init__
       ~_Base.add_layer
       ~_Base.copy
       ~_Base.has_layer

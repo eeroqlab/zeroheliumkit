@@ -4,16 +4,14 @@ Reader\_GDS
 .. currentmodule:: zeroheliumkit.src.importing
 
 .. autoclass:: Reader_GDS
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Reader_GDS.__init__
       ~Reader_GDS.extract_geometries
       ~Reader_GDS.import2zhk
       ~Reader_GDS.plot

@@ -4,16 +4,14 @@ IDC
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: IDC
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~IDC.__init__
       ~IDC.add_anchor
       ~IDC.add_layer
       ~IDC.add_line
@@ -59,6 +57,8 @@ IDC
 
    .. autosummary::
    
+      ~IDC.colors
+      ~IDC.errors
       ~IDC.layers
    
    

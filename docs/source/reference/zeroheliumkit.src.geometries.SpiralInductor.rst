@@ -4,16 +4,14 @@ SpiralInductor
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: SpiralInductor
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~SpiralInductor.__init__
       ~SpiralInductor.add_anchor
       ~SpiralInductor.add_layer
       ~SpiralInductor.add_line
@@ -59,6 +57,8 @@ SpiralInductor
 
    .. autosummary::
    
+      ~SpiralInductor.colors
+      ~SpiralInductor.errors
       ~SpiralInductor.layers
    
    

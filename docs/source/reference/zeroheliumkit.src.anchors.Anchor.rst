@@ -4,16 +4,14 @@ Anchor
 .. currentmodule:: zeroheliumkit.src.anchors
 
 .. autoclass:: Anchor
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Anchor.__init__
       ~Anchor.distance_to
       ~Anchor.mirror
       ~Anchor.move

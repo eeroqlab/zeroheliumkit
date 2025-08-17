@@ -4,16 +4,14 @@ Taper
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: Taper
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Taper.__init__
       ~Taper.add_anchor
       ~Taper.add_layer
       ~Taper.add_line
@@ -61,6 +59,8 @@ Taper
 
    .. autosummary::
    
+      ~Taper.colors
+      ~Taper.errors
       ~Taper.layers
    
    

@@ -22,23 +22,25 @@ def check_point_equality(p1: tuple | Point, p2: tuple | Point) -> None:
 
 
 def fmodnew(angle: float | int) -> float:
-    """
-    Returns a Modified modulo calculations for angles in degrees.
-        The lower branch always has a negative sign.
+    """ 
+    Modified modulo calculations for angles in degrees.
+    The lower branch always has a negative sign.
 
-    Args:
-    -----
-        angle (float | int): The angle in degrees.
+    Parameters
+    ----------
+    angle : float | int
+        The angle in degrees.
     
-    Returns:
-    --------
-        float: The angle in degrees, normalized to the range [-180, 180).
+    Returns
+    -------
+    float
+        The angle in degrees, normalized to the range [-180, 180).
 
-    Example:
-    --------
-        >>> result = fmodnew(370)
-        >>> print(result)
-            -350.0
+    Example
+    -------
+    >>> result = fmodnew(370)
+    >>> print(result)
+        -350.0
     """
     if np.abs(angle) % 360 == 180:
         return 180

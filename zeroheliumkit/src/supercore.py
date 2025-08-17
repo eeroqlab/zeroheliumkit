@@ -99,12 +99,11 @@ class SuperStructure(Structure):
     A subclass of Structure representing a superstructure.
     Provides additional methods for routing and adding structures along a skeleton line.
 
-    Args:
-    ----
-        route_config (dict): Configuration for routing.
+    Parameters
+    ----------
+    route_config : dict
+        Configuration for routing.
 
-    Attributes:
-        _route_config (dict): Configuration for routing.
     """
 
     def __init__(self, route_config: dict):
@@ -125,21 +124,29 @@ class SuperStructure(Structure):
         """ 
         Routes between anchors and creates a route line with optional buffering.
         If airbridge is provided, it will be added to the route,
-            allowing for crossings with the skeleton line.
+        allowing for crossings with the skeleton line.
 
-        Args:
-        ----
-            - anchors (tuple): The anchors to route between. Provide labels.
-            - layers (dict): The layer width information.
-            - airbridge (Entity | Structure): The airbridge structure.
-                Should contain 'in' and 'out' anchors. Defaults to None
-            - extra_rotation (float, optional): Additional rotation angle for the airbridge. Defaults to 0.
-            - print_status (bool, optional): Whether to print the status of the route creation. Defaults to False.
-            - rm_anchor (bool or str, optional): If True, removes the anchor points after appending. 
-                If a string is provided, removes the specified anchor point. 
-                Defaults to False.
-            - rm_route (bool, optional): Whether to remove created route line. Defaults to False.
-            - cap_style (str, optional): The cap style for the buffered line. Defaults to "flat".
+        Parameters
+        ----------
+        anchors : tuple
+            The anchors to route between. Provide labels.
+        layers : dict
+            The layer width information.
+        airbridge : Entity | Structure
+            The airbridge structure.
+            Should contain 'in' and 'out' anchors. Defaults to None
+        extra_rotation : float, optional
+            Additional rotation angle for the airbridge. Defaults to 0.
+        print_status : bool, optional
+            Whether to print the status of the route creation. Defaults to False.
+        rm_anchor : bool or str, optional
+            If True, removes the anchor points after appending. 
+            If a string is provided, removes the specified anchor point. 
+            Defaults to False.
+        rm_route : bool, optional
+            Whether to remove created route line. Defaults to False.
+        cap_style : str, optional
+            The cap style for the buffered line. Defaults to "flat".
         """
         p_start = self.get_anchor(anchors[0]).point
         p_end = self.get_anchor(anchors[-1]).point
@@ -251,28 +258,35 @@ class SuperStructure(Structure):
         """ 
         Adds structures along the skeleton line.
 
-        Args:
-        ----
-            - bound_anchors (tuple): Skeleton region contained between two anchors.
-            - structure (Structure | Entity): Structure to be added.
-            - locs (list, optional): List of locations along the skeleton line where the structures will be added. 
-                If not provided, the structures will be evenly distributed between the two anchor points.
-            - num (int, optional): Number of structures to be added. Ignored if locs is provided.
-            - endpoints (bool|tuple, optional): Whether to include the endpoints of the skeleton line as locations for adding structures. 
-                ex. tuple = (1,0): includes start point and excludes end point.
-                Defaults to False.
-            - normalized (bool, optional): Whether the locations are normalized along the skeleton line. Defaults to False.
+        Parameters
+        ----------
+        bound_anchors : tuple
+            Skeleton region contained between two anchors.
+        structure : Structure | Entity
+            Structure to be added.
+        locs : list, optional
+            List of locations along the skeleton line where the structures will be added. 
+            If not provided, the structures will be evenly distributed between the two anchor points.
+        num : int, optional
+            Number of structures to be added. Ignored if locs is provided.
+        endpoints : bool|tuple, optional
+            Whether to include the endpoints of the skeleton line as locations for adding structures. 
+            ex. tuple = (1,0) includes start point and excludes end point.
+            Defaults to False.
+        normalized : bool, optional
+            Whether the locations are normalized along the skeleton line. Defaults to False.
 
-        Raises:
+        Raises
         ------
-            WrongSizeError: If the number of bound_anchors is not equal to 2.
+        WrongSizeError
+            If the number of bound_anchors is not equal to 2.
 
-        Example:
+        Example
         -------
-            # Adds 5 structures evenly distributed along the skeleton line between anchor1 and anchor2
-            >>> add_along_skeleton((anchor1, anchor2), structure, num=5)
-            # Adds 3 structures at specific locations along the skeleton line between anchor1 and anchor2
-            >>> add_along_skeleton((anchor1, anchor2), structure, locs=[0.2, 0.5, 0.8])
+        # Adds 5 structures evenly distributed along the skeleton line between anchor1 and anchor2
+        >>> add_along_skeleton((anchor1, anchor2), structure, num=5)
+        # Adds 3 structures at specific locations along the skeleton line between anchor1 and anchor2
+        >>> add_along_skeleton((anchor1, anchor2), structure, locs=[0.2, 0.5, 0.8])
         """
 
         if len(bound_anchors) != 2:
@@ -319,25 +333,27 @@ class SuperStructure(Structure):
         """ 
         Appends route to skeleton and create polygons by buffering.
 
-        Args:
-        ----
-            - line (LineString): The route line.
-            - layers (Union[float, int, list, dict]): The layer information.
-                It can be a single value, a list of values, or a dictionary with distances and widths.
+        Parameters
+        ----------
+        line : LineString
+            The route line.
+        layers  : Union[float, int, list, dict]
+            The layer information.
+            It can be a single value, a list of values, or a dictionary with distances and widths.
 
-        Examples:
+        Examples
         --------
-            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
-            >>> layers = {'layer1': 0.1, 'layer2': [0.2, 0.3, 0.4]}
-            >>> bufferize_routing_line(line, layers)
+        >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+        >>> layers = {'layer1': 0.1, 'layer2': [0.2, 0.3, 0.4]}
+        >>> bufferize_routing_line(line, layers)
 
-            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
-            >>> layers = {'layer1': {'d': [0, 0.5, 1], 'w': [0.1, 0.2, 0.1], 'normalized': True}}
-            >>> bufferize_routing_line(line, layers)
+        >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+        >>> layers = {'layer1': {'d': [0, 0.5, 1], 'w': [0.1, 0.2, 0.1], 'normalized': True}}
+        >>> bufferize_routing_line(line, layers)
 
-            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
-            >>> layers = {'layer1': [0.1, 0.2, 0.3], 'layer2': {'d': [0, 0.5, 1], 'w': [0.2, 0.3, 0.2], 'normalized': False}}
-            >>> bufferize_routing_line(line, layers)
+        >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+        >>> layers = {'layer1': [0.1, 0.2, 0.3], 'layer2': {'d': [0, 0.5, 1], 'w': [0.2, 0.3, 0.2], 'normalized': False}}
+        >>> bufferize_routing_line(line, layers)
         """
         s = Structure()
         if keep_line:
@@ -365,23 +381,27 @@ class SuperStructure(Structure):
         """ 
         Rounds the sharp corners within the specified area for the given layer(s) by applying a radius.
 
-        Args:
-        ----
-            - area (Polygon): The area within which the corners should be rounded.
-            - layer (str | list[str]): The layer(s) on which the operation should be performed.
-                If a single layer is provided as a string, the operation will be applied to that layer only.
-                If multiple layers are provided as a list of strings, the operation will be applied to each layer individually.
-            - radius (float | int): The radius to be applied for rounding the corners.
-            - **kwargs: Additional keyword arguments to be passed to the rounding function.
+        Parameters
+        ----------
+        area : Polygon
+            The area within which the corners should be rounded.
+        layer : str | list[str]
+            The layer(s) on which the operation should be performed.
+            If a single layer is provided as a string, the operation will be applied to that layer only.
+            If multiple layers are provided as a list of strings, the operation will be applied to each layer individually.
+        radius : float | int
+            The radius to be applied for rounding the corners.
+        **kwargs 
+            Additional keyword arguments to be passed to the rounding function.
 
 
-        Example:
+        Example
         -------
-            >>> s = ...  # your SuperStructure(route_config={...})
-            >>> area = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
-            >>> s.round_sharp_corners(area, "layer1", 2.5)
-            >>> # Round the sharp corners for multiple layers
-            >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
+        >>> s = ...  # your SuperStructure(route_config={...})
+        >>> area = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
+        >>> s.round_sharp_corners(area, "layer1", 2.5)
+        >>> # Round the sharp corners for multiple layers
+        >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
         """
         warnings.warn("round_sharp_corners is deprecated, use round_corner instead", DeprecationWarning, stacklevel=2)
         if isinstance(layer, str):
@@ -399,16 +419,21 @@ class SuperStructure(Structure):
         """ 
         Rounds the corner of the polygon closest to a given Point in a specific layer.
 
-        Args:
-        ----
-            - layer (str | list[str]): The layer(s) on which the operation should be performed.
-            - around_point (tuple | Point): The point around which the corner should be rounded.
-            - radius (float): The radius to be applied for rounding the corners.
-            - **kwargs: Additional keyword arguments to be passed to the rounding function.
+        Parameters
+        ----------
+        layer: str | list[str]
+            The layer(s) on which the operation should be performed.
+        around_point: tuple | Point
+            The point around which the corner should be rounded.
+        radius: float
+            The radius to be applied for rounding the corners.
+        **kwargs
+            Additional keyword arguments to be passed to the rounding function.
 
-        Returns:
+        Returns
         -------
-            SuperStructure: The modified SuperStructure instance with the rounded corner applied to the specified layer.
+        SuperStructure
+            The modified SuperStructure instance with the rounded corner applied to the specified layer.
         """
         if isinstance(around_point, tuple):
             around_point = Point(around_point)

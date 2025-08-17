@@ -5,7 +5,7 @@ ZeroHeliumKit
 
 
 .. image:: _static/zhk.png
-  :align: center
+  :align: left
   :width: 300
 
 

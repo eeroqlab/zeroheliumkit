@@ -4,16 +4,14 @@ Fillet
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: Fillet
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Fillet.__init__
       ~Fillet.add_anchor
       ~Fillet.add_layer
       ~Fillet.add_line
@@ -61,6 +59,8 @@ Fillet
 
    .. autosummary::
    
+      ~Fillet.colors
+      ~Fillet.errors
       ~Fillet.layers
    
    

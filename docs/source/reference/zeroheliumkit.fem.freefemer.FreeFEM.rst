@@ -4,16 +4,14 @@ FreeFEM
 .. currentmodule:: zeroheliumkit.fem.freefemer
 
 .. autoclass:: FreeFEM
-
+   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~FreeFEM.__init__
       ~FreeFEM.add_helium_curvature_edp
       ~FreeFEM.clean_directory
       ~FreeFEM.edp_exec

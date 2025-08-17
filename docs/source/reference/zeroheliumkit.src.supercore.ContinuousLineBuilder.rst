@@ -4,16 +4,14 @@ ContinuousLineBuilder
 .. currentmodule:: zeroheliumkit.src.supercore
 
 .. autoclass:: ContinuousLineBuilder
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~ContinuousLineBuilder.__init__
       ~ContinuousLineBuilder.add_along_skeletone
       ~ContinuousLineBuilder.add_anchor
       ~ContinuousLineBuilder.build_all

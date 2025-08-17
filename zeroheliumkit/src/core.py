@@ -5,8 +5,8 @@ This file contains the core classes and methods for the ZeroHeliumKit library.
 
 Classes:
 -------
-    `_Base`: Base class with default methods for managing shapely objects.
-    `Entity`: A subclass of _Base which represents a collection of shapely objects linked together and provides methods for geometrical operations.
+    `Base`: Base class with default methods for managing shapely objects.
+    `Entity`: A subclass of Base which represents a collection of shapely objects linked together and provides methods for geometrical operations.
     `Structure`: A subclass of Entity that represents layers with collections of geometries (Points, LineStrings, Polygons, etc.).
     `GeomCollection`: A subclass of Structure that represents a collection of geometries.
 """
@@ -29,26 +29,26 @@ from .anchors import Anchor, MultiAnchor, Skeletone
 from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior
 
 
-class _Base:
+class Base:
     """
     Base class with default methods.
 
-    Attributes:
-    -----------
-        - layers: List of layer names.
+    Args:
+        layers: List of layer names.
+        colors: ColorHandler class, which handles info about colors of layers and their order.
+        errors: Contains error messages. 
 
     Methods:
-    --------
-        - copy(): Returns a deep copy of the class.
-        - add_layer(lname, geometry): Adds a new layer to the class.
-        - remove_layer(lname): Removes a layer from the class.
-        - rename_layer(old_name, new_name): Renames a layer in the class.
-        - simplify_layer(lname, tolerance=0.1): Simplifies polygons in a layer.
-        - has_layer(lname): Checks if a layer exists in the class.
+        copy(): Returns a deep copy of the class.
+        add_layer(lname, geometry): Adds a new layer to the class.
+        remove_layer(lname): Removes a layer from the class.
+        rename_layer(old_name, new_name): Renames a layer in the class.
+        simplify_layer(lname, tolerance=0.1): Simplifies polygons in a layer.
+        has_layer(lname): Checks if a layer exists in the class.
     """
-    layers = [] 
-    """List of all layer names belonging to the object."""
-    _errors = None
+    layers = []
+    colors = ColorHandler({})
+    errors = None
 
     def __init__(self):
         """
@@ -63,7 +63,6 @@ class _Base:
         Creates a deep copy of the class instance.
 
         Returns:
-        --------
             A deep copy of the class instance.
         """
         return copy.deepcopy(self)
@@ -197,10 +196,10 @@ class _Base:
                 
 
 
-class Entity(_Base):
+class Entity(Base):
     """ 
     Represents collections of shapely objects organized by layers and linked together.
-    Inherits from the _Base class.
+    Inherits from the Base class.
 
     Attributes:
     -----------

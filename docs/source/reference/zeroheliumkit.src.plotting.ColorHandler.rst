@@ -4,16 +4,14 @@ ColorHandler
 .. currentmodule:: zeroheliumkit.src.plotting
 
 .. autoclass:: ColorHandler
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~ColorHandler.__init__
       ~ColorHandler.add_color
       ~ColorHandler.change_color
       ~ColorHandler.move_layer_back

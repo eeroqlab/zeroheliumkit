@@ -4,16 +4,14 @@ MicroChannels
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: MicroChannels
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~MicroChannels.__init__
       ~MicroChannels.add_anchor
       ~MicroChannels.add_layer
       ~MicroChannels.add_line
@@ -61,6 +59,8 @@ MicroChannels
 
    .. autosummary::
    
+      ~MicroChannels.colors
+      ~MicroChannels.errors
       ~MicroChannels.layers
    
    

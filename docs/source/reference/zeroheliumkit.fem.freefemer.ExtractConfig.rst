@@ -4,16 +4,14 @@ ExtractConfig
 .. currentmodule:: zeroheliumkit.fem.freefemer
 
 .. autoclass:: ExtractConfig
-
+   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~ExtractConfig.__init__
    
    
 
