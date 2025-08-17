@@ -4,7 +4,7 @@ FFconfigurator
 .. currentmodule:: zeroheliumkit.fem.freefemer
 
 .. autoclass:: FFconfigurator
-   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource
+   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource   :member-order: bysource
    
 
    

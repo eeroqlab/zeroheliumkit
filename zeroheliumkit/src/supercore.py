@@ -3,8 +3,7 @@ supercore.py
 
 This file contains the SuperStructure and ContinuousLineBuilder classes.
 
-Classes:
--------
+Classes-
     `SuperStructure`: A subclass of Structure that provides additional methods for routing and adding 
         structures along a skeleton line.
     `ContinuousLineBuilder`: Builds continuous lines and structures by defining a sequence of operations.
@@ -33,16 +32,13 @@ def get_endpoint_indices(x: tuple=(1,0)) -> tuple:
     Calculates the indices of endpoints based on the provided tuple.
     
     Args:
-    -----
-        - x (tuple): A tuple containing two elements, either (1, 0) or (0, 1).
+        x (tuple): A tuple containing two elements, either (1, 0) or (0, 1).
             Defaults to (1, 0).
         
     Returns:
-    -------
         tuple: A tuple containing the indices of the endpoints.
 
     Raises:
-    ------
         ValueError: If the provided tuple is not (1, 0) or (0, 1).
     """
     if x == (1, 0):
@@ -58,10 +54,9 @@ class RoutingConfig:
     """
     Represents the configuration for routing.
     
-    Attributes:
-    ----------
-        - radius (float, optional): The radius of the routing. Defaults to 50.
-        - num_segments (int, optional): The number of segments in the routing. Defaults to 13.
+    Args:
+        radius (float, optional): The radius of the routing. Defaults to 50.
+        num_segments (int, optional): The number of segments in the routing. Defaults to 13.
     """
     radius: float = 50
     """The radius of the routing. Defaults to 50."""
@@ -74,15 +69,14 @@ class ObjsAlongConfig:
     """
     Configuration class for objects evenly placed along a line.
 
-    Attributes:
-    ----------
-        - structure (object): The structure to be added along the skeleton line.
-        - spacing (float, optional): The spacing between the added objects. Defaults to 100.
-        - endpoints (tuple or bool, optional): The endpoints of the skeleton line where the objects should be added. 
+    Args:
+        structure (object): The structure to be added along the skeleton line.
+        spacing (float, optional): The spacing between the added objects. Defaults to 100.
+        endpoints (tuple or bool, optional): The endpoints of the skeleton line where the objects should be added. 
             If a tuple is provided, it should contain the indices of the desired endpoints. 
             If True, the objects will be added along the entire skeleton line.
             Defaults to True.
-        - additional_rotation (float, optional): Additional rotation to be applied to the added objects. Defaults to 0.
+        additional_rotation (float, optional): Additional rotation to be applied to the added objects. Defaults to 0.
     """
     structure: Structure
     """The structure to be added along the skeleton line."""
@@ -99,9 +93,8 @@ class SuperStructure(Structure):
     A subclass of Structure representing a superstructure.
     Provides additional methods for routing and adding structures along a skeleton line.
 
-    Parameters
-    ----------
-    route_config : dict
+    Args
+        route_config : dict
         Configuration for routing.
 
     """
@@ -126,27 +119,26 @@ class SuperStructure(Structure):
         If airbridge is provided, it will be added to the route,
         allowing for crossings with the skeleton line.
 
-        Parameters
-        ----------
-        anchors : tuple
-            The anchors to route between. Provide labels.
-        layers : dict
-            The layer width information.
-        airbridge : Entity | Structure
-            The airbridge structure.
-            Should contain 'in' and 'out' anchors. Defaults to None
-        extra_rotation : float, optional
-            Additional rotation angle for the airbridge. Defaults to 0.
-        print_status : bool, optional
-            Whether to print the status of the route creation. Defaults to False.
-        rm_anchor : bool or str, optional
-            If True, removes the anchor points after appending. 
-            If a string is provided, removes the specified anchor point. 
-            Defaults to False.
-        rm_route : bool, optional
-            Whether to remove created route line. Defaults to False.
-        cap_style : str, optional
-            The cap style for the buffered line. Defaults to "flat".
+        Args:
+            anchors (tuple):
+                The anchors to route between. Provide labels.
+            layers (dict):
+                The layer width information.
+            airbridge (Entity | Structure):
+                The airbridge structure.
+                Should contain 'in' and 'out' anchors. Defaults to None
+            extra_rotation (float, optional):
+                Additional rotation angle for the airbridge. Defaults to 0.
+            print_status (bool, optional):
+                Whether to print the status of the route creation. Defaults to False.
+            rm_anchor (bool or str, optional):
+                If True, removes the anchor points after appending.
+                If a string is provided, removes the specified anchor point. 
+                Defaults to False.
+            rm_route (bool, optional):
+                Whether to remove created route line. Defaults to False.
+            cap_style (str, optional):
+                The cap style for the buffered line. Defaults to "flat".
         """
         p_start = self.get_anchor(anchors[0]).point
         p_end = self.get_anchor(anchors[-1]).point
@@ -258,35 +250,25 @@ class SuperStructure(Structure):
         """ 
         Adds structures along the skeleton line.
 
-        Parameters
-        ----------
-        bound_anchors : tuple
-            Skeleton region contained between two anchors.
-        structure : Structure | Entity
-            Structure to be added.
-        locs : list, optional
-            List of locations along the skeleton line where the structures will be added. 
-            If not provided, the structures will be evenly distributed between the two anchor points.
-        num : int, optional
-            Number of structures to be added. Ignored if locs is provided.
-        endpoints : bool|tuple, optional
-            Whether to include the endpoints of the skeleton line as locations for adding structures. 
-            ex. tuple = (1,0) includes start point and excludes end point.
-            Defaults to False.
-        normalized : bool, optional
-            Whether the locations are normalized along the skeleton line. Defaults to False.
+        Args:
+            bound_anchors (tuple): Skeleton region contained between two anchors.
+            structure (Structure | Entity): Structure to be added.
+            locs (list, optional): List of locations along the skeleton line where the structures will be added.
+                If not provided, the structures will be evenly distributed between the two anchor points.
+            num (int, optional): Number of structures to be added. Ignored if locs is provided.
+            endpoints (bool|tuple, optional): Whether to include the endpoints of the skeleton line as locations for adding structures.
+                ex. tuple = (1,0) includes start point and excludes end point.
+                Defaults to False.
+            normalized (bool, optional): Whether the locations are normalized along the skeleton line. Defaults to False.
 
-        Raises
-        ------
-        WrongSizeError
-            If the number of bound_anchors is not equal to 2.
+        Raises:
+            WrongSizeError: If the number of bound_anchors is not equal to 2.
 
-        Example
-        -------
-        # Adds 5 structures evenly distributed along the skeleton line between anchor1 and anchor2
-        >>> add_along_skeleton((anchor1, anchor2), structure, num=5)
-        # Adds 3 structures at specific locations along the skeleton line between anchor1 and anchor2
-        >>> add_along_skeleton((anchor1, anchor2), structure, locs=[0.2, 0.5, 0.8])
+        Example:
+            # Adds 5 structures evenly distributed along the skeleton line between anchor1 and anchor2
+            >>> add_along_skeleton((anchor1, anchor2), structure, num=5)
+            # Adds 3 structures at specific locations along the skeleton line between anchor1 and anchor2
+            >>> add_along_skeleton((anchor1, anchor2), structure, locs=[0.2, 0.5, 0.8])
         """
 
         if len(bound_anchors) != 2:
@@ -333,27 +315,23 @@ class SuperStructure(Structure):
         """ 
         Appends route to skeleton and create polygons by buffering.
 
-        Parameters
-        ----------
-        line : LineString
-            The route line.
-        layers  : Union[float, int, list, dict]
-            The layer information.
-            It can be a single value, a list of values, or a dictionary with distances and widths.
+        Args:
+            line (LineString): The route line.
+            layers (Union[float, int, list, dict]): The layer information.
+                It can be a single value, a list of values, or a dictionary with distances and widths.
 
-        Examples
-        --------
-        >>> line = LineString([(0, 0), (1, 1), (2, 2)])
-        >>> layers = {'layer1': 0.1, 'layer2': [0.2, 0.3, 0.4]}
-        >>> bufferize_routing_line(line, layers)
+        Examples:
+            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+            >>> layers = {'layer1': 0.1, 'layer2': [0.2, 0.3, 0.4]}
+            >>> bufferize_routing_line(line, layers)
 
-        >>> line = LineString([(0, 0), (1, 1), (2, 2)])
-        >>> layers = {'layer1': {'d': [0, 0.5, 1], 'w': [0.1, 0.2, 0.1], 'normalized': True}}
-        >>> bufferize_routing_line(line, layers)
+            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+            >>> layers = {'layer1': {'d': [0, 0.5, 1], 'w': [0.1, 0.2, 0.1], 'normalized': True}}
+            >>> bufferize_routing_line(line, layers)
 
-        >>> line = LineString([(0, 0), (1, 1), (2, 2)])
-        >>> layers = {'layer1': [0.1, 0.2, 0.3], 'layer2': {'d': [0, 0.5, 1], 'w': [0.2, 0.3, 0.2], 'normalized': False}}
-        >>> bufferize_routing_line(line, layers)
+            >>> line = LineString([(0, 0), (1, 1), (2, 2)])
+            >>> layers = {'layer1': [0.1, 0.2, 0.3], 'layer2': {'d': [0, 0.5, 1], 'w': [0.2, 0.3, 0.2], 'normalized': False}}
+            >>> bufferize_routing_line(line, layers)
         """
         s = Structure()
         if keep_line:
@@ -381,27 +359,25 @@ class SuperStructure(Structure):
         """ 
         Rounds the sharp corners within the specified area for the given layer(s) by applying a radius.
 
-        Parameters
-        ----------
-        area : Polygon
-            The area within which the corners should be rounded.
-        layer : str | list[str]
-            The layer(s) on which the operation should be performed.
-            If a single layer is provided as a string, the operation will be applied to that layer only.
+        Args:
+            area (Polygon):
+                The area within which the corners should be rounded.
+            layer (str | list[str]):
+                The layer(s) on which the operation should be performed.
+                If a single layer is provided as a string, the operation will be applied to that layer only.
             If multiple layers are provided as a list of strings, the operation will be applied to each layer individually.
-        radius : float | int
-            The radius to be applied for rounding the corners.
-        **kwargs 
-            Additional keyword arguments to be passed to the rounding function.
+            radius (float | int):
+                The radius to be applied for rounding the corners.
+            **kwargs: 
+                Additional keyword arguments to be passed to the rounding function.
 
 
-        Example
-        -------
-        >>> s = ...  # your SuperStructure(route_config={...})
-        >>> area = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
-        >>> s.round_sharp_corners(area, "layer1", 2.5)
-        >>> # Round the sharp corners for multiple layers
-        >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
+        Example:
+            >>> s = ...  # your SuperStructure(route_config={...})
+            >>> area = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
+            >>> s.round_sharp_corners(area, "layer1", 2.5)
+            >>> # Round the sharp corners for multiple layers
+            >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
         """
         warnings.warn("round_sharp_corners is deprecated, use round_corner instead", DeprecationWarning, stacklevel=2)
         if isinstance(layer, str):
@@ -419,21 +395,15 @@ class SuperStructure(Structure):
         """ 
         Rounds the corner of the polygon closest to a given Point in a specific layer.
 
-        Parameters
-        ----------
-        layer: str | list[str]
-            The layer(s) on which the operation should be performed.
-        around_point: tuple | Point
-            The point around which the corner should be rounded.
-        radius: float
-            The radius to be applied for rounding the corners.
-        **kwargs
-            Additional keyword arguments to be passed to the rounding function.
+        Args:
+            layer (str | list[str]): The layer(s) on which the operation should be performed.
+            around_point (tuple | Point): The point around which the corner should be rounded.
+            radius (float | int): The radius to be applied for rounding the corners.
+            **kwargs: Additional keyword arguments to be passed to the rounding function.
 
-        Returns
-        -------
-        SuperStructure
-            The modified SuperStructure instance with the rounded corner applied to the specified layer.
+        Returns:
+            SuperStructure:
+                The modified SuperStructure instance with the rounded corner applied to the specified layer.
         """
         if isinstance(around_point, tuple):
             around_point = Point(around_point)
@@ -450,14 +420,12 @@ class ContinuousLineBuilder():
     """ 
     Class for building continuous lines and structures.
 
-    Attr:
-    -----
-        - routing (RoutingConfig): The routing configuration.
-        - layers (dict): A dictionary containing layer names as keys and buffer widths as values.
-        - objs_along (ObjsAlongConfig): The configuration for adding objects along the skeleton line.
+    Args:
+        routing (RoutingConfig): The routing configuration.
+        layers (dict): A dictionary containing layer names as keys and buffer widths as values.
+        objs_along (ObjsAlongConfig): The configuration for adding objects along the skeleton line.
     
     Example:
-    -------
         >>> s = Structure()
         >>> s.add_layer("l1", Square(10))
         >>> clb = ContinuousLineBuilder(routing=RoutingConfig(radius=10, num_segments=10),
@@ -465,6 +433,7 @@ class ContinuousLineBuilder():
                                         objs_along=ObjsAlongConfig(structure=s, spacing=40))
         >>> a = Anchor((100,0), 0, "b")
         >>> clb.start(Anchor((1,2), 30, "a")).turn(-60,14).go(23,65).routeto(a).go(30,110).forward(36).build_all()
+
     """
 
     __slots__ = ("routing", "layers", "objs_along",
@@ -499,19 +468,16 @@ class ContinuousLineBuilder():
         Adds the given anchor to the set of anchors and initializes the starting coordinates and absolute angle.
 
         Args:
-        -----
-            - anchor (Anchor): The anchor object to be added. It should have 'direction' and 'coords' attributes.
+            anchor (Anchor): The anchor object to be added. It should have 'direction' and 'coords' Args.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated state.
             
         Example:
-        -------
-        >>> anchor = Anchor(coords=(10,20), direction=90, "a")
-        >>> instance = ContinuousLineBuilder()
-        >>> instance.start(anchor)
-            <MyClass object at 0x...>
+            >>> anchor = Anchor(coords=(10,20), direction=90, "a")
+            >>> instance = ContinuousLineBuilder()
+            >>> instance.start(anchor)
+                <MyClass object at 0x...>
         """
         self.skeletone = Skeletone()
         """The Skeletone object representing the skeleton line."""
@@ -532,11 +498,9 @@ class ContinuousLineBuilder():
         Creates a line and adds to a skeletone.
         
         Args:
-        -----
-            - length (float): The length of the line. Default is 1.
+            length (float): The length of the line. Default is 1.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated line.
         """
 
@@ -556,13 +520,11 @@ class ContinuousLineBuilder():
         Creates an arcline and appends to a skeletone.
         
         Args:
-        -----
-            - angle (float): turn angle of the arcline. Default is 90.
-            - radius (float): radius of the arcline. Default is 1.
-            - num_segments (int): number of segments of the arcline. Default is 13.
+            angle (float): turn angle of the arcline. Default is 90.
+            radius (float): radius of the arcline. Default is 1.
+            num_segments (int): number of segments of the arcline. Default is 13.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated arcline.
         """
         new_line = ArcLine(centerx = 0,
@@ -584,13 +546,11 @@ class ContinuousLineBuilder():
         Adds an Anchor at the location of the skeletone end point with given angle and type.
         
         Args:
-        -----
-            - name (str): The name of the anchor.
-            - angle (float, optional): The angle of the anchor. Defaults to None.
-            - type (str, optional): The type of angle calculation. Can be "absolute", "relative", or None. Defaults to None.
+            name (str): The name of the anchor.
+            angle (float, optional): The angle of the anchor. Defaults to None.
+            type (str, optional): The type of angle calculation. Can be "absolute", "relative", or None. Defaults to None.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated anchor.
         """
         _, end_p = self.skeletone.boundary
@@ -609,8 +569,7 @@ class ContinuousLineBuilder():
         Adds an anchor at the end of the skeletone
 
         Args:
-        -----
-            - name (str): The name of the anchor to be added at the end of the skeletone.
+            name (str): The name of the anchor to be added at the end of the skeletone.
         """
         self.add_anchor(name)
 
@@ -621,17 +580,14 @@ class ContinuousLineBuilder():
             Routing should be set before using this method.
         
         Args:
-        -----
-            - length (float): The length of the straight section. Default is 1.
-            - angle (float): The angle of the turn. Default is 90.
+            length (float): The length of the straight section. Default is 1.
+            angle (float): The angle of the turn. Default is 90.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated line and turn.
 
         Error:
-        -----
-            Raises ValueError if routing config is not set.
+           Raises ValueError if routing config is not set.
         """
         if not self.routing:
             raise ValueError("Routing config is not set. Provide dict with keys 'radius' and 'num_segments'")
@@ -643,20 +599,17 @@ class ContinuousLineBuilder():
     def routeto(self, anchor: Anchor, **kwargs) -> 'ContinuousLineBuilder':
         """ 
         Routes the last point in the skeletone with given anchor.
-            routing should be set before using this method.
+        routing should be set before using this method.
         
         Args:
-        -----
-            - anchor (Anchor): the anchor point to which the route will be created.
-            - **kwargs: additional parameters to be passed to create_route method.
+            anchor (Anchor): the anchor point to which the route will be created.
+            **kwargs: additional parameters to be passed to create_route method.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated route.
 
         Error:
-        -----
-            Raises ValueError if routing config is not set.
+           Raises ValueError if routing config is not set.
         """
         if not self.routing:
             raise ValueError("Routing config is not set. Provide dict with keys 'radius' and 'num_segments'")
@@ -681,13 +634,11 @@ class ContinuousLineBuilder():
         Build layers for the structure.
 
         Args:
-        -----
-            - layers (dict, optional): A dictionary containing layer names as keys and buffer widths as values.
+            layers (dict, optional): A dictionary containing layer names as keys and buffer widths as values.
                 If not provided, the layers from the object's attribute `layers` will be used.
-            - **kwargs: Additional keyword arguments to be passed to the `buffer` method.
+            **kwargs: Additional keyword arguments to be passed to the `buffer` method.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated layers.
         """
 
@@ -709,16 +660,14 @@ class ContinuousLineBuilder():
         Add objects along the skeleton line.
 
         Args:
-        -----
-            - structure (object): The structure to be added along the skeleton line.
-            - spacing (float): The spacing between the added objects.
-            - endpoints (tuple or bool): The endpoints of the skeleton line where the objects should be added. 
+            structure (object): The structure to be added along the skeleton line.
+            spacing (float): The spacing between the added objects.
+            endpoints (tuple or bool): The endpoints of the skeleton line where the objects should be added. 
                 If a tuple is provided, it should contain the indices of the desired endpoints. 
                 If True, the objects will be added along the entire skeleton line.
-            - additional_rotation (float): Additional rotation to be applied to the added objects.
+            additional_rotation (float): Additional rotation to be applied to the added objects.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated structure.
         """
 
@@ -757,7 +706,6 @@ class ContinuousLineBuilder():
         Build all the layers and add objects along the skeleton line.
 
         Returns:
-        -------
             ContinuousLineBuilder: The instance of the ContinuousLineBuilder with the updated structure.
         """
         self.build_layers()
