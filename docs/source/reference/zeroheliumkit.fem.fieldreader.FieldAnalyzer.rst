@@ -1,7 +1,7 @@
 FieldAnalyzer
 =============
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.fieldreader
 
 .. autoclass:: FieldAnalyzer
    :member-order: bysource

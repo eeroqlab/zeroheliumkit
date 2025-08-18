@@ -1,7 +1,7 @@
 FFconfigurator
 ==============
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.freefemer
 
 .. autoclass:: FFconfigurator
    :member-order: bysource

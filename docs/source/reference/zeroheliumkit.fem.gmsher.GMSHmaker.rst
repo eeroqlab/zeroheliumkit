@@ -1,7 +1,7 @@
 GMSHmaker
 =========
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.gmsher
 
 .. autoclass:: GMSHmaker
    :member-order: bysource

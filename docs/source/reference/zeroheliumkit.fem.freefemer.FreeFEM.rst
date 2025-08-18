@@ -1,7 +1,7 @@
 FreeFEM
 =======
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.freefemer
 
 .. autoclass:: FreeFEM
    :member-order: bysource

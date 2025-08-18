@@ -1,7 +1,7 @@
 FreeFemResultParser
 ===================
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.fieldreader
 
 .. autoclass:: FreeFemResultParser
    :member-order: bysource

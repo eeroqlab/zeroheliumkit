@@ -1,7 +1,7 @@
 ExtractConfig
 =============
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.freefemer
 
 .. autoclass:: ExtractConfig
    :member-order: bysource

@@ -45,4 +45,7 @@ to perform electric field calculations on designed geometrical structures.
    plotting
    routing
    importing
-   fem
+   gmsher
+   freefemer
+   heliumsurface
+   fieldreader

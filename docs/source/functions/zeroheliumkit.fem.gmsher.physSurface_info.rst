@@ -1,6 +1,6 @@
 physSurface\_info
 =================
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.gmsher
 
 .. autofunction:: physSurface_info

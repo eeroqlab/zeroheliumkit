@@ -1,6 +1,6 @@
 gmshLayer\_info
 ===============
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.gmsher
 
 .. autofunction:: gmshLayer_info

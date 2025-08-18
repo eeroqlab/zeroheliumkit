@@ -1,7 +1,7 @@
 GMSHmaker2D
 ===========
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.heliumsurface
 
 .. autoclass:: GMSHmaker2D
    :member-order: bysource

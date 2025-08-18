@@ -1,7 +1,7 @@
 HeliumSurfaceFreeFEM
 ====================
 
-.. currentmodule:: zeroheliumkit.fem
+.. currentmodule:: zeroheliumkit.fem.heliumsurface
 
 .. autoclass:: HeliumSurfaceFreeFEM
    :member-order: bysource
