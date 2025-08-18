@@ -4,12 +4,19 @@ import os
 import warnings
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-sys.path.insert(1, os.path.abspath('../src'))
-sys.path.insert(1, os.path.abspath('../fem'))
 
 project = 'ZeroHeliumKit'
 copyright = '2025, EeroQ'
 author = 'EeroQ'
+
+# put this at the very top of docs/source/conf.py, before defining extensions
+import sys, types
+_MOCK = ["numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
+         "ezdxf", "svgpathtools", "polars", "ipywidgets"]
+for name in _MOCK:
+    if name not in sys.modules:
+        sys.modules[name] = types.ModuleType(name)
+
 
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
@@ -50,7 +57,7 @@ autodoc_default_options = {
     'inherited-members': False,
     'show-inheritance': True,
     'member-order': "bysource",
-    'exclude-member': ['__init__']
+    'exclude-members': ['__init__']
     # 'undoc-members': False,
 }
 
@@ -104,7 +111,7 @@ def shorten_autosummary_titles(autosummary_dir: Path) -> None:
         try:
             text = p.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            warnings.warning("[shorten titles] Skipping non-UTF8 file: %s", p)
+            warnings.warn("[shorten titles] Skipping non-UTF8 file: %s", p)
             continue
 
         lines = text.splitlines(keepends=True)
