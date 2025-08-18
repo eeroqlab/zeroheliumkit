@@ -32,6 +32,9 @@ def _rtd_import_probe(app):
         except Exception as e:
             print("IMPORT FAIL: %s -> %r", name, e)
 
+def setup(app: Sphinx) -> None:
+    app.connect("builder-inited", _rtd_import_probe)
+
 
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.napoleon',
@@ -156,6 +159,5 @@ def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
 
 
 def setup(app: Sphinx) -> None:
-    app.connect("builder-inited", _rtd_import_probe)
     app.connect("env-before-read-docs", shorten_autosummary_titles_all)
     app.add_css_file("custom.css")
