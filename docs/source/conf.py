@@ -1,6 +1,7 @@
 from __future__ import annotations
 import sys
 import os
+import warnings
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.insert(0, os.path.abspath('../src'))
@@ -57,9 +58,11 @@ add_module_names = True
 # autodoc_member_order = "bysource"
 # napoleon_use_ivar = True
 
+import pkgutil, zeroheliumkit
+print("ZHK seen modules:", [m.name for m in pkgutil.walk_packages(zeroheliumkit.__path__, zeroheliumkit.__name__ + ".")])
+
 from pathlib import Path
 from typing import Any, List
-import warnings
 from sphinx.application import Sphinx
 
 # --- helpers ---------------------------------------------------------------
@@ -126,6 +129,28 @@ def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
         shorten_autosummary_titles(Path(app.srcdir) / rel)
 
 
+# -----------
+def _rtd_import_probe(app):
+    import logging, importlib
+    log = logging.getLogger("rtd-import-probe")
+    for name in [
+        "zeroheliumkit",
+        "zeroheliumkit.fem",
+        "zeroheliumkit.fem.fieldreader",
+        "zeroheliumkit.fem.fieldreader.FieldAnalyzer",
+        "zeroheliumkit.src.fem",
+        "zeroheliumkit.src.fem.fieldreader",
+        "zeroheliumkit.src.fem.fieldreader.FieldAnalyzer",
+    ]:
+        try:
+            importlib.import_module(name)
+            log.info("IMPORT OK: %s", name)
+        except Exception as e:
+            log.info("IMPORT FAIL: %s -> %r", name, e)
+# ------------
+
+
 def setup(app: Sphinx) -> None:
+    app.connect("builder-inited", _rtd_import_probe)
     app.connect("env-before-read-docs", shorten_autosummary_titles_all)
     app.add_css_file("custom.css")
