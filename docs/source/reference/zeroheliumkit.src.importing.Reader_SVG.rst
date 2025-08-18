@@ -5,6 +5,7 @@ Reader\_SVG
 
 .. autoclass:: Reader_SVG
    :member-order: bysource
+
    
 
    

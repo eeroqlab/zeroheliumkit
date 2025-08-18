@@ -5,6 +5,7 @@ GeomCollection
 
 .. autoclass:: GeomCollection
    :member-order: bysource
+
    
 
    

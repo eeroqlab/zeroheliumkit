@@ -5,6 +5,7 @@ ContinuousLineBuilder
 
 .. autoclass:: ContinuousLineBuilder
    :member-order: bysource
+
    
 
    

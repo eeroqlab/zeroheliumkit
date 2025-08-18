@@ -1,3 +1,4 @@
+from __future__ import annotations
 import sys
 import os
 
@@ -56,71 +57,73 @@ add_module_names = True
 # autodoc_member_order = "bysource"
 # napoleon_use_ivar = True
 
-from typing import Any
+from pathlib import Path
+from typing import Any, List
+import warnings
 from sphinx.application import Sphinx
 
+# --- helpers ---------------------------------------------------------------
 
-def remove_line_containing_string(multilines: str, excludetext: str):
-    cleaned_lines = [line for line in multilines if excludetext not in line]
-    return cleaned_lines
+def remove_line_containing_string(lines: List[str], excludetext: str) -> List[str]:
+    return [ln for ln in lines if excludetext not in ln]
 
-
-def insert_line_after_match(multilines: str, match_text: str, new_line_text: str):
-    """
-    Inserts a new line of text after the first line that contains the match_text.
-
-    Parameters
-    ----------
-    multilines : str
-        Target multilines.
-    match_text : str
-        Text to search for in lines.
-    new_line_text : str
-        The line to insert after the match (no newline needed).
-
-    Returns
-    -------
-    bool
-        True if insertion occurred, False if match_text was not found.
-    """
-    newlines = []
+def insert_line_after_match(lines: List[str], match_text: str, new_line_text: str) -> List[str]:
+    out: List[str] = []
     inserted = False
-    
-    for line in multilines:
-        newlines.append(line)
-        if not inserted and match_text in line:
-            newlines.append(new_line_text)
+    to_insert = new_line_text if new_line_text.endswith("\n") else new_line_text + "\n"
+
+    for ln in lines:
+        out.append(ln)
+        if not inserted and match_text in ln:
+            out.append(to_insert)
             inserted = True
+    return out
 
-    return newlines
+# --- core ------------------------------------------------------------------
 
+def shorten_autosummary_titles(autosummary_dir: Path) -> None:
+    """
+    Rewrite autosummary stubs in `autosummary_dir`:
+      - title: keep only the last dotted part (class/function name)
+      - underline: match new title length
+      - drop lines containing '__init__'
+      - add ':member-order: bysource' after '.. autoclass::'
+    """
+    if not autosummary_dir.exists():
+        return
 
-def shorten_autosummary_titles(autosummary_dir) -> None:
+    for p in autosummary_dir.rglob("*.rst"):  # only .rst files (recurses into subdirs)
+        # Read safely as UTF-8 text; skip files that are not UTF-8
+        try:
+            text = p.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            warnings.warning("[shorten titles] Skipping non-UTF8 file: %s", p)
+            continue
 
-    for filename in os.listdir(autosummary_dir):
+        lines = text.splitlines(keepends=True)
+        if len(lines) < 2:
+            continue  # nothing to do
 
-        path = os.path.join(autosummary_dir, filename)
-        with open(path, "r") as f:
-            lines = f.readlines()
-        
-        short = lines[0].strip().rsplit(".", 1)[-1]
+        # Title -> last dotted component
+        title = lines[0].rstrip("\n")
+        short = title.rsplit(".", 1)[-1]
         lines[0] = short + "\n"
-        lines[1] = "=" * len(short) + "\n" # Adjust for underline length
+        lines[1] = "=" * len(short) + "\n"  # underline length must match
 
+        # Remove any line that mentions __init__ (e.g. special-members)
         lines = remove_line_containing_string(lines, "__init__")
+
+        # After an autoclass directive, enforce :member-order: bysource
         lines = insert_line_after_match(lines, ".. autoclass::", "   :member-order: bysource")
 
-        with open(path, "w") as f:
-            f.writelines(lines)
-
+        # Write back as UTF-8
+        p.write_text("".join(lines), encoding="utf-8")
 
 def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
-    """Remove module and class from the autosummary titles."""
-    autosummary_dir = os.path.join(app.srcdir, "reference")
-    shorten_autosummary_titles(autosummary_dir)
-
-    autosummary_dir = os.path.join(app.srcdir, "functions")
-    shorten_autosummary_titles(autosummary_dir)
+    """Hook: run after autosummary has generated stubs, before reading docs."""
+    # logger = app.logger
+    for rel in ("reference", "functions"):
+        shorten_autosummary_titles(Path(app.srcdir) / rel)
 
 
 def setup(app: Sphinx) -> None:

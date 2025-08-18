@@ -5,6 +5,7 @@ StraightLine
 
 .. autoclass:: StraightLine
    :member-order: bysource
+
    
 
    

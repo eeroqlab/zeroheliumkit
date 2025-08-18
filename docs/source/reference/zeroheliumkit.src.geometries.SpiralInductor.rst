@@ -5,6 +5,7 @@ SpiralInductor
 
 .. autoclass:: SpiralInductor
    :member-order: bysource
+
    
 
    

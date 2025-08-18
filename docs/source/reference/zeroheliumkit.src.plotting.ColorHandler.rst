@@ -5,6 +5,7 @@ ColorHandler
 
 .. autoclass:: ColorHandler
    :member-order: bysource
+
    
 
    
