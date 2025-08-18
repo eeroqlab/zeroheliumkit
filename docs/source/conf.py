@@ -129,28 +129,6 @@ def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
         shorten_autosummary_titles(Path(app.srcdir) / rel)
 
 
-# -----------
-def _rtd_import_probe(app):
-    import logging, importlib
-    log = logging.getLogger("rtd-import-probe")
-    for name in [
-        "zeroheliumkit",
-        "zeroheliumkit.fem",
-        "zeroheliumkit.fem.fieldreader",
-        "zeroheliumkit.fem.fieldreader.FieldAnalyzer",
-        "zeroheliumkit.src.fem",
-        "zeroheliumkit.src.fem.fieldreader",
-        "zeroheliumkit.src.fem.fieldreader.FieldAnalyzer",
-    ]:
-        try:
-            importlib.import_module(name)
-            log.info("IMPORT OK: %s", name)
-        except Exception as e:
-            log.info("IMPORT FAIL: %s -> %r", name, e)
-# ------------
-
-
 def setup(app: Sphinx) -> None:
-    app.connect("builder-inited", _rtd_import_probe)
     app.connect("env-before-read-docs", shorten_autosummary_titles_all)
     app.add_css_file("custom.css")
