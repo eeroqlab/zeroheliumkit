@@ -10,5 +10,5 @@ This module contains classes for parsing FreeFEM++ results and analyzing fields.
    :toctree: reference/
 
    FreeFemResultParser
-   
+   FieldAnalyzer
 

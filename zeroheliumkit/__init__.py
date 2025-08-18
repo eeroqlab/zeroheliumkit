@@ -7,6 +7,7 @@
 __version__ = '0.4.2'
 
 from .src import *
+from .fem import *
 
 __all__ = [
     "Anchor",
