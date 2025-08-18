@@ -1,5 +1,5 @@
 [build-system]
-requires = ["pdm-backend >= 2.4.0"]
+requires = ["pdm-backend >= 2.4.0", "setuptools>=68", "wheel"]
 build-backend = "pdm.backend"
 
 [project]
@@ -21,5 +21,5 @@ license-files = ["LICEN[CS]E*"]
 [project.urls]
 Homepage = "https://github.com/eeroqlab/zeroheliumkit"
 
-[tool.setuptools.packages.find]
-include = ['src', 'helpers', 'fem']
+[tool.setuptools]
+packages = { find = { include = ["zeroheliumkit", "zeroheliumkit.*"] } }
