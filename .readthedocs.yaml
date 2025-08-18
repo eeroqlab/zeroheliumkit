@@ -27,5 +27,5 @@ python:
   install:
     - requirements: docs/requirements.txt
     - method: pip
-    - path: .           # install your package (supports src/ layout via pyproject)
+      path: .           # install your package (supports src/ layout via pyproject)
     
