@@ -6,6 +6,7 @@ build/
 dev/
 *data/
 zeroheliumkit/eeroq/
+_autosummary/
 
 *.DS_Store
 *.ipynb_checkpoints
