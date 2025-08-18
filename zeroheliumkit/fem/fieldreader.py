@@ -126,8 +126,7 @@ def action_on_data(data_item: dict | np.ndarray, action: Callable, **kwargs) -> 
     action (Callable): The function to apply.
     **kwargs: Additional keyword arguments to pass to the function.
 
-    Returns:
-    _______
+    Returns
     dict | np.ndarray: The data with the function applied to each item.
     """
     if isinstance(data_item, dict):
@@ -179,6 +178,12 @@ def symmetrise_symmetric(data: np.ndarray, config: SymmetryConfig) -> np.ndarray
 
 
 class FreeFemResultParser():
+    """
+    Parses and loads results from FreeFem simulations using metadata and data files.
+
+    Args:
+        metadata_file (str): Path to the YAML metadata file containing simulation information.
+    """
 
     def __init__(self, metadata_file: str):
         with open(metadata_file, 'r') as file:
@@ -188,6 +193,10 @@ class FreeFemResultParser():
 
 
     def print_table(self):
+        """
+        Prints a formatted table of selected metadata attributes using the tabulate library.
+        """
+
         exclude_list = ["Capacitance Matrix", "Control Electrodes"]
         meta = {k: v for k, v in self.metadata.items() if k not in exclude_list}
         col_names = list(meta.keys())
@@ -202,6 +211,18 @@ class FreeFemResultParser():
 
 
     def load_data(self, savedir: str, fname: str):
+        """
+        Loads electrode field data from a Parquet file and organizes it into a structured dictionary.
+
+        Args:
+            savedir (str): Directory path where the Parquet file is stored.
+            fname (str): Base filename (without extension) of the Parquet file to load.
+
+        Returns:
+            dict: A dictionary containing electrode data arrays indexed by slice values, 
+            as well as 'xlist' and 'ylist' arrays representing spatial coordinates.
+        """
+
         df = pl.read_parquet(savedir + fname + ".parquet")
 
         data = {}
@@ -226,6 +247,7 @@ class FreeFemResultParser():
 
 
     def get_capacitance_matrix(self):
+        """ Returns the capacitance matrix from the metadata. """
         return self.metadata["Capacitance Matrix"]
 
 
@@ -233,24 +255,38 @@ class FreeFemResultParser():
 #### Main Reader Class ####
 ###########################
 class FieldAnalyzer():
-    """ A class for analyzing and plotting field data extracted from FEM."""
+    """
+    A class for analyzing and plotting field data extracted from FEM simulations.
+    This class provides methods to:
+    - Load and store field data as attributes.
+    - Calculate potential distributions from coupling constants and voltages.
+    - Plot 2D and 1D potential and electric field distributions.
+    - Mask and crop field data based on geometric regions or coordinate ranges.
+    - Apply symmetry and smoothing operations to field data.
 
-    def __init__(self, *filename_args: tuple[str, str]):
+    Args:
+        *filename_args (tuple[str, dict]): Variable number of tuples, each containing:
+            - attrname (str): The name of the attribute to store the data.
+            - data (dict): The data to be stored in the attribute.
+
+    """
+
+
+    def __init__(self, *filename_args: tuple[str, dict]):
         for attrname, data in filename_args:
             setattr(self, attrname, data)
 
     def potential(self, couplingConst: dict, voltages: dict, zlevel_key=None) -> tuple:
-        """ Calculates the potential distribution based on the coupling constants and voltages.
+        """
+        Calculates the potential distribution based on the coupling constants and voltages.
 
         Args:
-        _____
-        couplingConst (dict): A dictionary containing the coupling constants.
-        voltages (dict): A dictionary containing the voltages.
-        zlevel_key (optional): The key for the z-level. Defaults to None.
+            couplingConst (dict): A dictionary containing the coupling constants.
+            voltages (dict): A dictionary containing the voltages.
+            zlevel_key (optional): The key for the z-level. Defaults to None.
 
         Returns:
-        _______
-        tuple: A tuple containing the x-coordinates, y-coordinates, and the potential data.
+            tuple: A tuple containing the x-coordinates, y-coordinates, and the potential data.
         """
         nx, ny = len(couplingConst['xlist']), len(couplingConst['ylist'])
         data = np.zeros((nx, ny), dtype=np.float64)
@@ -267,14 +303,14 @@ class FieldAnalyzer():
 
 
     def plot_coupling_const(self, couplingConst: list, gate: str, ax=None) -> None:
-        """ Plots the coupling constants for a specific gate.
+        """
+        Plots the coupling constants for a specific gate.
 
         Args:
-        _____
-        couplingConst (list): The coupling constants.
-        gate (str): The gate for which the coupling constants are plotted.
-        ax (optional): The matplotlib axes object to plot on.
-                       If not provided, a new figure and axes will be created.
+            couplingConst (list): The coupling constants.
+            gate (str): The gate for which the coupling constants are plotted.
+            ax (optional): The matplotlib axes object to plot on.
+                If not provided, a new figure and axes will be created.
         """
         if ax is None:
             ax = _default_ax()
@@ -291,18 +327,18 @@ class FieldAnalyzer():
                          zero_line=None,
                          zlevel_key=None,
                          **kwargs):
-        """ Plots the 2D potential distribution based on the coupling constants and voltages.
+        """
+        Plots the 2D potential distribution based on the coupling constants and voltages.
 
         Args:
-        _____
-        couplingConst (list): The coupling constants.
-        voltage_list (list): The voltages.
-        ax (optional): The matplotlib axes object to plot on.
-                        If not provided, a new figure and axes will be created.
-        zero_line (optional): The value at which to draw a dashed line.
-                              If True, the zero line will be drawn at 0.
-                              If None, no zero line will be drawn.
-        **kwargs: Additional keyword arguments to pass to the `contourf` function.
+            couplingConst (list): The coupling constants.
+            voltage_list (list): The voltages.
+            ax (optional): The matplotlib axes object to plot on.
+                If not provided, a new figure and axes will be created.
+            zero_line (optional): The value at which to draw a dashed line.
+                If True, the zero line will be drawn at 0.
+                If None, no zero line will be drawn.
+            **kwargs: Additional keyword arguments to pass to the `contourf` function.
         """
         if ax is None:
             ax = _default_ax()
@@ -321,16 +357,16 @@ class FieldAnalyzer():
                          xy_cut: str,
                          loc: float,
                          zlevel_key=None) -> np.ndarray:
-        """ Returns (tuple(xlist, data)) the 1D potential distribution
-            along a specified cut in the XY plane.
+        """
+        Returns (tuple(xlist, data)) the 1D potential distribution
+        along a specified cut in the XY plane.
 
         Args:
-        _____
-        couplingConst (dict): A dictionary containing the coupling constants.
-        voltages (dict): A dictionary containing the voltages.
-        xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-        loc (float): The location along the cut.
-        zlevel_key (optional): The key for the z-level. Defaults to None.
+            couplingConst (dict): A dictionary containing the coupling constants.
+            voltages (dict): A dictionary containing the voltages.
+            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
+            loc (float): The location along the cut.
+            zlevel_key (optional): The key for the z-level. Defaults to None.
         """
         X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
         if xy_cut == 'x':
@@ -349,16 +385,16 @@ class FieldAnalyzer():
                      xy_cut: str,
                      loc: float,
                      zlevel_key=None) -> np.ndarray:
-        """ Returns (tuple(xlist, data)) the 1D electric field distribution
-            along a specified cut in the XY plane.
+        """
+        Returns (tuple(xlist, data)) the 1D electric field distribution
+        along a specified cut in the XY plane.
 
         Args:
-        _____
-        couplingConst (dict): A dictionary containing the coupling constants.
-        voltages (dict): A dictionary containing the voltages.
-        xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-        loc (float): The location along the cut.
-        zlevel_key (optional): The key for the z-level. Defaults to None.
+            couplingConst (dict): A dictionary containing the coupling constants.
+            voltages (dict): A dictionary containing the voltages.
+            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
+            loc (float): The location along the cut.
+            zlevel_key (optional): The key for the z-level. Defaults to None.
         """
         X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
         if xy_cut == 'x':
@@ -381,19 +417,19 @@ class FieldAnalyzer():
                           scale=1e3,
                           add_offset=0,
                           **kwargs):
-        """ Plots the 1D potential distribution along a specified cut in the XY plane.
-            Returns ax: The matplotlib axes object.
+        """
+        Plots the 1D potential distribution along a specified cut in the XY plane.
+        Returns ax: The matplotlib axes object.
 
         Args:
-        _____
-        couplingConst (dict): A dictionary containing the coupling constants.
-        voltages (dict): A dictionary containing the voltages.
-        xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-        loc (float): The location along the cut.
-        ax (optional): The matplotlib axes object to plot on. If not provided,
-                        a new figure and axes will be created.
-        zlevel_key (optional): The key for the z-level. Defaults to None.
-        **kwargs: Additional keyword arguments to pass to the `plot` function.
+            couplingConst (dict): A dictionary containing the coupling constants.
+            voltages (dict): A dictionary containing the voltages.
+            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
+            loc (float): The location along the cut.
+            ax (optional): The matplotlib axes object to plot on. If not provided,
+                a new figure and axes will be created.
+            zlevel_key (optional): The key for the z-level. Defaults to None.
+            **kwargs: Additional keyword arguments to pass to the `plot` function.
         """
         if ax is None:
             ax = _default_ax()
@@ -413,19 +449,19 @@ class FieldAnalyzer():
                       ax=None,
                       zlevel_key=None,
                       **kwargs):
-        """ Plots the 1D electric field distribution along a specified cut in the XY plane.
-            Returns ax: The matplotlib axes object.
+        """
+        Plots the 1D electric field distribution along a specified cut in the XY plane.
+        Returns ax: The matplotlib axes object.
 
         Args:
-        _____
-        couplingConst (dict): A dictionary containing the coupling constants.
-        voltages (dict): A dictionary containing the voltages.
-        xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-        loc (float): The location along the cut.
-        ax (optional): The matplotlib axes object to plot on. If not provided,
-                        a new figure and axes will be created.
-        zlevel_key (optional): The key for the z-level. Defaults to None.
-        **kwargs: Additional keyword arguments to pass to the `plot` function.
+            couplingConst (dict): A dictionary containing the coupling constants.
+            voltages (dict): A dictionary containing the voltages.
+            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
+            loc (float): The location along the cut.
+            ax (optional): The matplotlib axes object to plot on. If not provided,
+                a new figure and axes will be created.
+            zlevel_key (optional): The key for the z-level. Defaults to None.
+            **kwargs: Additional keyword arguments to pass to the `plot` function.
         """
         if ax is None:
             ax = _default_ax()
@@ -438,13 +474,13 @@ class FieldAnalyzer():
 
 
     def mask_data(self, new_attr_name: str, attr_name: str, mask_area: Polygon) -> None:
-        """ Masks the data based on the specified mask area and stores it as a new attribute.
+        """
+        Masks the data based on the specified mask area and stores it as a new attribute.
 
         Args:
-        _____
-        new_attr_name (str): The name of the new attribute to store the cropped data.
-        attr_name (str): The name of the attribute containing the original data.
-        mask_area (Polygon): The polygon representing the crop area.
+            new_attr_name (str): The name of the new attribute to store the cropped data.
+            attr_name (str): The name of the attribute containing the original data.
+            mask_area (Polygon): The polygon representing the crop area.
         """
         data = getattr(self, attr_name)
         y, x = np.meshgrid(data.get('xlist'), data.get('ylist'))
@@ -463,15 +499,15 @@ class FieldAnalyzer():
 
 
     def crop_data(self, new_attr_name: str, attr_name: str, xrange: tuple=(-1,1), yrange: tuple=(-1,1)) -> None:
-        """ Crop the data stored in the attribute specified by `attr_name`
-            and store the cropped data in a new attribute specified by `new_attr_name`.
-        
+        """
+        Crop the data stored in the attribute specified by `attr_name`
+        and store the cropped data in a new attribute specified by `new_attr_name`.
+
         Args:
-        _____
-        new_attr_name (str): The name of the new attribute to store the cropped data.
-        attr_name (str): The name of the attribute containing the data to be cropped.
-        xrange (tuple, optional): The range of x-values to crop the data. Defaults to (-1, 1).
-        yrange (tuple, optional): The range of y-values to crop the data. Defaults to (-1, 1).
+            new_attr_name (str): The name of the new attribute to store the cropped data.
+            attr_name (str): The name of the attribute containing the data to be cropped.
+            xrange (tuple, optional): The range of x-values to crop the data. Defaults to (-1, 1).
+            yrange (tuple, optional): The range of y-values to crop the data. Defaults to (-1, 1).
         """
         
         data = getattr(self, attr_name)
@@ -487,15 +523,15 @@ class FieldAnalyzer():
 
 
     def make_symmetric(self, attr_name: str, symmetric_electrodes: list, mirror_electrodes: list[tuple], symmetry_axis: str, newname: str) -> None:
-        """ Make the data in 'attr_name' symmetric based on the given symmetry axis and store it in a new attribute with the name 'newname'.
+        """
+        Make the data in 'attr_name' symmetric based on the given symmetry axis and store it in a new attribute with the name 'newname'.
         
         Args:
-        -----
-        - attr_name (str): The name of the data to make symmetric.
-        - symmetric_electrodes (list): The list of electrodes to make symmetric.
-        - mirror_electrodes (list[tuple]): The list of electrode pairs which are mirror to each other.
-        - symmetry_axis (str): The axis of symmetry ('x' or 'y').
-        - newname (str): The name of the new attribute where symmetric data will be stored.
+            attr_name (str): The name of the data to make symmetric.
+            symmetric_electrodes (list): The list of electrodes to make symmetric.
+            mirror_electrodes (list[tuple]): The list of electrode pairs which are mirror to each other.
+            symmetry_axis (str): The axis of symmetry ('x' or 'y').
+            newname (str): The name of the new attribute where symmetric data will be stored.
         """
 
         data = getattr(self, attr_name)
@@ -544,13 +580,13 @@ class FieldAnalyzer():
 
 
     def make_smooth(self, attr_name: str, gaussian_power: int, newname: str, **kwargs) -> None:
-        """ Smooths the coupling constants of the fieldreader object using a Gaussian filter.
+        """
+        Smooths the coupling constants of the fieldreader object using a Gaussian filter.
         
         Args:
-        -----
-        - attr_name (str): The name of the attribute containing the coupling constants.
-        - gaussian_power (int): The power of the Gaussian filter.
-        - newname (str): The name of the new attribute to store the smoothed coupling constants.
+            attr_name (str): The name of the attribute containing the coupling constants.
+            gaussian_power (int): The power of the Gaussian filter.
+            newname (str): The name of the new attribute to store the smoothed coupling constants.
         """
 
         smoothed = {}

@@ -5,13 +5,20 @@ ZeroHeliumKit
 
 
 .. image:: _static/zhk.png
-  :align: left
+  :align: center
   :width: 300
 
 
 ZeroHeliumKit is a Python-based framework tailored for designing planar geometries used 
 in microfabricated chip structures and conducting integrated electric field computations. 
-It enables you to intuitively assemble complex microdevice layouts from simple elements in a “Lego-style” design flow.
+It enables you to intuitively assemble complex microdevice layouts from simple elements in 
+a “Lego-style” design flow.
+
+Geometry creation and assembly part is based on `Shapely <https://github.com/shapely/shapely>`__ 
+python package, which provides fast boolean operations on geometrical objects. ZeroHeliumKit 
+enables simple integration with `Gmsh <https://gmsh.info>`__ (mesh generation toolkit) and 
+`FreeFEM++ <https://freefem.org>`__ (finite element solver for partial differential equations) 
+to perform electric field calculations on designed geometrical structures.
 
 
 .. toctree::
@@ -38,4 +45,4 @@ It enables you to intuitively assemble complex microdevice layouts from simple e
    plotting
    routing
    importing
-   freefemer
+   fem

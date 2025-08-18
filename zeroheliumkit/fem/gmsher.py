@@ -22,6 +22,22 @@ from ..src.core import Structure, Entity
 # some useful functions
 
 def gmshLayer_info(ref_layer: str, z: float, d: float, physical_name: str, cut: tuple=None, forConstruction: bool=False) -> dict:
+    """
+    Generates a dictionary containing information about a GMSH layer.
+
+    Args:
+        ref_layer (str): Reference name or identifier for the layer from the layout.
+        z (float): Z-coordinate or position of the layer.
+        d (float): Thickness of the layer.
+        physical_name (str): Physical name associated with the layer.
+        cut (tuple, optional): Tuple specifying the volumes which will be cut from the main volume.
+            Defaults to None.
+        forConstruction (bool, optional): Flag indicating if the layer is for construction purposes. Defaults to False.
+
+    Returns:
+        dict: Dictionary containing layer information.
+    """
+
     return {
         'reference':        ref_layer,
         'z':                z,
@@ -32,6 +48,19 @@ def gmshLayer_info(ref_layer: str, z: float, d: float, physical_name: str, cut: 
         }
 
 def physSurface_info(ref_layer: str, polygon_idx: list, gmsh_layer: str, linked_to: str=None):
+    """
+    Creates a dictionary containing information about a physical surfaces.
+
+    Args:
+        ref_layer (str): Reference layer name or identifier from the layout.
+        polygon_idx (list): List of polygon indices associated with the surface.
+        gmsh_layer (str): Name or identifier of the corresponding GMSH layer.
+        linked_to (str, optional): Identifier of another entity this surface is linked to. Defaults to None.
+
+    Returns:
+        dict: A dictionary containing physical surface information.
+    """
+
     return {
         'ref_layer':    ref_layer,
         'polygons':     polygon_idx,
@@ -75,6 +104,19 @@ def convert_layout_to_dict(layout: Structure | Entity) -> dict:
 # MAIN class, which constructs 3D geometry and mesh
 
 class GMSHmaker():
+    """
+    GMSHmaker class constructs 3D geometry and mesh using GMSH Python API.
+    
+    Args:
+        layout (Structure | Entity): geometry design
+        extrude_config (dict): configuration for extruding 2D polygons into 3D volumes
+        electrodes_config (dict): configuration for defining physical surfaces for electrodes
+        mesh_params (tuple): parameters for mesh generation
+        additional_surfaces (dict, optional): additional surfaces to be included in the geometry. Defaults to None.
+        savedir (str, optional): directory to save the mesh file. Defaults to "dump".
+        configdir (str, optional): directory to save the configuration file. Defaults to "config".
+        filename (str, optional): name of the mesh file. Defaults to "device".
+    """
 
     def __init__(self, 
                  layout: Structure | Entity,
@@ -147,7 +189,8 @@ class GMSHmaker():
         return surface
 
     def create_gmsh_volume_by_extrusion(self, polygon: Polygon, zcoord: float, thickness: float):
-        """ Creates 3D gmsh Volume by extruding shapely Polygon
+        """
+        Creates 3D gmsh Volume by extruding shapely Polygon.
 
         Args:
             polygon (Polygon): shapely Polygon
@@ -174,8 +217,9 @@ class GMSHmaker():
         return volume
 
     def populate_volumes(self, names_list: list, volumes: dict) -> dict:
-        """ Populates predefined 'volumes' dict with gmsh 3D objects
-            3D object is created by extruding shapely Polygons 
+        """
+        Populates predefined 'volumes' dict with gmsh 3D objects.
+        3D object is created by extruding shapely Polygons.
 
         Args:
             names_list (list): list of gmsh volume names
@@ -195,7 +239,8 @@ class GMSHmaker():
         return volumes
     
     def gmshObjs_forCutting(self, cutting_layer_names: tuple, volumes: dict) -> list:
-        """ Creates a list of gmsh Volumes from the list of cutting_layer_names
+        """
+        Creates a list of gmsh Volumes from the list of cutting_layer_names.
 
         Args:
             cutting_layer_names (tuple): contains a list of gmsh layer names will be used for cutting
@@ -213,17 +258,17 @@ class GMSHmaker():
         return list_gmsh_objects
     
     def sort_gmshLayer_names(self) -> tuple:
-        """ Prepares four lists of gmsh layer names 
-            defining the order of 3D gmsh construction
+        """
+        Prepares four lists of gmsh layer names defining the order of 3D gmsh construction
 
-            Construction logic
-            1. first - contains a list of gmsh layer names, which will be constructed first by extruding polygons
-            2. first_forConstruction - contains a list of gmsh layer names, 
-                                       which will be temporarely constructed and but not present in the end geometry
-            3. final_forConstruction - temporarely constructed, not present in the end geometry
-                                       contains cut_info, which is the list of gmsh layers to be cutted
-            4. final - list of gmsh layer to be constructed the last
-                       contains cut_info, which could be gmsh layer names from 'first', 'first_foConstruction' and 'final_forConstruction' lists
+        Construction logic
+        1. first - contains a list of gmsh layer names, which will be constructed first by extruding polygons
+        2. first_forConstruction - contains a list of gmsh layer names, 
+                                    which will be temporarely constructed and but not present in the end geometry
+        3. final_forConstruction - temporarely constructed, not present in the end geometry
+                                    contains cut_info, which is the list of gmsh layers to be cutted
+        4. final - list of gmsh layer to be constructed the last
+                    contains cut_info, which could be gmsh layer names from 'first', 'first_foConstruction' and 'final_forConstruction' lists
 
         Returns:
             tuple: 4 lists with gmsh layer names with or without cut_info
@@ -252,7 +297,8 @@ class GMSHmaker():
     
     
     def create_gmsh_objects(self) -> dict:
-        """ Main 3D gmsh constructor function.
+        """
+        Main 3D gmsh constructor function.
 
         Returns:
             dict: configuration about gmsh layers and constructed Volumes contained in these layers.
@@ -321,8 +367,8 @@ class GMSHmaker():
         return volumes
     
     def fragmentation(self, volumes: list) -> list:
-        """ Gluing all Volumes together
-            Handles correctly the shared surfaces between Volumes
+        """
+        Gluing all Volumes together. Handles correctly the shared surfaces between Volumes.
 
         Args:
             volumes (list): list of all Volumes
@@ -344,13 +390,14 @@ class GMSHmaker():
         return new_volumes
 
     def create_PhysicalVolumes(self, volumes: dict) -> dict:
-        """ Tags Volumes to Physical Volumes
+        """
+        Tags Volumes to Physical Volumes.
 
         Args:
-            volumes (dict): dict with gmsh layer and corresponding volumes
+            volumes (dict): dict with gmsh layer and corresponding volumes.
 
         Returns:
-            dict: key - physical volume names; value - list of Volumes
+            dict: key - physical volume names; value - list of Volumes.
         """
         config = self.extrude_config
         
@@ -373,7 +420,8 @@ class GMSHmaker():
         return physVolumes_groups
     
     def gmsh_to_polygon_matches(self, Volume: int, polygon: Polygon, gmsh_layer: str) -> bool:
-        """ compares gmsh Volumes with extruded shapely Polygon
+        """
+        Compares gmsh Volumes with extruded shapely Polygon.
 
         Args:
             Volume (int): gmsh Volume
@@ -392,7 +440,8 @@ class GMSHmaker():
         return np.allclose(np.asarray(com), np.asarray(centroid), atol=tol)
     
     def create_PhysicalSurfaces(self) -> dict:
-        """ Defines the physical Surfaces, where voltages will be applied
+        """
+        Defines the physical Surfaces, where voltages will be applied.
 
         Args:
             electrodes (dict): electrodes config
@@ -449,16 +498,16 @@ class GMSHmaker():
         #gmsh_ent_onSurf1 = gmsh.model.occ.getEntitiesInBoundingBox(xmin, ymin, zmin, xmax, ymax, zmax, dim=-1)
     
     def define_mesh(self, mesh_config: dict | list[dict]):
-        """ The mesh setup config. It can be a single dictionary or a list of dictionaries.
+        """
+        The mesh setup config. It can be a single dictionary or a list of dictionaries.
 
         Args:
-        ----
-        mesh_config (dict | list[dict]):
-            Each dictionary should contain the following keys:
-            - "Thickness" (float): The thickness of the box.
-            - "VIn" (float): The inner value of the box.
-            - "VOut" (float): The outer value of the box.
-            - "box" (list[float]): The coordinates of the box in the format [XMin, XMax, YMin, YMax, ZMin, ZMax].
+            mesh_config (dict | list[dict]):
+                Each dictionary should contain the following keys:
+                - "Thickness" (float): The thickness of the box.
+                - "VIn" (float): The inner value of the box.
+                - "VOut" (float): The outer value of the box.
+                - "box" (list[float]): The coordinates of the box in the format [XMin, XMax, YMin, YMax, ZMin, ZMax].
         """
 
         if isinstance(mesh_config, dict):
@@ -483,9 +532,22 @@ class GMSHmaker():
         gmsh.model.occ.synchronize()
     
     def create_geo(self):
+        """
+        Generates and writes the geometry definition to a file in GMSH format.
+        """
         gmsh.write(self.savedir / self.filename + ".geo_unrolled")
     
     def create_mesh(self, dim='2'):
+        """
+        Generates a mesh using Gmsh and saves it to the specified directory.
+
+        Args:
+            dim (str, optional): The dimension of the mesh to generate ('2' or '3'). Defaults to '2'.
+
+        Raises:
+            KeyboardInterrupt: If the mesh generation is interrupted by the user.
+        """
+
         os.makedirs(self.savedir, exist_ok=True)
         bar = alive_it([0], title='Gmsh generation ', length=3, spinner='elements', force_tty=True) 
         try:
@@ -498,6 +560,10 @@ class GMSHmaker():
             print('interrupted by user')
         
     def open_gmsh(self):
+        """
+        Opens the Gmsh graphical user interface with customized color options for geometry points and text.
+        """
+
         gmsh.option.setColor("Geometry.Points", 255, 165, 0)
         gmsh.option.setColor("General.Text", 255, 255, 255)
         #gmsh.option.setColor("Mesh.Points", 255, 0, 0)
@@ -511,12 +577,28 @@ class GMSHmaker():
                 gmsh.fltk.wait()
 
     def finalize(self):
+        """
+        Finalizes the GMSH session and releases all associated resources.
+        This method should be called after all mesh generation and processing
+        tasks are complete to properly clean up the GMSH environment.
+        """
         gmsh.finalize()
     
     def disable_consoleOutput(self):
+        """
+        Disables console output in GMSH by setting the 'General.Terminal' option to 0.
+        This method suppresses terminal messages from GMSH, which can be useful for 
+        running scripts in environments where console output is not desired.
+        """
         gmsh.option.setNumber("General.Terminal", 0)
 
     def export_config(self):
+        """
+        Exports the current GMSH configuration to a YAML file.
+        The configuration includes the save directory, mesh file name, extrusion settings,
+        and mappings of physical surfaces and volumes to their group IDs.
+        """
+
         gmsh_config ={
             'savedir': str(self.savedir),
             'meshfile': self.filename,

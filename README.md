@@ -37,13 +37,3 @@ Caculating electric field distribution in IDC [fem](examples/fem.ipynb):
 <p align="center">
 <img src="examples/fem.png" alt="zhk_logo" width="500"/>
 </p>
-
-## Troubleshooting
-#### Unresolved import warnings in Vscode
-If you're getting a warning about an unresolved import, then create a file `.vscode/settings.json` in the workspace with the contents:
-```json
-{
-    "python.analysis.extraPaths": ["./sources"]
-}
-```
-Here a project uses a `sources` directory.

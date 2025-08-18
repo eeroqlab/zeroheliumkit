@@ -14,7 +14,7 @@ from shapely import get_coordinates, Point
 from shapely.plotting import plot_line, plot_polygon
 
 from .settings import *
-from .utils import create_list_geoms, calculate_label_pos, has_interior
+from .utils import to_geometry_list, calculate_label_pos, has_interior
 
 def interactive_widget_handler() -> None:
     """
@@ -28,11 +28,9 @@ def interactive_widget_handler() -> None:
 
 def default_ax() -> plt.Axes:
     """ 
-    Gets the default axis object (matplotlib.axes.Axes)
-        with grid enabled and equal aspect ratio.
+    Gets the default axis object (matplotlib.axes.Axes) with grid enabled and equal aspect ratio.
 
     Returns:
-    -------
         plt.Axes: The default axes object.
     """
     ax = plt.gca()
@@ -46,12 +44,10 @@ def adjust_lightness(color: str, amount: float=0.5) -> tuple:
     Adjusts the lightness of a given color and converts it to hexidecimal format.
 
     Args:
-    ----
         color (str): The color to adjust. Can be a named color or a hexadecimal color code.
         amount (float, optional): The amount by which to adjust the lightness. Defaults to 0.5.
 
     Returns:
-    -------
         tuple: The adjusted color in RGB format.
     """
     try:
@@ -68,11 +64,9 @@ def segments(curve) -> list:
     Each segment is represented as a LineString object.
     
     Args:
-    ----
         curve: A LineString or MultiLineString object representing the curve.
         
     Returns:
-    -------
         list: A list of LineString objects representing the segments of the curve.
     """
     return list(map(LineString, zip(curve.coords[:-1], curve.coords[1:])))[::-1]
@@ -84,12 +78,11 @@ def plot_geometry(geometry, ax=None, show_idx=False, color=None,
     Plots a geometry object on the given axes.
 
     Args:
-    ----
-        geometry: The geometry object to be plotted.
-        ax: The axes object on which to plot the geometry. If None, a default axes object will be used.
-        show_idx: Whether to show the index of the geometry object.
-        color: The color of the geometry object.
-        edgecolor: The edge color of the geometry object.
+        geometry (Polygon | MultiPolygon): The geometry object to be plotted.
+        ax (plt.Axes, optional): The axes object on which to plot the geometry. If None, a default axes object will be used.
+        show_idx (bool, optional): Whether to show the index of the geometry object.
+        color (str, optional): The color of the geometry object.
+        edgecolor (str, optional): The edge color of the geometry object.
         alpha: The transparency of the geometry object.
         **kwargs: Additional keyword arguments to be passed to the plotting functions.
     """
@@ -116,8 +109,7 @@ def plot_polygon_idx(geometry: Polygon | MultiPolygon, ax=None, color=None) -> N
     Plots the index of each polygon in the given geometry on the specified axes.
 
     Args:
-    ----
-        geometry: A Polygon or MultiPolygon object representing the geometry.
+        geometry (Polygon | MultiPolygon): A Polygon or MultiPolygon object representing the geometry.
         ax: The axes on which to plot the index. If None, the current axes will be used.
         color: The color of the index annotation. If None, a default color will be used.
     """
@@ -143,8 +135,7 @@ def plot_line_idx_in_polygon(poly: Polygon | MultiPolygon, ax=None, color=None) 
     Plots the index of each line in the given polygon on the specified axes.
 
     Args:
-    ----
-        poly: A Polygon object representing the geometry.
+        poly (Polygon | MultiPolygon): A Polygon object representing the geometry.
         ax: The axes on which to plot the index. If None, the current axes will be used.
         color: The color of the index annotation. If None, a default color will be used.
     """
@@ -161,7 +152,6 @@ def plot_points_withlabel(geometry, ax=None, color=None, marker=".") -> None:
     Plot points with labels on a given axis.
 
     Args:
-    ----
         geometry: The geometry object containing the coordinates of the points.
         ax: The axis on which to plot the points. If None, a default axis will be used.
         color: The color of the points and labels.
@@ -184,10 +174,9 @@ def set_limits(ax, coor: list | Point, dxdy: list) -> None:
     Sets the limits of the given axes object.
 
     Args:
-    ____
         ax: The axes object to set the limits for.
-        coor: The coordinates of the center point as a list or a Point object.
-        dxdy: The width and height of the axes as a list.
+        coor (list | Point): The coordinates of the center point as a list or a Point object.
+        dxdy (list): The width and height of the axes as a list.
     """
     dx, dy = dxdy
     if type(coor) is Point:
@@ -208,13 +197,11 @@ def tuplify_colors(layer_colors: dict) -> dict:
     where all values are (color, transparency) tuples.
 
     Args:
-    -----
         layer_colors (dict): Keys are layer names. Values are either:
             - a color value (e.g. string like 'red' or '#ff0000')
             - or a tuple: (color_value, transparency)
 
     Returns:
-    -------
         dict: Same keys, with values as (color_value, transparency) tuples.
     """
     standardized = {}
@@ -231,12 +218,11 @@ def draw_labels(geometry, ax: matplotlib.axes.Axes) -> None:
     Draws labels on the given axis for each point in the geometry.
 
     Args:
-    -----
         geometry: The geometry object containing the points to label.
         ax (matplotlib.axes.Axes): The axes on which to draw the labels.
     """
     label_distance = 0.5
-    geoms_list = create_list_geoms(geometry)
+    geoms_list = to_geometry_list(geometry)
     for polygon in geoms_list:
         label = 1
         for x, y in polygon.exterior.coords:
@@ -259,12 +245,12 @@ def draw_labels(geometry, ax: matplotlib.axes.Axes) -> None:
 class ColorHandler():
     """
     A class to handle color/layer adjustments for plotting. 
-    The 'colors' attribute of the Base class is set to an instance of ColorHandler(), which holds and modifies the colors/layers mapping and order for plotting.
+    The 'colors' attribute of the Base class is set to an instance of ColorHandler(),
+    which holds and modifies the colors/layers mapping and order for plotting.
 
-    Attr:
-    -----
-        - colors (dict): dictionary mapping of layer names to (color, transparancy) tuples.
-        - color_cycle (cycle): itercycle object that cycles through color names when no color name is provided.
+    Args:
+        colors (dict): dictionary mapping of layer names to (color, transparancy) tuples.
+        color_cycle (cycle): itercycle object that cycles through color names when no color name is provided.
     """
     __slots__ = "colors", "color_cycle"
 
@@ -289,7 +275,6 @@ class ColorHandler():
         Checks if the colors attribute is empty.
 
         Returns:
-        --------
             bool: True if the colors attribute is empty, False otherwise.
         """
         return not bool(self.colors)
@@ -299,18 +284,16 @@ class ColorHandler():
         """
         Updates the color of a layer in the colors attribute.
 
-        Args:
-        -----
-            - 
-            - lname (str): The name of the layer to update.
-            - new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
+        Args: 
+            lname (str): The name of the layer to update.
+            new_color (str): Color code, alpha value, or a tuple of both to update the layer with.
 
         Returns:
-        --------
+-
             Updated instance (self) of the class with the specified layer's color changed. 
 
         Raises:
-        -------
+
             ValueError: If the new_color parameter is not a tuple, string, or float.
             ValueError: If the given color is anot a valid color code.
         """
@@ -335,11 +318,10 @@ class ColorHandler():
         Updates colors when layers are imported from external files.
 
         Args:
-        -----
-            - layers (list): list of layers to update the colors list in accordance with.
+            layers (list): list of layers to update the colors list in accordance with.
 
         Returns:
-        --------
+-
             Updated instance (self) with the udpated colors attribute. 
         """
         for l in layers:
@@ -355,9 +337,8 @@ class ColorHandler():
         Adds a color to the colors list when a layer is added.
 
         Args:
-        -----
-            - layer (str): layer name to add to the list.
-            - color_info (tuple(str, int)): color and transparancy to map to the layer.
+            layer (str): layer name to add to the list.
+            color_info (tuple(str, int)): color and transparancy to map to the layer.
         """
         if color is None:
             color = next(self.color_cycle)
@@ -374,9 +355,8 @@ class ColorHandler():
         Renames a color when a layer is renamed.
 
         Args:
-        -----
-            - old_color (str): old color name
-            - new_color (str): new color name
+            old_color (str): old color name
+            new_color (str): new color name
         """
 
         if old_color in self.colors:
@@ -392,8 +372,7 @@ class ColorHandler():
         Removes a color when a layer is removed.
 
         Args:
-        -----
-            - color (str): color to remove in the colors attribute.
+            color (str): color to remove in the colors attribute.
         """
 
         if color in self.colors:
@@ -409,9 +388,8 @@ class ColorHandler():
         Moves a layer back by a given number of indices in the color dictionary.
 
         Args:
-        -----
-            - layer (str): the name of the layer to move.
-            - move_by (int): the number of indices to move the color by.
+            layer (str): the name of the layer to move.
+            move_by (int): the number of indices to move the color by.
         """
         color_items = list(self.colors.items())
         curr_item = self.colors[layer]
@@ -432,9 +410,8 @@ class ColorHandler():
         Moves a layer back by a given number of indices in the color dictionary.
 
         Args:
-        -----
-            - layer (str): the name of the layer to move.
-            - move_by (int): the number of indices to move the color by.
+            layer (str): the name of the layer to move.
+            move_by (int): the number of indices to move the color by.
         """
         color_items = list(self.colors.items())
         curr_item = self.colors[layer]

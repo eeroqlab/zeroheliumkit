@@ -3,7 +3,7 @@ supercore.py
 
 This file contains the SuperStructure and ContinuousLineBuilder classes.
 
-Classes-
+Classes
     `SuperStructure`: A subclass of Structure that provides additional methods for routing and adding 
         structures along a skeleton line.
     `ContinuousLineBuilder`: Builds continuous lines and structures by defining a sequence of operations.
@@ -20,7 +20,7 @@ from shapely import LineString, Polygon, Point
 from .anchors import Anchor, MultiAnchor, Skeletone
 from .core import Structure, Entity
 from .geometries import ArcLine
-from .utils import (fmodnew, flatten_lines, create_list_geoms, round_corner,
+from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner,
                     round_polygon, buffer_line_with_variable_width)
 from .functions import get_normals_along_line
 from .routing import create_route
@@ -164,7 +164,7 @@ class SuperStructure(Structure):
         # get valid intesections
         if not intersections.is_empty:
             # create a list of points
-            list_of_intersection_points = create_list_geoms(intersections)
+            list_of_intersection_points = to_geometry_list(intersections)
             # getting airbridge locations (i.e. removing start and end points)
             ab_locs = [p for p in list_of_intersection_points if p not in [p_start, p_end]]
 
