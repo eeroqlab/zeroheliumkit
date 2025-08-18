@@ -4,8 +4,8 @@ import os
 import warnings
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-sys.path.insert(0, os.path.abspath('../src'))
-sys.path.insert(0, os.path.abspath('../fem'))
+sys.path.insert(1, os.path.abspath('../src'))
+sys.path.insert(1, os.path.abspath('../fem'))
 
 project = 'ZeroHeliumKit'
 copyright = '2025, EeroQ'
@@ -60,7 +60,8 @@ add_module_names = True
 
 
 autodoc_mock_imports = [
-    "gmsh", "gdspy", "matplotlib", "numpy", "scipy", "Shapely", "ezdxf", "svgpathtools", "polars", "ipywidgets"
+    "numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
+    "ezdxf", "svgpathtools", "polars", "ipywidgets"
 ]
 
 
