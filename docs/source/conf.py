@@ -58,6 +58,12 @@ add_module_names = True
 # autodoc_member_order = "bysource"
 # napoleon_use_ivar = True
 
+
+autodoc_mock_imports = [
+    "gmsh", "gdspy", "matplotlib", "numpy", "scipy", "Shapely", "ezdxf", "svgpathtools", "polars", "ipywidgets"
+]
+
+
 from pathlib import Path
 from typing import Any, List
 from sphinx.application import Sphinx
