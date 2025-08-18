@@ -125,46 +125,7 @@ def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
     for rel in ("reference", "functions"):
         shorten_autosummary_titles(Path(app.srcdir) / rel)
 
-# --- RTD import probe ------------------------------------------------------
-# This is a helper to check if RTD can import the necessary modules.
-# It is not part of the main documentation generation, but helps diagnose import issues.
-import importlib, logging, pkgutil
-
-def _rtd_import_probe(app):
-    log = logging.getLogger("rtd-import-probe")
-    # 1) Show which subpackages RTD actually installed
-    try:
-        import zeroheliumkit
-        subs = [m.name for m in pkgutil.walk_packages(
-            zeroheliumkit.__path__, zeroheliumkit.__name__ + "."
-        )]
-        log.info("INSTALLED SUBPACKAGES: %s", subs)
-    except Exception as e:
-        log.exception("Cannot import zeroheliumkit: %r", e)
-
-    # 2) Try the exact dotted names autosummary needs
-    for name in [
-        "zeroheliumkit.fem",
-        "zeroheliumkit.fem.fieldreader",
-    ]:
-        try:
-            importlib.import_module(name)
-            log.info("IMPORT OK: %s", name)
-        except Exception as e:
-            log.info("IMPORT FAIL: %s -> %r", name, e)
-
-    # 3) Try class access
-    try:
-        mod = importlib.import_module("zeroheliumkit.fem.fieldreader")
-        getattr(mod, "FieldAnalyzer")
-        log.info("ATTR OK: zeroheliumkit.fem.fieldreader.FieldAnalyzer")
-    except Exception as e:
-        log.info("ATTR FAIL: ...FieldAnalyzer -> %r", e)
-
-# --- RTD import probe END ----------------------------------------------------------
-
 
 def setup(app: Sphinx) -> None:
     app.connect("env-before-read-docs", shorten_autosummary_titles_all)
     app.add_css_file("custom.css")
-    app.connect("builder-inited", _rtd_import_probe)
