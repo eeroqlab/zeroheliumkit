@@ -58,9 +58,6 @@ add_module_names = True
 # autodoc_member_order = "bysource"
 # napoleon_use_ivar = True
 
-import pkgutil, zeroheliumkit
-print("ZHK seen modules:", [m.name for m in pkgutil.walk_packages(zeroheliumkit.__path__, zeroheliumkit.__name__ + ".")])
-
 from pathlib import Path
 from typing import Any, List
 from sphinx.application import Sphinx
