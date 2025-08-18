@@ -1,4 +1,4 @@
-Supercore.py
+Supercore
 ===========
 Supercore contains the SuperStructure and ContinuousLineBuilder classes.
 

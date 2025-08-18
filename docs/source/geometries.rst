@@ -1,4 +1,4 @@
-Geometries.py
+Geometries
 ===========
 Geometries contains classes and functions for building the most common geometry types.
 

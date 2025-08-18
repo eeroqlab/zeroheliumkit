@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.polygonize\_text
-========================================
+polygonize\_text
+================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

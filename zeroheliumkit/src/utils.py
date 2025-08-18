@@ -7,6 +7,7 @@ from shapely import ops, affinity, unary_union
 from shapely import get_num_interior_rings
 from shapely import (centroid, line_interpolate_point, intersection,
                      is_empty, crosses, remove_repeated_points)
+from shapely.geometry.base import BaseGeometry
 
 from .errors import RouteError, TopologyError
 from .settings import GRID_SIZE
@@ -14,6 +15,17 @@ from .fonts import _glyph, _indentX, _indentY
 
 
 def check_point_equality(p1: tuple | Point, p2: tuple | Point) -> None:
+    """
+    Checks whether two points are equal and raises a ValueError if they are.
+
+    Args:
+        p1 (tuple | Point): The first point, either as a tuple or a Point object.
+        p2 (tuple | Point): The second point, either as a tuple or a Point object.
+    
+    Raises:
+        ValueError: If p1 and p2 represent the same point.
+    """
+    
     if isinstance(p1, Point) and isinstance(p2, Point):
         if p1.x == p2.x and p1.y == p2.y:
             raise ValueError("p1 and p2 are the same value.")
@@ -22,20 +34,17 @@ def check_point_equality(p1: tuple | Point, p2: tuple | Point) -> None:
 
 
 def fmodnew(angle: float | int) -> float:
-    """
-    Returns a Modified modulo calculations for angles in degrees.
-        The lower branch always has a negative sign.
+    """ 
+    Modified modulo calculations for angles in degrees.
+    The lower branch always has a negative sign.
 
     Args:
-    -----
         angle (float | int): The angle in degrees.
-    
+
     Returns:
-    --------
         float: The angle in degrees, normalized to the range [-180, 180).
 
     Example:
-    --------
         >>> result = fmodnew(370)
         >>> print(result)
             -350.0
@@ -55,22 +64,18 @@ def flatten_lines(line1: LineString, line2: LineString, bypass_alignment: bool=T
     The last point of line1 and the first point of line2 are assumed to be the same.
 
     Args:
-    -----
         line1 (LineString): The first LineString object.
         line2 (LineString): The second LineString object.
         bypass_alignment (bool): If True, the function will not check that 
             the last point of line1 and the first point of line2 are the same. Defaults to False.
 
     Returns:
-    --------
         LineString: A new LineString object formed by flattening line1 with line2.
 
     Raises:
-    -------
         ValueError: If the last point of the first line and the first point of the second line are not the same
 
     Example:
-    --------
         >>> line1 = LineString([(0, 0), (1, 1)])
         >>> line2 = LineString([(2, 2), (3, 3)])
         >>> result = flatten_lines(line1, line2)
@@ -108,7 +113,6 @@ def append_line(line1: LineString,
     Appends arbitrary line to another arbitrary line and Return the result.
 
     Args:
-    -----
         line1 (LineString): The original LineString.
         line2 (LineString): The LineString to be appended.
         direction (float, optional): The angle in degrees to rotate line2 before appending. Defaults to None.
@@ -116,11 +120,9 @@ def append_line(line1: LineString,
         chaining (bool, optional): Whether to chain line2 to the end of line1 or perform a union. Defaults to True.
 
     Raises:
-    -------
         RouteError: If the appended line crosses the skeleton and ignore_crossing is False.
 
     Example:
-    --------
         >>> line1 = LineString([(0, 0), (1, 1), (2, 2)])
         >>> line2 = LineString([(2, 2), (3, 3), (4, 4)])
         >>> result = append_line(line1, line2, direction=45, ignore_crossing=True, chaining=False)
@@ -158,17 +160,14 @@ def combine_lines(line1: LineString,
         if they are within a distance defined by the tolerance.
 
     Args:
-    -----
         line1 (LineString): The first LineString.
         line2 (LineString): The second LineString.
         tol (float, optional): The distance within which to merge the lines. Defaults to 1e-6.
 
     Raises:
-    -------
         ValueError: If the distance between all boundary points is not within the tolerance.
 
     Example:
-    --------
         >>> line1 = LineString([(0, 0), (1, 1)])
         >>> line2 = LineString([(1, 1), (2, 2)])
         >>> result = merge_lines_with_tolerance(line1, line2, tol=0.5)
@@ -196,20 +195,16 @@ def azimuth(p1: tuple | Point, p2: tuple | Point) -> float:
     Returns the azimuth angle between two points (from x-axis).
 
     Args:
-    -----
         p1 (tuple or Point): The coordinates of the first point.
         p2 (tuple or Point): The coordinates of the second point.
 
     Returns:
-    --------
         float: The azimuth angle in degrees, measured clockwise from the positive x-axis.
 
     Raises:
-    -------
         ValueError: If p1 and p2 are the same Point object or have the same values.
 
     Example:
-    --------
         >>> p1 = (0, 0)
         >>> p2 = (1, -1)
         >>> result = azimuth(p1, p2)
@@ -231,17 +226,14 @@ def offset_point(point: tuple | Point, offset: float, angle: float) -> Point:
     Offsets a point by a given distance and angle.
 
     Args:
-    -----
         point (tuple or Point): The point to be offset. Can be a tuple (x, y) or a Point object.
         offset (float): The distance by which the point should be offset.
         angle (float): The angle (in degrees) at which the point should be offset.
 
     Returns:
-    --------
         Point: A new Point object representing the offset point.
 
     Example:
-    --------
         >>> result = offset_point((0, 0), 5, 45) 
             Point(3.5355339059327378, 3.5355339059327378)
     """
@@ -259,20 +251,16 @@ def get_abc_line(p1: tuple | Point, p2: tuple | Point) -> tuple:
         that passes through two points p1 and p2.
 
     Args:
-    -----
         p1 (tuple | Point): The first point on the line.
         p2 (tuple | Point): The second point on the line.
 
     Returns:
-    --------
         tuple: A tuple (a, b, c) representing the coefficients of the line equation.
 
     Raises:
-    -------
         ValueError: If p1 and p2 are the same Point object or have the same values.
 
     Example:
-    --------
         >>> p1 = (1, 2)
         >>> p2 = (3, 4)
         >>> result = get_abc_line(p1, p2)    
@@ -295,20 +283,16 @@ def get_intersection_point(abc1: tuple, abc2: tuple) -> Point:
     Calculates the intersection point of two lines represented by their coefficients.
 
     Args:
-    -----
         abc1 (tuple): Coefficients of the first line in the form (a1, b1, c1).
         abc2 (tuple): Coefficients of the second line in the form (a2, b2, c2).
 
     Returns:
-    --------
         Point: The intersection point of the two lines.
 
     Raises:
-    -------
         ZeroDivisionError: If the lines are parallel and do not intersect.
 
     Example:
-    --------
         >>> abc1 = (2, 3, 4)
         >>> abc2 = (5, 6, 7)
         >>> result = get_intersection_point(abc1, abc2)
@@ -329,22 +313,18 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
     Calculates the intersection point between two line segments using a brute-force approach.
 
     Args:
-    -----
         p1 (Point): The starting point of the first line segment.
         p2 (Point): The ending point of the first line segment.
         p3 (Point): The starting point of the second line segment.
         p4 (Point): The ending point of the second line segment.
 
     Returns:
-    --------
         Point: The intersection point of the two line segments.
 
     Raises:
-    -------
         TopologyError: If the constructed lines (p1,p2) and (p3,p4) do not intersect.
 
     Example:
-    --------
         >>> p1 = Point(0, 0)
         >>> p2 = Point(2, 2)
         >>> p3 = Point(0, 2)
@@ -374,16 +354,13 @@ def get_normals_along_line(line: LineString | MultiLineString,
     Calculates normal angles of a line at desired locations.
 
     Args:
-    -----
         line (LineString | MultiLineString): The given line.
         locs (float | list): The point locations along the line. It should be normalized.
 
     Returns:
-    --------
         normal_angles(list): A list of normal angles at the specified locations.
 
     Example:
-    --------
         >>> line = LineString([(0, 0), (1, 1), (2, 0)])
         >>> locs = [0.25, 0.5, 0.75]
         >>> result = get_normals_along_line(line, locs)
@@ -417,17 +394,14 @@ def midpoint(p1: Point, p2: Point, alpha: float=0.5) -> Point:
     Calculates the midpoint between two points.
 
     Args:
-    -----
         p1 (Point): The first point.
         p2 (Point): The second point.
         alpha (float, optional): The weight of the 'mid' point in the calculation. Defaults to 0.5.
 
     Returns:
-    --------
         Point: The midpoint between p1 and p2, weighted by alpha.
 
     Example:
-    --------
         >>> p1 = Point(0, 0)
         >>> p2 = Point(2, 4)
         >>> result = midpoint(p1, p2)
@@ -439,22 +413,19 @@ def midpoint(p1: Point, p2: Point, alpha: float=0.5) -> Point:
     return Point(p1.x + alpha * (p2.x - p1.x), p1.y + alpha * (p2.y - p1.y))
 
 
-def create_list_geoms(geometry: list) -> list:
+def to_geometry_list(geometry: BaseGeometry) -> list:
     """ 
     Returns a list of geometries from a given geometry object.
     
     Args:
-    -----
         geometry: A geometry object.
 
     Returns:
-    --------
         list: A list of geometries.
 
     Example:
-    --------
         >>> point = Point(1, 2)
-        >>> result = create_list_geoms(point)
+        >>> result = to_geometry_list(point)
         >>> print(result)
             [POINT (1 2)]
     """
@@ -470,17 +441,14 @@ def has_interior(p: Polygon) -> bool:
     Determines if a polygon has any interior.
 
     Args:
-    -----
         p (Polygon): The polygon to check.
 
     Returns:
-    --------
         bool: True if the polygon has interiors, False otherwise.
 
     Example:
-    --------
         >>> polygon = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)], 
-                              interiors=[[(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]])
+        ...                   interiors=[[(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]])
         >>> result = has_interior(polygon)
         >>> print(result)
             True
@@ -494,17 +462,14 @@ def flatten_polygon(p: Polygon) -> MultiPolygon:
     1e6 is the length of the cut line. ## (is this a weird way to say it?)
 
     Args:
-    -----
         p (Polygon): The input polygon to be flattened.
 
     Returns:
-    --------
         MultiPolygon: A MultiPolygon object containing the dissected polygons.
 
     Example:
-    --------
         >>> polygon = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)], 
-                              interiors=[[(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]])
+        ...                    interiors=[[(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]])
         >>> result = flatten_polygon(polygon)
         >>> print(result)
             MULTIPOLYGON ...
@@ -534,17 +499,14 @@ def flatten_multipolygon(mp: MultiPolygon) -> MultiPolygon:
     Removes holes from a MultiPolygon object containing Polygons with holes.
 
     Args:
-    -----
         mp (MultiPolygon): The input MultiPolygon object.
 
     Returns:
-    -------
         MultiPolygon: A MultiPolygon object containing the polygons without holes.
 
     Example:
-    --------
         >>> mp = MultiPolygon([Polygon([(0, 0), (1, 0), (1, 1), (0, 1)],    
-                                interiors=[[(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]])]) 
+        ...                    interiors=[[(0.2, 0.2), (0.8, 0.2), (0.8, 0.8), (0.2, 0.8)]])]) 
         >>> result = flatten_multipolygon(mp)
         >>> print(result)
             MULTIPOLYGON ...
@@ -563,20 +525,16 @@ def polygonize_text(text: str="abcdef", size: float=1000) -> MultiPolygon:
     Converts text to a MultiPolygon geometry.
 
     Args:
-    -----
         text (str, optional): text in str format. Defaults to "abcdef".
         size (float, optional): defines the size of the text. Defaults to 1000.
 
     Returns:
-    --------
         MultiPolygon: A MultiPolygon object representing the text.
     
     Raises:
-    -------
         ValueError: If a character in the text does not have a corresponding geometry.
 
     Example:
-    --------
         >>> result = polygonize_text("Hello World", size=1000)
         >>> print(result)
             MULTIPOLYGON ...
@@ -629,20 +587,17 @@ def polygonize_text(text: str="abcdef", size: float=1000) -> MultiPolygon:
 def get_intersection_withoffset(pts: Tuple[Point, Point, Point],
                                 width: Tuple[float, float, float]) -> Point:
     """
-    Given three points and offset distances, calculates the coordinate of the offset point
-        from the middle point.
+    Given three points and offset distances, 
+    calculates the coordinate of the offset point from the middle point.
 
     Args:
-    -----
         pts (Tuple[Point, Point, Point]): A tuple of three points.
         width (Tuple[float, float, float]): A tuple of three offset distances.
 
     Returns:
-    --------
         Point: The intersection point of the offset lines.
 
     Example:
-    --------
         >>> pts = (Point(0, 0), Point(1, 1), Point(2, 0))
         >>> width = (1, 2, 1)
         >>> result = get_centerpoint_offset(pts, width)
@@ -670,18 +625,15 @@ def round_polygon(polygon: Polygon, round_radius: float, **kwargs) -> Polygon:
     Rounds the corners of a polygon by applying a buffer operation.
 
     Args:
-    -----
         polygon (Polygon): The input polygon to round.
         round_radius (float): The radius of the rounding.
         **kwargs: Additional keyword arguments to pass to the buffer method.
             See [Shapely buffer docs](https://shapely.readthedocs.io/en/stable/reference/shapely.buffer.html) for additional keyword arguments.
 
     Returns:
-    --------
         Polygon: A new polygon with rounded corners.
 
     Example:
-    --------
         >>> polygon = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
         >>> rounded_polygon = round_polygon(polygon, round_radius=0.1)
         >>> print(rounded_polygon)
@@ -695,20 +647,16 @@ def buffer_along_path(points: List[tuple | Point], widths: list | float) -> Poly
     Calculates a polygon (aka "buffer") along the path defined by the list of point and widths.
 
     Args:
-    -----
         points (List[Union[tuple, Point]]): The points along which the polygon structure is constructed.
         widths (Union[list, float]): The widths of the polygon defined by a list or a single value (uniform widths).
 
     Returns:
-    --------
         Polygon: A polygon object representing the buffer along the path.
 
     Raises:
-    -------
         ValueError: If the number of points and widths do not match.
 
     Example:
-    --------
         >>> points = [(0, 0), (1, 1), (2, 0)]
         >>> widths = [1, 2, 1]
         >>> result = make_polygon_along_path(points, widths)
@@ -769,7 +717,6 @@ def buffer_line_with_variable_width(line: LineString,
     Returns a buffered a line with variable widths along its length.
 
     Args:
-    -----
         line (LineString): The input line to buffer.
         distance (list): A list of distances along the line where the widths are defined.
         widths (list): A list of widths corresponding to the distances.
@@ -778,15 +725,12 @@ def buffer_line_with_variable_width(line: LineString,
             Valid options are 'flat' and 'round'. Defaults to 'flat'.
 
     Returns:
-    --------
         polygon (Polygon): Buffered line with variable widths along its length.
 
     Raises:
-    -------
         ValueError: If join_style is not either 'flat' or 'round'.
 
     Example:
-    --------
         >>> line = LineString([(0, 0), (1, 1), (2, 0)])
         >>> distance = [0.2, 0.5, 0.8]
         >>> widths = [1, 2, 1]
@@ -818,16 +762,15 @@ def buffer_line_with_variable_width(line: LineString,
 def mirror(object: Polygon | LineString | MultiLineString | MultiPolygon,
            aroundaxis: str,
            origin: tuple=(0,0)) -> Polygon | LineString | MultiLineString | MultiPolygon:
-    """ Returns a mirrored object along a given axis "x" or "y".
+    """
+    Returns a mirrored object along a given axis "x" or "y".
 
     Args:
-    -----
     object (Polygon | LineString | MultiLineString | MultiPolygon): The object to be mirrored.
     axis (LineString): The axis of the mirror.
     origin (tuple, optional): The origin of the mirror. Defaults to (0, 0).
 
     Example:
-    --------
         >>> object = Polygon([(0, 0), (1, 0), (1, 1), (0, 1)])
         >>> mirrored_object = mirror(object, "x")
     """
@@ -841,14 +784,12 @@ def mirror(object: Polygon | LineString | MultiLineString | MultiPolygon,
 
 def oriented_angle(p1: list[float,float], p2: list[float,float], p3: list[float,float]) -> float:
     """
-    Calculate the oriented angle between vectors p1->p2 and p2->p3.
+    Calculates oriented angle between vectors p1->p2 and p2->p3.
 
     Args:
-    -----
         p1, p2, p3: NumPy arrays representing points (x, y).
 
     Returns:
-    --------
         The oriented angle in radians.
     """
     v1 = np.asarray(p1) - np.asarray(p2)
@@ -866,12 +807,10 @@ def find_nearest_point_index(polygon: Polygon, point: Point) -> int:
     Finds the index of the closest point in a Shapely polygon to a given point.
 
     Args:
-    -----
         polygon (Polygon): The input Shapely polygon.
         point (Point): The Shapely point to compare.
 
     Returns:
-    --------
         int: The index of the closest point in the polygon's exterior.
     """
     if not isinstance(polygon, Polygon):
@@ -894,14 +833,12 @@ def round_polygon_corner(polygon: Polygon, corner_index: int, radius: float=1, q
     Rounds one corner of a Shapely polygon.
 
     Args:
-    -----
         polygon (Polygon): The input Shapely polygon.
         corner_index (int): The index of the corner to round (0-based).
         radius (float): The radius of the rounded corner.
         quad_segs (int): Number of segments for the rounded corner arc.
 
     Returns:
-    --------
         Polygon: A new polygon with the specified corner rounded.
     """
     if not isinstance(polygon, Polygon):
@@ -946,13 +883,11 @@ def replace_closest_polygon(multipolygon: MultiPolygon, point: Point, new_polygo
     Replaces the closest polygon in a MultiPolygon with a new polygon.
 
     Args:
-    -----
         multipolygon (MultiPolygon): The input Shapely MultiPolygon.
         point (Point): The Shapely point to compare.
         new_polygon (Polygon): The new polygon to replace the closest one.
 
     Returns:
-    --------
         MultiPolygon: A new MultiPolygon with the closest polygon replaced.
     """
     
@@ -979,14 +914,12 @@ def round_corner(multipolygon: MultiPolygon, around_point: Point, radius: float,
     Rounds the corner of the closest polygon in a MultiPolygon around a given point with a specified radius.
 
     Args:
-    -----
         multipolygon (MultiPolygon): The MultiPolygon object containing multiple polygons.
         around_point (Point): The point around which the corner needs to be rounded.
         radius (float): The radius of the rounded corner.
         **kwargs: Additional keyword arguments to be passed to the round_polygon_corner function.
 
     Returns:
-    --------
         MultiPolygon: A new MultiPolygon object with the rounded corner.
     """
     if isinstance(multipolygon, Polygon):
@@ -1053,14 +986,12 @@ def calculate_label_pos(x: float, y: float, centroid: Point, label_distance: flo
     Calculates the position of the label in respect to the centroid of the polygon.
 
     Args:
-    -----
         x (float): x coordinate of the point.
         y (float): y coordinate of the point.
         centroid (Point): Point object representing the centroid of the polygon.
         label_distance (float, optional): desired distance from the point to the label. Defaults to 0.5.
 
     Returns:
-    --------
         tuple: Calculated (x, y) coordinates for this label.
     """
     dist_x = x - centroid.x 
@@ -1076,22 +1007,19 @@ def calculate_label_pos(x: float, y: float, centroid: Point, label_distance: flo
     return (label_x, label_y)
 
 
-def append_geometry(core_objs, appending_objs):
+def append_geometry(core_objs: BaseGeometry, appending_objs: BaseGeometry) -> BaseGeometry:
     """ 
     Appends single or multiple shapely geometries.
 
     Args:
-    -----
-        - core_objs: shapely geometries to be appended.
-        - appending_objs: shapely geometries to append.
+        core_objs (BaseGeometry): shapely geometries to be appended.
+        appending_objs (BaseGeometry): shapely geometries to append.
 
     Returns:
-    --------
-        Multi-Geometry: Union of all the geometries.
+        Multi-Geometry (BaseGeometry): Union of all the geometries.
 
     Note:
-    -----
         This function works with LineString, Polygon, and multi-geometries.
     """
-    geom_list = create_list_geoms(core_objs) + create_list_geoms(appending_objs)
+    geom_list = to_geometry_list(core_objs) + to_geometry_list(appending_objs)
     return unary_union(geom_list)

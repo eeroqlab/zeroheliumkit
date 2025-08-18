@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.ArcLine
-====================================
+ArcLine
+=======
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

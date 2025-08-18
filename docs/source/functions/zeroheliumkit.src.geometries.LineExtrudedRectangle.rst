@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.LineExtrudedRectangle
-==================================================
+LineExtrudedRectangle
+=====================
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

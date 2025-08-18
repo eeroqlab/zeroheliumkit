@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.core.GeomCollection
-=====================================
+GeomCollection
+==============
 
 .. currentmodule:: zeroheliumkit.src.core
 
 .. autoclass:: GeomCollection
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~GeomCollection.__init__
       ~GeomCollection.add_anchor
       ~GeomCollection.add_layer
       ~GeomCollection.add_line
@@ -61,6 +59,8 @@
 
    .. autosummary::
    
+      ~GeomCollection.colors
+      ~GeomCollection.errors
       ~GeomCollection.layers
    
    

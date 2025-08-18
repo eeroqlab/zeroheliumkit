@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.geometries.StraightLine
-=========================================
+StraightLine
+============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: StraightLine
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~StraightLine.__init__
       ~StraightLine.add_anchor
       ~StraightLine.add_layer
       ~StraightLine.add_line
@@ -61,6 +59,8 @@
 
    .. autosummary::
    
+      ~StraightLine.colors
+      ~StraightLine.errors
       ~StraightLine.layers
    
    

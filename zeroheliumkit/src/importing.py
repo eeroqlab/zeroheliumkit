@@ -17,7 +17,6 @@ def sample_bezier(bezier, num_points=20):
     Sample points along a Bezier curve.
     
     Returns:
-    -------
         list: A list of (x, y) tuples representing points along the Bezier curve.
     """
     return [(bezier.point(t).real, bezier.point(t).imag) for t in [i / num_points for i in range(num_points + 1)]]
@@ -27,12 +26,11 @@ class Exporter_GDS():
     """ 
     A class for exporting geometries to GDSII format.
 
-    Attributes:
-    ----------
-        - name (str): The name of the GDSII file.
-        - zhk_layers (dict): A dictionary containing the geometries for each layer.
-        - gdsii (gdspy.GdsLibrary): The GDSII library object.
-        - layer_cfg (dict): A dictionary containing the layer configuration.
+    Args:
+        name (str): The name of the GDSII file.
+        zhk_layers (dict): A dictionary containing the geometries for each layer.
+        gdsii (gdspy.GdsLibrary): The GDSII library object.
+        layer_cfg (dict): A dictionary containing the layer configuration.
     """
 
     __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
@@ -52,7 +50,6 @@ class Exporter_GDS():
         properties. The polygons are created using the points extracted from the geometries.
 
         Note:
-        ----
             The `exclude_from_current` parameter has been deprecated in gdspy and will be removed
             in a future version.
         """
@@ -89,12 +86,11 @@ class Reader_GDS():
     Helper class to import .gds file into zhk dictionary.
     
     
-    Attributes:
-    ----------
-        - filename (str): The name of the GDSII file.
-        - geometries (dict): A dictionary containing the extracted geometries from the GDSII file.
-        - gdsii (gdspy.GdsLibrary): The GDSII library object.
-        - cells (dict): A dictionary containing the cells in the GDSII file.
+    Args:
+        filename (str): The name of the GDSII file.
+        geometries (dict): A dictionary containing the extracted geometries from the GDSII file.
+        gdsii (gdspy.GdsLibrary): The GDSII library object.
+        cells (dict): A dictionary containing the cells in the GDSII file.
     """
 
     __slots__ = "filename", "geometries", "gdsii", "cells"
@@ -137,12 +133,11 @@ class Exporter_DXF():
     """
     Helper class to export zhk dictionary with geometries into .dxf file.
 
-    Attributes:
-    ----------
-        - name (str): The name of the DXF file.
-        - zhk_layers (dict): A dictionary containing the geometries for each layer.
-        - dxf (ezdxf.DXFDocument): The DXF document object.
-        - layer_cfg (list): A list containing the layer configuration.
+    Args:
+        name (str): The name of the DXF file.
+        zhk_layers (dict): A dictionary containing the geometries for each layer.
+        dxf (ezdxf.DXFDocument): The DXF document object.
+        layer_cfg (list): A list containing the layer configuration.
     """
 
     __slots__ = "name", "zhk_layers", "dxf", "layer_cfg"
@@ -184,11 +179,10 @@ class Reader_DXF():
     """
     Helper class to import .dxf file into zhk dictionary.
 
-    Attributes:
-    ----------
-        - filename (str): The name of the DXF file.
-        - geometries (dict): A dictionary containing the extracted geometries from the DXF file.
-        - dxf (ezdxf.DXFDocument): The DXF document object.     
+    Args:
+        filename (str): The name of the DXF file.
+        geometries (dict): A dictionary containing the extracted geometries from the DXF file.
+        dxf (ezdxf.DXFDocument): The DXF document object.     
 
     NOTE: currently Arcs are not supported, and points will be ignored
     """
@@ -220,7 +214,7 @@ class Reader_DXF():
         Converts dxf entity into a Shapely MultiPolygon.
 
         Args:
-            - dxfentity_list (_type_): dxf entity list
+            dxfentity_list (_type_): dxf entity list
 
         Returns:
             MultiPolygon: converted geometries
@@ -246,10 +240,9 @@ class Reader_Pickle():
     """
     Helper class to import .pickle file into zhk dictionary.
     
-    Attributes:
-    ----------
-        - filename (str): The name of the pickle file.
-        - geometries (dict): A dictionary containing the extracted geometries from the pickle file.
+    Args:
+        filename (str): The name of the pickle file.
+        geometries (dict): A dictionary containing the extracted geometries from the pickle file.
     """
 
     __slots__ = "filename", "geometries"
@@ -271,10 +264,9 @@ class Exporter_Pickle():
     """
     Helper class to export zhk dictionary with geometries into .pickle file.
     
-    Attributes:
-    ----------
-        - name (str): The name of the pickle file.
-        - zhk_layers (dict): A dictionary containing the geometries for each layer.
+    Args:
+        name (str): The name of the pickle file.
+        zhk_layers (dict): A dictionary containing the geometries for each layer.
     """
 
     __slots__ = "name", "zhk_layers"
@@ -304,10 +296,9 @@ class Reader_SVG():
     A class to read and convert SVG files into Shapely polygons.
     Contributor: https://github.com/yneter
 
-    Attributes:
-    ----------
-        - svg_file (str): The path to the SVG file to be read.
-        - geometries (dict): A dictionary containing the extracted geometries from the SVG file.
+    Args:
+        svg_file (str): The path to the SVG file to be read.
+        geometries (dict): A dictionary containing the extracted geometries from the SVG file.
     """
 
     __slots__ = "svg_file", "geometries"
@@ -321,11 +312,9 @@ class Reader_SVG():
         Extract multiple polygons from an SVG file.
         
         Args:
-        -----
-            - bezier_samples (int): Number of points to sample along Bezier curves. Default is 20.
+            bezier_samples (int): Number of points to sample along Bezier curves. Default is 20.
         
         Returns:
-        -------
             MultiPolygon: A Shapely MultiPolygon object containing all extracted polygons.
         """
         tree = ET.parse(self.svg_file)
@@ -362,12 +351,10 @@ class Reader_SVG():
         Extracts points from a single path (handling lines and Bezier curves).
         
         Args:
-        -----
-            - path_data (str): The SVG path data string.
-            - bezier_samples (int): Number of points to sample along Bezier curves. Default is 20.
+            path_data (str): The SVG path data string.
+            bezier_samples (int): Number of points to sample along Bezier curves. Default is 20.
             
         Returns:
-        -------
             list: A list of (x, y) tuples representing points along the path.
         """
         svg_path = parse_path(path_data)

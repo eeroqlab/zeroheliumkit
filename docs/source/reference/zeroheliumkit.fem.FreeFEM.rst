@@ -1,25 +1,22 @@
-﻿zeroheliumkit.fem.freefemer.FreeFEM
-===================================
+FreeFEM
+=======
 
-.. currentmodule:: zeroheliumkit.fem.freefemer
+.. currentmodule:: zeroheliumkit.fem
 
 .. autoclass:: FreeFEM
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~FreeFEM.__init__
       ~FreeFEM.add_helium_curvature_edp
       ~FreeFEM.clean_directory
       ~FreeFEM.edp_exec
       ~FreeFEM.gather_cm_results
       ~FreeFEM.gather_results
-      ~FreeFEM.get_parquet_names
       ~FreeFEM.limited_exec
       ~FreeFEM.log_history
       ~FreeFEM.run
@@ -34,7 +31,6 @@
       ~FreeFEM.script_save_data
       ~FreeFEM.write_edpContent
       ~FreeFEM.write_edpScript
-      ~FreeFEM.write_res_header
    
    
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.buffer\_along\_path
-===========================================
+buffer\_along\_path
+===================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

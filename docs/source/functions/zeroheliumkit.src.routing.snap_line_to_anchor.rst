@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.routing.snap\_line\_to\_anchor
-================================================
+snap\_line\_to\_anchor
+======================
 
 .. currentmodule:: zeroheliumkit.src.routing
 

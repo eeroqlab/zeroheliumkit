@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.get\_intersection\_withoffset
-=====================================================
+get\_intersection\_withoffset
+=============================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

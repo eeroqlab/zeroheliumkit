@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.importing.Reader\_Pickle
-==========================================
+Reader\_Pickle
+==============
 
 .. currentmodule:: zeroheliumkit.src.importing
 
 .. autoclass:: Reader_Pickle
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Reader_Pickle.__init__
       ~Reader_Pickle.extract_geometries
    
    

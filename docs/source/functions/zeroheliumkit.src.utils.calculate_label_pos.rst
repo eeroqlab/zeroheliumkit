@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.calculate\_label\_pos
-=============================================
+calculate\_label\_pos
+=====================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

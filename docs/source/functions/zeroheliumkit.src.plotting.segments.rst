@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.segments
-===================================
+segments
+========
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

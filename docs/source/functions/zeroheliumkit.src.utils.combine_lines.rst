@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.combine\_lines
-======================================
+combine\_lines
+==============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

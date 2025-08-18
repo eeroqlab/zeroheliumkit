@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.PinchGate
-======================================
+PinchGate
+=========
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

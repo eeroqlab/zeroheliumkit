@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.MeanderHalf
-========================================
+MeanderHalf
+===========
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.routing.get\_fillet\_params
-=============================================
+get\_fillet\_params
+===================
 
 .. currentmodule:: zeroheliumkit.src.routing
 

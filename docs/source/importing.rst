@@ -1,4 +1,4 @@
-Importing.py
+Importing
 ===========
 Contains classes for importing and exporting data in ZHK.
 

@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.geometries.ArbitraryLine
-==========================================
+ArbitraryLine
+=============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 
 .. autoclass:: ArbitraryLine
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~ArbitraryLine.__init__
       ~ArbitraryLine.add_anchor
       ~ArbitraryLine.add_layer
       ~ArbitraryLine.add_line
@@ -61,6 +59,8 @@
 
    .. autosummary::
    
+      ~ArbitraryLine.colors
+      ~ArbitraryLine.errors
       ~ArbitraryLine.layers
    
    

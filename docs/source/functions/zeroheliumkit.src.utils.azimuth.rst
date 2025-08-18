@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.azimuth
-===============================
+azimuth
+=======
 
 .. currentmodule:: zeroheliumkit.src.utils
 

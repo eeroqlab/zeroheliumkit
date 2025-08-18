@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.supercore.ObjsAlongConfig
-===========================================
+ObjsAlongConfig
+===============
 
 .. currentmodule:: zeroheliumkit.src.supercore
 
 .. autoclass:: ObjsAlongConfig
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~ObjsAlongConfig.__init__
    
    
 

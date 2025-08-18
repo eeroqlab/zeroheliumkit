@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.anchors.Skeletone
-===================================
+Skeletone
+=========
 
 .. currentmodule:: zeroheliumkit.src.anchors
 
 .. autoclass:: Skeletone
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Skeletone.__init__
       ~Skeletone.add_line
       ~Skeletone.buffer
       ~Skeletone.cut_with_polygon

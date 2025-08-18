@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.functions.extract\_coords\_from\_point
-========================================================
+extract\_coords\_from\_point
+============================
 
 .. currentmodule:: zeroheliumkit.src.functions
 

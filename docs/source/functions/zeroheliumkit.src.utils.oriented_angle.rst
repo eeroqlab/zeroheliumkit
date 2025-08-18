@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.oriented\_angle
-=======================================
+oriented\_angle
+===============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.functions.create\_boundary\_anchors
-=====================================================
+create\_boundary\_anchors
+=========================
 
 .. currentmodule:: zeroheliumkit.src.functions
 

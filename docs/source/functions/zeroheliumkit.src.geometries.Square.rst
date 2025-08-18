@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.Square
-===================================
+Square
+======
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

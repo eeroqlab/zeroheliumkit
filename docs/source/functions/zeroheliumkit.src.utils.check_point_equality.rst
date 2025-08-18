@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.check\_point\_equality
-==============================================
+check\_point\_equality
+======================
 
 .. currentmodule:: zeroheliumkit.src.utils
 

@@ -1,19 +1,17 @@
-﻿zeroheliumkit.fem.freefemer.FFconfigurator
-==========================================
+FFconfigurator
+==============
 
-.. currentmodule:: zeroheliumkit.fem.freefemer
+.. currentmodule:: zeroheliumkit.fem
 
 .. autoclass:: FFconfigurator
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~FFconfigurator.__init__
    
    
 

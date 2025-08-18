@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.core.Entity
-=============================
+Entity
+======
 
 .. currentmodule:: zeroheliumkit.src.core
 
 .. autoclass:: Entity
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Entity.__init__
       ~Entity.add_anchor
       ~Entity.add_layer
       ~Entity.add_line
@@ -59,6 +57,8 @@
 
    .. autosummary::
    
+      ~Entity.colors
+      ~Entity.errors
       ~Entity.layers
    
    

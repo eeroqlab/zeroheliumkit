@@ -26,7 +26,6 @@ def ArcLine(centerx: float,
     Returns LineString representing an arc.
 
     Args:
-    ----
         centerx (float): center.x of arcline
         centery (float): center.y of arcline
         radius (float): radius of the arcline
@@ -35,11 +34,9 @@ def ArcLine(centerx: float,
         numsegments (int, optional): number of the segments. Defaults to 10.
 
     Returns:
-    -------
         LineString: A LineString representing the arc.
 
     Example:
-    -------
         >>> ArcLine(centerx=0, centery=0, radius=5, start_angle=0, end_angle=180)
     """
     theta = np.radians(np.linspace(start_angle, end_angle, num=numsegments, endpoint=True))
@@ -54,12 +51,10 @@ def get_fillet_params(anchor: Anchor, radius: float) -> tuple:
         The origin of fillet line is at (0,0).
 
     Args:
-    ----
         anchor (Anchor): The anchor (second) point for the fillet.
         radius (float): The radius of the fillet curve.
 
     Returns:
-    -------
         tuple: A tuple containing the calculated lengths and the anchor direction.
     """
     rad = anchor.direction * np.pi/180
@@ -86,7 +81,6 @@ def make_fillet_line(length1: float,
     Returns a fillet shape LineString.
 
     Args:
-    ----
         length1 (float): length of the first section
         length2 (float): length of the second section placed after arcline
         direction (float): orientation of the endsegment
@@ -94,7 +88,6 @@ def make_fillet_line(length1: float,
         num_segments (int): num of segments in the arcline
 
     Returns:
-    -------
         LineString: A LineString in a fillet shape.
     """
 
@@ -124,12 +117,10 @@ def normalize_anchors(anchor1: Anchor, anchor2: Anchor) -> Anchor:
         anchor1 moves to (0,0) and rotates to dir=0 and anchor2 transforms accordingly.
 
     Args:
-    ----
         anchor1 (Anchor): first anchor
         anchor2 (Anchor): second anchor
 
     Returns:
-    -------
         Anchor: Normalized anchor with coordinates (0,0) and direction 0.
     """
 
@@ -147,12 +138,10 @@ def snap_line_to_anchor(anchor: Anchor, line: LineString) -> LineString:
     Snaps the linestring to the anchor position and direction
 
     Args:
-    ----
         anchor (Anchor): line start point will be snapped to this anchor
         line (LineString): linestring to be snapped
 
     Returns:
-    -------
         LineString: A linestring snapped to the anchor position and direction.
     """
 
@@ -172,21 +161,19 @@ def create_route(a1: Anchor,
     Returns a fillet routing linestring
 
     Args:
-    ----
-        anchor (Anchor): _description_
-        radius (float): _description_
-        num_segments (int, optional): _description_. Defaults to 10.
+        a1 (Anchor): The first anchor.
+        a2 (Anchor): The second anchor.
+        radius (float): The radius of the fillet.
+        num_segments (int, optional): The number of segments to use for the fillet curve. Defaults to 10.
         print_status (bool, optional): If True, prints the status of the route construction. 
             Defaults to False.
         bezier_cfg (dict, optional): Configuration for Bezier curve construction. 
             Defaults to {"extension_fraction": 0.1, "depth_factor": 3}.
 
     Returns:
-    -------
         LineString: A linestring representing the route between two anchors.
 
     Raises:
-    ------
         RouteError: If the route cannot be constructed between the two anchors.
     """
 
@@ -261,7 +248,6 @@ def make_bezier_line(a1: Anchor,
     Returns a Bezier routing LineString.
 
     Args:
-    ----
         a1 (Anchor): The first anchor.
         a2 (Anchor): The second anchor.
         num_segments (int, optional): The number of segments in the arcline. Defaults to 10.
@@ -271,7 +257,6 @@ def make_bezier_line(a1: Anchor,
             The factor to control the depth of the bezier curve. Defaults to 3. Choose between (2, 4).
 
     Returns:
-    -------
         LineString: A Bezier curve LineString between two anchors.
     """
     

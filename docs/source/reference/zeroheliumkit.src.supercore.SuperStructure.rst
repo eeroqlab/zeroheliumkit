@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.supercore.SuperStructure
-==========================================
+SuperStructure
+==============
 
 .. currentmodule:: zeroheliumkit.src.supercore
 
 .. autoclass:: SuperStructure
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~SuperStructure.__init__
       ~SuperStructure.add_along_skeletone
       ~SuperStructure.add_anchor
       ~SuperStructure.add_layer
@@ -66,6 +64,8 @@
 
    .. autosummary::
    
+      ~SuperStructure.colors
+      ~SuperStructure.errors
       ~SuperStructure.layers
    
    

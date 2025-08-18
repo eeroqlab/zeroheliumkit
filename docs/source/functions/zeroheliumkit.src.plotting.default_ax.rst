@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.default\_ax
-======================================
+default\_ax
+===========
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

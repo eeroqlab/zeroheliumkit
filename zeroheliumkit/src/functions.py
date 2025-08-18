@@ -19,16 +19,13 @@ def get_distance(p1: tuple | Point | Anchor, p2: tuple | Point | Anchor) -> floa
     Returns the Euclidean distance between two points.
 
     Args:
-    ----
         p1 (tuple | Point | Anchor): The coordinates of the first point.
         p2 (tuple | Point | Anchor): The coordinates of the second point.
 
     Returns:
-    -------
         float: The Euclidean distance between the two points.
 
     Example:
-    -------
         >>> p1 = (0, 0)
         >>> p2 = (3, 4)
         >>> distance = get_distance(p1, p2)
@@ -51,15 +48,12 @@ def extract_coords_from_point(point_any_type: tuple | Point | Anchor) -> tuple:
     Returns coordinates from a point of any type.
 
     Args:
-    ----
         point_any_type: A point of type tuple, Point, or Anchor.
 
     Returns:
-    -------
         tuple: The coordinates of the point.
 
     Raises:
-    ------
         TypeError: If the provided point is not of type tuple, Point, or Anchor.
     """
     if isinstance(point_any_type, Anchor):
@@ -77,7 +71,6 @@ def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
         orientation and given offset.
 
     Args:
-    ----
         polygon (Polygon): anchors will be located on the boundary of this polygon
         locs_cfg (list): list containing config dicts for the new anchors with the following items:
             label (str): anchor label
@@ -87,11 +80,9 @@ def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
             offset (float): distance from the boundary of the anchor
 
     Returns:
-    -------
         list: A list of Anchor objects, each containing the point, normal angle, and label
 
     Raises:
-    ------
         TypeError: If the direction is not one of the allowed directions.
     """
 

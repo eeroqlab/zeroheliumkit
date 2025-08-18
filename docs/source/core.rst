@@ -1,4 +1,4 @@
-Core.py
+Core
 ===========
 
 The following classes exist in the Core module for geometry handling:
@@ -8,7 +8,7 @@ The following classes exist in the Core module for geometry handling:
 .. autosummary::
    :toctree: reference/
 
-   _Base
+   Base
    Entity
    Structure
    GeomCollection

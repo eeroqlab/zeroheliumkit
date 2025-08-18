@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.importing.Exporter\_DXF
-=========================================
+Exporter\_DXF
+=============
 
 .. currentmodule:: zeroheliumkit.src.importing
 
 .. autoclass:: Exporter_DXF
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Exporter_DXF.__init__
       ~Exporter_DXF.preapre_dxf
       ~Exporter_DXF.save
    

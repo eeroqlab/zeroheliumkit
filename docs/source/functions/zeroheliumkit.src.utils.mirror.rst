@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.mirror
-==============================
+mirror
+======
 
 .. currentmodule:: zeroheliumkit.src.utils
 

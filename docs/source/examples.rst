@@ -9,5 +9,4 @@ Below are examples of how to create geometries, configure anchors, and run FreeF
     
     notebooks/basic_geometries 
     notebooks/anchors_routes
-    notebooks/curved_surface
-    notebooks/FEM
+    notebooks/GMSH+FEM

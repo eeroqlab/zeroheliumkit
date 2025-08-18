@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.utils.offset\_point
-=====================================
+offset\_point
+=============
 
 .. currentmodule:: zeroheliumkit.src.utils
 

@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.Ring
-=================================
+Ring
+====
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

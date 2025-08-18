@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.tuplify\_colors
-==========================================
+tuplify\_colors
+===============
 
 .. currentmodule:: zeroheliumkit.src.plotting
 

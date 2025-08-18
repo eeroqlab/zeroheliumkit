@@ -1,19 +1,17 @@
-﻿zeroheliumkit.src.importing.Exporter\_Pickle
-============================================
+Exporter\_Pickle
+================
 
 .. currentmodule:: zeroheliumkit.src.importing
 
 .. autoclass:: Exporter_Pickle
-
+   :member-order: bysource
    
-   .. automethod:: __init__
 
    
    .. rubric:: Methods
 
    .. autosummary::
    
-      ~Exporter_Pickle.__init__
       ~Exporter_Pickle.save
    
    

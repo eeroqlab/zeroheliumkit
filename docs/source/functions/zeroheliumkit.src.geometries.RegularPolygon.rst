@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.geometries.RegularPolygon
-===========================================
+RegularPolygon
+==============
 
 .. currentmodule:: zeroheliumkit.src.geometries
 

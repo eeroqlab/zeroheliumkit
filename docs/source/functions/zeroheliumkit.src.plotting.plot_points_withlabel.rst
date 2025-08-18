@@ -1,5 +1,5 @@
-﻿zeroheliumkit.src.plotting.plot\_points\_withlabel
-==================================================
+plot\_points\_withlabel
+=======================
 
 .. currentmodule:: zeroheliumkit.src.plotting
 
