@@ -3,37 +3,24 @@ import sys
 import os
 import warnings
 
+print(os.path.dirname(__file__))
+print(os.path.join(os.path.dirname(__file__), '../..'))
+print(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# sys.path.insert(0, os.path.abspath('../src'))
+# sys.path.insert(0, os.path.abspath('../fem'))
 
 project = 'ZeroHeliumKit'
 copyright = '2025, EeroQ'
 author = 'EeroQ'
 
 # put this at the very top of docs/source/conf.py, before defining extensions
-import sys, types
-_MOCK = ["numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
-         "ezdxf", "svgpathtools", "polars", "ipywidgets"]
-for name in _MOCK:
-    if name not in sys.modules:
-        sys.modules[name] = types.ModuleType(name)
-
-import importlib
-def _rtd_import_probe(app):
-
-    for name in [
-        "zeroheliumkit",
-        "zeroheliumkit.fem",
-        "zeroheliumkit.fem.fieldreader",
-        "zeroheliumkit.fem.fieldreader.FieldAnalyzer"
-    ]:
-        try:
-            importlib.import_module(name)
-            print("IMPORT OK: %s", name)
-        except Exception as e:
-            print("IMPORT FAIL: %s -> %r", name, e)
-
-def setup(app: Sphinx) -> None:
-    app.connect("builder-inited", _rtd_import_probe)
+# import sys, types
+# _MOCK = ["numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
+#          "ezdxf", "svgpathtools", "polars", "ipywidgets"]
+# for name in _MOCK:
+#     if name not in sys.modules:
+#         sys.modules[name] = types.ModuleType(name)
 
 
 extensions = ['sphinx.ext.autodoc',
@@ -75,7 +62,7 @@ autodoc_default_options = {
     'inherited-members': False,
     'show-inheritance': True,
     'member-order': "bysource",
-    'exclude-members': ['__init__']
+    # 'exclude-members': ['__init__']
     # 'undoc-members': False,
 }
 
@@ -84,10 +71,10 @@ add_module_names = True
 # napoleon_use_ivar = True
 
 
-autodoc_mock_imports = [
-    "numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
-    "ezdxf", "svgpathtools", "polars", "ipywidgets"
-]
+# autodoc_mock_imports = [
+#     "numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
+#     "ezdxf", "svgpathtools", "polars", "ipywidgets"
+# ]
 
 
 from pathlib import Path
