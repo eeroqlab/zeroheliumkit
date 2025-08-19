@@ -2,6 +2,7 @@ from __future__ import annotations
 import sys
 import os
 import warnings
+import importlib
 
 print(os.path.dirname(__file__))
 print(os.path.join(os.path.dirname(__file__), '../..'))
@@ -9,6 +10,13 @@ print(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 # sys.path.insert(0, os.path.abspath('../src'))
 # sys.path.insert(0, os.path.abspath('../fem'))
+
+for mod in ["zeroheliumkit", "zeroheliumkit.fem", "zeroheliumkit.fem.fieldreader", "zeroheliumkit.fem.fieldreader.FieldAnalyzer"]:
+    try:
+        importlib.import_module(mod)
+        print("IMPORT OK: %s", mod)
+    except Exception as e:
+        print("IMPORT FAIL: %s -> %r", mod, e)
 
 project = 'ZeroHeliumKit'
 copyright = '2025, EeroQ'
