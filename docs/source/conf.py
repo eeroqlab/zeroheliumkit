@@ -1,15 +1,14 @@
-from __future__ import annotations
 import sys
 import os
 import warnings
 import importlib
 
-print(os.path.dirname(__file__))
-print(os.path.join(os.path.dirname(__file__), '../..'))
-print(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# -- Path setup --------------------------------------------------------------
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-print(os.listdir(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))))
-
+# print(os.path.dirname(__file__))
+# print(os.path.join(os.path.dirname(__file__), '../..'))
+# print(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+# print(os.listdir(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..'))))
 
 for mod in ["zeroheliumkit", "zeroheliumkit.fem", "zeroheliumkit.fem.fieldreader", "zeroheliumkit.fem.fieldreader.FieldAnalyzer"]:
     try:
@@ -18,20 +17,10 @@ for mod in ["zeroheliumkit", "zeroheliumkit.fem", "zeroheliumkit.fem.fieldreader
     except Exception as e:
         print("IMPORT FAIL: %s -> %r", mod, e)
 
-# sys.path.insert(0, os.path.abspath('../src'))
-# sys.path.insert(0, os.path.abspath('../fem'))
 
 project = 'ZeroHeliumKit'
 copyright = '2025, EeroQ'
 author = 'EeroQ'
-
-# put this at the very top of docs/source/conf.py, before defining extensions
-# import sys, types
-# _MOCK = ["numpy", "scipy", "matplotlib", "shapely", "gmsh", "gdspy",
-#          "ezdxf", "svgpathtools", "polars", "ipywidgets"]
-# for name in _MOCK:
-#     if name not in sys.modules:
-#         sys.modules[name] = types.ModuleType(name)
 
 
 extensions = ['sphinx.ext.autodoc',
@@ -43,9 +32,6 @@ extensions = ['sphinx.ext.autodoc',
               ]
 
 autosummary_generate = True
-
-# templates_path = ['_templates']
-# exclude_patterns = []
 
 # pygments_style = 'sphinx'
 
@@ -67,21 +53,19 @@ html_theme_options = {
     "use_repository_button": True
 }
 
-
 autodoc_default_options = {
     'members': True,
     'inherited-members': False,
     'show-inheritance': True,
     'member-order': "bysource",
     # 'exclude-members': ['__init__']
-    # 'undoc-members': False,
 }
 
 add_module_names = True
-# autodoc_member_order = "bysource"
-# napoleon_use_ivar = True
 
-
+# Mock imports for modules that are not available in the documentation build environment
+# This is useful for avoiding import errors when building the documentation.
+# These modules will not be imported, but their docstrings will still be included.
 autodoc_mock_imports = ["gmsh", "gdspy", "ezdxf", "svgpathtools", "ipywidgets"]
 
 
@@ -148,7 +132,6 @@ def shorten_autosummary_titles(autosummary_dir: Path) -> None:
 
 def shorten_autosummary_titles_all(app: Sphinx, *args: Any) -> None:
     """Hook: run after autosummary has generated stubs, before reading docs."""
-    # logger = app.logger
     for rel in ("reference", "functions"):
         shorten_autosummary_titles(Path(app.srcdir) / rel)
 

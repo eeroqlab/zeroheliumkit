@@ -1,10 +1,11 @@
 # --------------------------------------------------------------------------------------
 #
 # Developed by Niyaz Beysengulov and EeroQ team
+# Improvements added by Paulina DePaulo
 #
 # --------------------------------------------------------------------------------------
 
-__version__ = '0.4.2'
+__version__ = '0.5.2'
 
 from .src import *
 from .fem import *
