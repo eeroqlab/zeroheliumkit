@@ -1,6 +1,12 @@
 Changes
 =======
 
+0.5.3
+----------------
+- naming optimization in Anchors and Skeletone methods
+- removed moveby and move_by_snap -> instead not all handled in 'move' method
+- added hard deprecation warnings to dublicate methods in core.py
+
 0.5.2
 ----------------
 Improved Readthedoc build and cleaned up all the docstrings
