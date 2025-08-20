@@ -92,7 +92,7 @@ class GMSHmaker2D():
             list: A list of the IDs of the created Gmsh surfaces.
         """
         surfaces = {}
-        layers = self.layout.get_zhk_dict()
+        layers = self.layout.get_geoms()
         for i, (k, v) in enumerate(layers.items()):
             if isinstance(v, MultiPolygon):
                 surf_list = []

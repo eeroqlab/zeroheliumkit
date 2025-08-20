@@ -144,7 +144,7 @@ class SuperStructure(Structure):
         p_end = self.get_anchor(anchors[-1]).point
 
         if airbridge:
-            if not airbridge.anchors.label_exist(['in', 'out']):
+            if not airbridge.anchors.has_label(['in', 'out']):
                 raise TypeError("airbridge anchors could be only 'in' and 'out'")
         
         # getting route line along the anchor points
@@ -505,10 +505,10 @@ class ContinuousLineBuilder():
         """
 
         new_line = LineString([(0,0), (length,0)])
-        self.skeletone.add_line(line = new_line,
-                                direction = self.absolute_angle,
-                                ignore_crossing = True,
-                                chaining = True)
+        self.skeletone.add(line = new_line,
+                           direction = self.absolute_angle,
+                           ignore_crossing = True,
+                           chaining = True)
         if self.starting_coords:
             self.skeletone.move(*self.starting_coords)
             self.starting_coords = None
@@ -533,10 +533,10 @@ class ContinuousLineBuilder():
                            start_angle = -np.sign(angle) * 90,
                            end_angle = -np.sign(angle) * 90 + angle,
                            numsegments = num_segments)
-        self.skeletone.add_line(line = new_line,
-                                direction = self.absolute_angle,
-                                ignore_crossing = True,
-                                chaining = True)
+        self.skeletone.add(line = new_line,
+                           direction = self.absolute_angle,
+                           ignore_crossing = True,
+                           chaining = True)
         self.absolute_angle = fmodnew(self.absolute_angle + angle)
         return self
 
@@ -619,10 +619,10 @@ class ContinuousLineBuilder():
                                 self.routing.radius,
                                 self.routing.num_segments,
                                 **kwargs)
-        self.skeletone.add_line(line = new_line,
-                                direction = None,
-                                ignore_crossing = True,
-                                chaining = False)
+        self.skeletone.add(line = new_line,
+                           direction = None,
+                           ignore_crossing = True,
+                           chaining = False)
         self.skeletone.fix()
         self.absolute_angle = anchor.direction
         self.anchors.remove("temp")
