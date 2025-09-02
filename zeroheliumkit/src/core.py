@@ -449,10 +449,13 @@ class Entity(Base):
         """
         Removes all layers with empty polygons  
         """
+        empty_layers = []
         for lname in self.layers:
             geom = getattr(self, lname)
             if geom.is_empty:
+                empty_layers.append(lname)
                 delattr(self, lname)
+        self.layers = [lname for lname in self.layers if lname not in empty_layers]
 
 
     ################################
@@ -937,15 +940,15 @@ class Structure(Entity):
 
         # snapping direction
         if direction_snap:
-            angle = - s.get_anchor(anchoring[1]).direction + self.get_anchor(anchoring[0]).direction
+            angle = - s.anchors[anchoring[1]].direction + self.anchors[anchoring[0]].direction
             s.rotate(angle, origin=(0, 0))
 
         # snapping anchors
         if anchoring:
-            c_point = self.get_anchor(anchoring[0])
-            a_point = s.get_anchor(anchoring[1])
+            c_point = self.anchors[anchoring[0]]
+            a_point = s.anchors[anchoring[1]]
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
-            s.moveby(offset)
+            s.move(xy=offset)
 
         # appending polygons
         for a in self.layers:
@@ -967,12 +970,13 @@ class Structure(Entity):
 
         # remove or not to remove anchor after appending
         if remove_anchor is True:
-            self.remove_anchor(anchoring[0])
-            s.remove_anchor(anchoring[1])
+            self.anchors.remove(anchoring[0])
+            s.anchors.remove(anchoring[1])
         elif isinstance(remove_anchor, str):
-            self.remove_anchor(remove_anchor)
-            s.remove_anchor(remove_anchor)
-        self.add_anchor(s.anchors.multipoint)
+            self.anchors.remove(remove_anchor)
+            s.anchors.remove(remove_anchor)
+        self.anchors.add(s.anchors.multipoint)
+        del s
 
         return self
 

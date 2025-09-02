@@ -198,7 +198,7 @@ class SuperStructure(Structure):
 
                 ab = airbridge.copy()
                 ab.rotate(angle=ab_angle)
-                ab.moveby(xy=ab_coords)
+                ab.move(xy=ab_coords)
 
                 # correcting the orientation of the airbridge if 'in' and 'out' are swapped
                 distance2in  = distance(ab.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
@@ -303,7 +303,7 @@ class SuperStructure(Structure):
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
             s.rotate(angle + additional_rotation)
-            s.moveby(xy=(point.x, point.y))
+            s.move(xy=(point.x, point.y))
             self.append(s)
 
 
@@ -695,7 +695,7 @@ class ContinuousLineBuilder():
         for point, angle in zip(pts, normal_angles):
             s = self.objs_along.structure.copy()
             s.rotate(angle + self.objs_along.additional_rotation + 90)
-            s.moveby(xy=(point.x, point.y))
+            s.move(xy=(point.x, point.y))
             self.structure.append(s)
 
         return self
