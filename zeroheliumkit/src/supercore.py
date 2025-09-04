@@ -140,8 +140,8 @@ class SuperStructure(Structure):
             cap_style (str, optional):
                 The cap style for the buffered line. Defaults to "flat".
         """
-        p_start = self.get_anchor(anchors[0]).point
-        p_end = self.get_anchor(anchors[-1]).point
+        p_start = self.anchors[anchors[0]].point
+        p_end = self.anchors[anchors[-1]].point
 
         if airbridge:
             if not airbridge.anchors.has_label(['in', 'out']):
@@ -150,8 +150,8 @@ class SuperStructure(Structure):
         # getting route line along the anchor points
         route_line = LineString()
         for labels in zip(anchors, anchors[1:]):
-            line = create_route(a1=self.get_anchor(labels[0]),
-                                a2=self.get_anchor(labels[1]),
+            line = create_route(a1=self.anchors[labels[0]],
+                                a2=self.anchors[labels[1]],
                                 radius=self._route_config.get("radius"),
                                 num_segments=self._route_config.get("num_segments"),
                                 print_status=print_status,
@@ -177,7 +177,7 @@ class SuperStructure(Structure):
             self.bufferize_routing_line(route_line, layers, keep_line=False, cap_style=cap_style)
             # remove or not to remove route line
             if not rm_route:
-                self.add_line(route_line, chaining=False, ignore_crossing=True)
+                self.skeletone.add(route_line, chaining=False, ignore_crossing=True)
 
         else:
             # getting list of distances of airbridge locations from starting point
@@ -201,8 +201,8 @@ class SuperStructure(Structure):
                 ab.move(xy=ab_coords)
 
                 # correcting the orientation of the airbridge if 'in' and 'out' are swapped
-                distance2in  = distance(ab.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
-                distance2out = distance(ab.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
+                distance2in  = distance(ab.anchor["in"].point,  self.anchors[route_anchors[-1]].point)
+                distance2out = distance(ab.anchor["out"].point, self.anchors[route_anchors[-1]].point)
                 if distance2out < distance2in:
                     ab.rotate(180, origin=ab_coords)
 
@@ -217,8 +217,8 @@ class SuperStructure(Structure):
 
             # adding all routes between airbridge anchors
             for labels in zip(route_anchors[::2], route_anchors[1::2]):
-                route_line = create_route(a1=self.get_anchor(labels[0]),
-                                          a2=self.get_anchor(labels[1]),
+                route_line = create_route(a1=self.anchors[labels[0]],
+                                          a2=self.anchors[labels[1]],
                                           radius=self._route_config.get("radius"),
                                           num_segments=self._route_config.get("num_segments"),
                                           print_status=print_status,
@@ -226,16 +226,16 @@ class SuperStructure(Structure):
                 self.bufferize_routing_line(route_line, layers, keep_line=False)
                 # remove or not to remove route line
                 if not rm_route:
-                    self.add_line(route_line, chaining=False, ignore_crossing=True)
+                    self.skeletone.add(route_line, chaining=False, ignore_crossing=True)
 
             # remove temporary anchors
-            self.remove_anchor(temporary_anchors)
+            self.anchors.remove(temporary_anchors)
 
         # remove or not to remove anchors used for routing
         if rm_anchor==True:
-            self.remove_anchor(anchors)
+            self.anchors.remove(anchors)
         elif isinstance(rm_anchor, (str, tuple)):
-            self.remove_anchor(rm_anchor)
+            self.anchors.remove(rm_anchor)
 
 
     def add_along_skeletone(self,
@@ -274,8 +274,8 @@ class SuperStructure(Structure):
         if len(bound_anchors) != 2:
             raise WrongSizeError(f"Provide 2 anchors! Instead {len(bound_anchors)} is given.")
 
-        p1 = self.get_anchor(bound_anchors[0]).point
-        p2 = self.get_anchor(bound_anchors[1]).point
+        p1 = self.anchors[bound_anchors[0]].point
+        p2 = self.anchors[bound_anchors[1]].point
 
         if line_idx:
             line = self.skeletone.lines.geoms[line_idx]
@@ -285,7 +285,7 @@ class SuperStructure(Structure):
         start_point = line_locate_point(line, p1, normalized=True)
         end_point = line_locate_point(line, p2, normalized=True)
         
-        extra_rotation = 0
+        extra_rotation = 0            
         if locs is None:
             if isinstance(endpoints, tuple):
                 i1, i2 = get_endpoint_indices(endpoints)
@@ -298,7 +298,7 @@ class SuperStructure(Structure):
             extra_rotation = 90
 
         pts = line_interpolate_point(line, locs, normalized=normalized).tolist()
-        normal_angles = get_normals_along_line(line, locs) + extra_rotation   # figure out why extra_rotation is added
+        normal_angles = get_normals_along_line(line, locs, normalized) + extra_rotation   # figure out why extra_rotation is added
 
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
@@ -335,7 +335,7 @@ class SuperStructure(Structure):
         """
         s = Structure()
         if keep_line:
-            s.add_line(line)
+            s.skeletone.add(line)
 
         if layers:
             for k, width in layers.items():

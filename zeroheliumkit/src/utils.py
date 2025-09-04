@@ -349,13 +349,15 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
 
 
 def get_normals_along_line(line: LineString | MultiLineString,
-                           locs: float | list) -> list:
+                           locs: float | list,
+                           norm: bool=True) -> list:
     """ 
     Calculates normal angles of a line at desired locations.
 
     Args:
         line (LineString | MultiLineString): The given line.
-        locs (float | list): The point locations along the line. It should be normalized.
+        locs (float | list): The point locations along the line.
+        norm (bool, optional): If True, locs are treated as normalized values (0 to 1). Defaults to True.
 
     Returns:
         normal_angles(list): A list of normal angles at the specified locations.
@@ -379,9 +381,8 @@ def get_normals_along_line(line: LineString | MultiLineString,
         epsilon_down[0] = 0.0
     elif locs[-1]==1:
         epsilon_up[-1] = 0.0
-
-    pts_up = line_interpolate_point(line, locs + epsilon_up, normalized=True).tolist()
-    pts_down = line_interpolate_point(line, locs - epsilon_down, normalized=True).tolist()
+    pts_up = line_interpolate_point(line, locs + epsilon_up, normalized=norm).tolist()
+    pts_down = line_interpolate_point(line, locs - epsilon_down, normalized=norm).tolist()
     normal_angles = np.asarray(list(map(azimuth, pts_down, pts_up))) + 90
 
     if not float_indicator:

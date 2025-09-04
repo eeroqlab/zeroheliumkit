@@ -829,7 +829,7 @@ class Skeletone():
         return self
 
 
-    def remove(self, line_id: int | tuple | list) -> 'Skeletone':
+    def remove(self, line_id: int | tuple | list = None) -> 'Skeletone':
         """ 
         Remove a line from the skeletone
 
