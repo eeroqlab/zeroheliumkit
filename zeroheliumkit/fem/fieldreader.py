@@ -185,11 +185,12 @@ class FreeFemResultParser():
         metadata_file (str): Path to the YAML metadata file containing simulation information.
     """
 
-    def __init__(self, metadata_file: str):
+    def __init__(self, metadata_file: str, show: bool=True):
         with open(metadata_file, 'r') as file:
             self.metadata = yaml.load(file, Loader=yaml.FullLoader)
-        self.print_table()
-        print("Control Electrodes: " + str(self.metadata["Control Electrodes"]))
+        if show:
+            self.print_table()
+            print("Control Electrodes: " + str(self.metadata["Control Electrodes"]))
 
 
     def print_table(self):
@@ -289,6 +290,7 @@ class FieldAnalyzer():
             tuple: A tuple containing the x-coordinates, y-coordinates, and the potential data.
         """
         nx, ny = len(couplingConst['xlist']), len(couplingConst['ylist'])
+        print("nx, ny = ", nx, ny)
         data = np.zeros((nx, ny), dtype=np.float64)
         for (k, v) in couplingConst.items():
             if k in ('xlist', 'ylist'):
@@ -343,11 +345,11 @@ class FieldAnalyzer():
         if ax is None:
             ax = _default_ax()
         data = self.potential(couplingConst, voltage_list, zlevel_key)
-        im = ax.contourf(data[0], data[1], np.transpose(data[2]), 17, **kwargs)
+        im = ax.contourf(data[0], data[1], data[2], 17, **kwargs)
         if zero_line:
             if isinstance(zero_line,bool):
                 zero_line = 0
-            ax.contour(data[0], data[1], np.transpose(data[2]), [zero_line],
+            ax.contour(data[0], data[1], data[2], [zero_line],
                        linestyles='dashed', colors=GRAY)
 
 
