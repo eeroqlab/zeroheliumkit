@@ -661,7 +661,7 @@ class Skeletone():
         >>> from shapely.geometry import MultiLineString, LineString
         >>> skeletone = Skeletone(MultiLineString([LineString([(0, 0), (1, 1)])]))
         <SKELETONE MULTILINESTRING ((0 0, 1 1))>
-        >>> skeletone.add_line(LineString([(1, 1), (2, 2)]))
+        >>> skeletone.add(LineString([(1, 1), (2, 2)]))
         >>> print(skeletone.length)
         2.8284271247461903
         >>> skeletone.rotate(90, origin=(0, 0))

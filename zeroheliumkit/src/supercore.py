@@ -391,7 +391,7 @@ class SuperStructure(Structure):
             setattr(self, l, unary_union([base, rounded]))
 
 
-    def round_corner(self, layer: str, around_point: tuple | Point, radius: float, **kwargs) -> "SuperStructure":
+    def round_corner(self, layers: str | list[str], around_point: tuple | Point, radius: float, **kwargs) -> "SuperStructure":
         """ 
         Rounds the corner of the polygon closest to a given Point in a specific layer.
 
@@ -407,9 +407,12 @@ class SuperStructure(Structure):
         """
         if isinstance(around_point, tuple):
             around_point = Point(around_point)
-        original = getattr(self, layer)
-        rounded = round_corner(original, around_point, radius, **kwargs)
-        setattr(self, layer, rounded)
+        if isinstance(layers, str):
+            layers = [layers]
+        for layer in layers:
+            original = getattr(self, layer)
+            rounded = round_corner(original, around_point, radius, **kwargs)
+            setattr(self, layer, rounded)
 
         return self
 
@@ -712,6 +715,30 @@ class ContinuousLineBuilder():
         if self.objs_along:
             self.add_along_skeletone()
         return self
+
+
+    def add_obj(self, obj: Structure, dir_snap: bool=True, add_rotation: float=None):
+        """
+        Adds a copy of the given Structure object to the current point in a Line, applying optional rotation and directional snapping.
+
+        Args:
+            obj (Structure): The structure object to be added.
+            dir_snap (bool, optional): If True, aligns the object's rotation to the absolute angle of the current instance. Defaults to True.
+            add_rotation (float, optional): An additional rotation (in degrees) to apply to the object before snapping. Defaults to None.
+        Returns:
+            None
+        """
+
+        s = obj.copy()
+        if add_rotation:
+            s.rotate(add_rotation)
+        if dir_snap:
+            s.rotate(self.absolute_angle)
+
+        _, end_p = self.skeletone.boundary
+        s.move((end_p.x, end_p.y))
+
+        self.structure.append(s)
 
 
     def taper(self, length: float|int, layers: dict):

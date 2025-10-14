@@ -7,7 +7,7 @@ from shapely import Point, LineString, Polygon
 from shapely import affinity, unary_union, box
 
 from .core import Entity, Structure
-from .anchors import Anchor
+from .anchors import Anchor, Skeletone
 from .utils import azimuth, buffer_along_path, round_polygon
 from .functions import extract_coords_from_point
 from .routing import get_fillet_params, make_fillet_line, normalize_anchors
@@ -261,31 +261,31 @@ def Meander(length: float=100,
         >>> meander = Meander(10, 2, 45, 50)
         >>> print(meander)
     """
-    e = Entity()
+    meander = Skeletone()
     if input_radius:
         assert input_radius < length/2, "input_radius should be less than length/2"
-        e.add_line(ArcLine(0, input_radius, input_radius, -90, 0, int(num_segments/2)))
-        e.add_line(LineString([(0,0), (0,length/2 - input_radius)]))
+        meander.add(ArcLine(0, input_radius, input_radius, -90, 0, int(num_segments/2)))
+        meander.add(LineString([(0,0), (0,length/2 - input_radius)]))
     else:
-        e.add_line(LineString([(0,0), (0,length/2)]))
+        meander.add(LineString([(0,0), (0,length/2)]))
 
-    e.add_line(ArcLine(radius, 0, radius, 180, 0, num_segments))
-    e.add_line(LineString([(0,0), (0,-length)]))
-    e.add_line(ArcLine(radius, 0, radius, 180, 360, num_segments))
+    meander.add(ArcLine(radius, 0, radius, 180, 0, num_segments))
+    meander.add(LineString([(0,0), (0,-length)]))
+    meander.add(ArcLine(radius, 0, radius, 180, 360, num_segments))
 
     if output_radius:
         assert output_radius < length/2, "output_radius should be less than length/2"
-        e.add_line(LineString([(0,0), (0,length/2 - output_radius)]))
-        e.add_line(ArcLine(output_radius, 0, output_radius, 180, 90, int(num_segments/2)))
+        meander.add(LineString([(0,0), (0,length/2 - output_radius)]))
+        meander.add(ArcLine(output_radius, 0, output_radius, 180, 90, int(num_segments/2)))
     else:
-        e.add_line(LineString([(0,0), (0,length/2)]))
+        meander.add(LineString([(0,0), (0,length/2)]))
 
     if mirror:
-        e.mirror(aroundaxis=mirror, keep_original=False)
+        meander.mirror(aroundaxis=mirror, keep_original=False)
     if direction:
-        e.rotate(direction, origin=(0,0))
+        meander.rotate(direction, origin=(0,0))
 
-    return e.skeletone.lines
+    return meander.lines
 
 
 def MeanderHalf(length: float=100,
@@ -307,30 +307,30 @@ def MeanderHalf(length: float=100,
     Example:
         >>> MeanderHalf(10, 5, 45, 50)
     """
-    e = Entity()
+    hmeander = Skeletone()
 
     if input_radius:
         assert input_radius < length/2, "input_radius should be less than length/2"
-        e.add_line(ArcLine(0, input_radius, input_radius, -90, 0, int(num_segments/2)))
-        e.add_line(LineString([(0,0), (0,length/2 - input_radius)]))
+        hmeander.add(ArcLine(0, input_radius, input_radius, -90, 0, int(num_segments/2)))
+        hmeander.add(LineString([(0,0), (0,length/2 - input_radius)]))
     else:
-        e.add_line(LineString([(0,0), (0,length/2)]))
+        hmeander.add(LineString([(0,0), (0,length/2)]))
 
-    e.add_line(ArcLine(radius, 0, radius, 180, 0, num_segments))
+    hmeander.add(ArcLine(radius, 0, radius, 180, 0, num_segments))
 
     if output_radius:
         assert output_radius < length/2, "output_radius should be less than length/2"
-        e.add_line(LineString([(0,0), (0,-length/2 + output_radius)]))
-        e.add_line(ArcLine(output_radius, 0, output_radius, 180, 270, int(num_segments/2)))
+        hmeander.add(LineString([(0,0), (0,-length/2 + output_radius)]))
+        hmeander.add(ArcLine(output_radius, 0, output_radius, 180, 270, int(num_segments/2)))
     else:
-        e.add_line(LineString([(0,0), (0,-length/2)]))
+        hmeander.add(LineString([(0,0), (0,-length/2)]))
     
     if mirror:
-        e.mirror(aroundaxis=mirror, keep_original=False)
+        hmeander.mirror(aroundaxis=mirror, keep_original=False)
     if direction:
-        e.rotate(direction, origin=(0,0))
+        hmeander.rotate(direction, origin=(0,0))
 
-    return e.skeletone.lines
+    return hmeander.lines
 
 
 def PinchGate(arm_w: float,
@@ -502,13 +502,13 @@ class StraightLine(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.buffer_line(name=k, offset=width/2, cap_style=cap_style, **kwargs)
+                self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='square', **kwargs))
 
         # create anchors
         if alabel:
             angle = azimuth(p1, p2)
-            self.add_anchor([Anchor(point=p1, direction=angle, label=alabel[0]),
-                             Anchor(point=p2, direction=angle, label=alabel[1])])
+            self.anchors.add([Anchor(point=p1, direction=angle, label=alabel[0]),
+                              Anchor(point=p2, direction=angle, label=alabel[1])])
 
 
 class ArbitraryLine(Structure):
@@ -547,8 +547,8 @@ class ArbitraryLine(Structure):
         if alabel:
             input_angle = azimuth(points[0], points[1])
             output_angle = azimuth(points[-2], points[-1])
-            self.add_anchor([Anchor(points[0], input_angle, alabel[0]),
-                             Anchor(points[-1], output_angle, alabel[1])])
+            self.anchors.add([Anchor(points[0], input_angle, alabel[0]),
+                              Anchor(points[-1], output_angle, alabel[1])])
 
 
 class Taper(ArbitraryLine):
@@ -570,7 +570,7 @@ class Taper(ArbitraryLine):
                  length: float,
                  layers: dict=None,
                  alabel: tuple=None,
-                 cap_style: str='square'):
+                 extension_sizes: tuple=(0,0)):
 
         # preparing dictionary for supplying it into ArbitraryLine class
         for k, v in layers.items():
@@ -584,18 +584,23 @@ class Taper(ArbitraryLine):
                 w2 = w2 + GRID_SIZE/10
             layers[k] = np.asarray([w1, w1, w2, w2])
 
-        pts = [(-length/2 - w1, 0),
+        pts = [(-length/2 - extension_sizes[0], 0),
                (-length/2, 0),
                (length/2, 0),
-               (length/2 + w2, 0)
+               (length/2 + extension_sizes[1], 0)
                ]
-        if cap_style == "flat":
+        if extension_sizes == (0,0):
             pts = pts[1:-1]
             layers = {k: v[1:-1] for k, v in layers.items()}
-        elif cap_style == "square":
-            pass
+        elif extension_sizes[0] == 0:
+            pts = pts[1:]
+            layers = {k: v[1:] for k, v in layers.items()}
+        elif extension_sizes[1] == 0:
+            pts = pts[:-1]
+            layers = {k: v[:-1] for k, v in layers.items()}
         else:
-            raise NameError("please choose cap_style from square or flat")
+            pass
+
         super().__init__(pts, layers, alabel)
 
 
@@ -643,18 +648,16 @@ class Fillet(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.buffer_line(name=k,
-                                 offset=width/2,
-                                 cap_style='square')
+                self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='square'))
 
         # snap to first anchor if relevant and add anchors to structure
         if isinstance(anchor, tuple):
-            self.rotate(anchor[0].direction).moveby(anchor[0].coords)
+            self.rotate(anchor[0].direction).move(anchor[0].coords)
             if alabel:
-                self.add_anchor([anchor[0], anchor[1]])
+                self.anchors.add([anchor[0], anchor[1]])
         else:
             if alabel:
-                self.add_anchor([Anchor((0,0), 0, "origin"), anchor])
+                self.anchors.add([Anchor((0,0), 0, "origin"), anchor])
 
 
 class MicroChannels(Structure):
@@ -693,21 +696,17 @@ class MicroChannels(Structure):
                          (spacing, l + slope * spacing * (i + 1)),
                          (spacing, 0)]
         for i in range(num - 1):
-            self.add_line(LineString(pts(i)))
-        self.add_line(LineString([(0, 0), (0, length), (spacing/2, length)]))
+            self.skeletone.add(LineString(pts(i)))
+        self.skeletone.add(LineString([(0, 0), (0, length), (spacing/2, length)]))
 
         # create polygon
         for k, width in layers.items():
-            self.buffer_line(name=k,
-                             offset=width/2,
-                             cap_style='flat',
-                             join_style='round',
-                             quad_segs=3)
+            self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='flat', join_style='round', quad_segs=3))
 
         # create anchors
         if alabel:
-            first, last = self.skeletone.lines.boundary.geoms
-            self.add_anchor([Anchor(point=first, direction=90, label=alabel[0]),
+            first, last = self.skeletone.boundary
+            self.anchors.add([Anchor(point=first, direction=90, label=alabel[0]),
                              Anchor(point=last, direction=0, label=alabel[1])])
 
 
@@ -754,8 +753,7 @@ class SpiralInductor(Entity):
         # create polygons
         self.__construct_spiral(size, radius, num_turns, smallest_section_length)
         for k, w in layers.items():
-            self.buffer_line(name=k, offset=w/2, cap_style='round',
-                             join_style='mitre', quad_segs=2)
+            self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=w/2, cap_style='round', join_style='mitre', quad_segs=2))
 
         central_pad = box(-size/2, -size/2, size/2, size/2).buffer(self._width+eps, join_style=1)
         central_pad.simplify(0.2, preserve_topology=True)
@@ -767,7 +765,7 @@ class SpiralInductor(Entity):
         # create anchors
         if alabel:
             first, last = self.skeletone.lines.boundary.geoms
-            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
+            self.anchors.add([Anchor(point=first, direction=0, label=alabel[0]),
                             Anchor(point=last, direction=0, label=alabel[1])])
 
     def __num_segments(self, R: float, smallest_segment: float):
@@ -776,20 +774,20 @@ class SpiralInductor(Entity):
 
     def __construct_spiral(self, size: float, radius: float, num_turns:int, ls: float):
         # create the spiral line
-        self.add_line(ArcLine(0, radius, radius, 270, 360, self.__num_segments(radius, ls)))
-        self.add_line(LineString([(0, 0), (0, size/2)]))
+        self.skeletone.add(ArcLine(0, radius, radius, 270, 360, self.__num_segments(radius, ls)))
+        self.skeletone.add(LineString([(0, 0), (0, size/2)]))
         for _ in range(num_turns):
             radius = radius + self._gap + self._width
-            self.add_line(LineString([(0, 0), (0, size/2)]))
-            self.add_line(ArcLine(-radius, 0, radius, 0, 90, self.__num_segments(radius, ls)))
-            self.add_line(LineString([(0, 0), (-size, 0)]))
-            self.add_line(ArcLine(0, -radius, radius, 90, 180, self.__num_segments(radius, ls)))
-            self.add_line(LineString([(0, 0), (0, -size)]))
-            self.add_line(ArcLine(radius, 0, radius, 180, 270, self.__num_segments(radius, ls)))
-            self.add_line(LineString([(0, 0), (size + self._width + self._gap, 0)]))
-            self.add_line(ArcLine(0, radius, radius, 270, 360, self.__num_segments(radius, ls)))
-            self.add_line(LineString([(0, 0), (0, size/2)]))
-        self.add_line(LineString([(0, 0), (2*self._gap + 2*self._width, 0)]))
+            self.skeletone.add(LineString([(0, 0), (0, size/2)]))
+            self.skeletone.add(ArcLine(-radius, 0, radius, 0, 90, self.__num_segments(radius, ls)))
+            self.skeletone.add(LineString([(0, 0), (-size, 0)]))
+            self.skeletone.add(ArcLine(0, -radius, radius, 90, 180, self.__num_segments(radius, ls)))
+            self.skeletone.add(LineString([(0, 0), (0, -size)]))
+            self.skeletone.add(ArcLine(radius, 0, radius, 180, 270, self.__num_segments(radius, ls)))
+            self.skeletone.add(LineString([(0, 0), (size + self._width + self._gap, 0)]))
+            self.skeletone.add(ArcLine(0, radius, radius, 270, 360, self.__num_segments(radius, ls)))
+            self.skeletone.add(LineString([(0, 0), (0, size/2)]))
+        self.skeletone.add(LineString([(0, 0), (2*self._gap + 2*self._width, 0)]))
 
 
 class IDC(Entity):
@@ -823,14 +821,13 @@ class IDC(Entity):
                (spacing/2, -length), (spacing/2, 0), (spacing, 0)]
         self.skeletone.lines = LineString(pts)
         for _ in range(num):
-            self.add_line(LineString(pts))
+            self.skeletone.add(LineString(pts))
 
         for k, width in layers.items():
-            self.buffer_line(name=k, offset=width/2, cap_style='square',
-                             join_style='round', quad_segs=2)
+            self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='square', join_style='round', quad_segs=2))
 
         # create anchors
         if alabel:
             first, last = self.skeletone.lines.boundary.geoms
-            self.add_anchor([Anchor(point=first, direction=0, label=alabel[0]),
+            self.anchors.add([Anchor(point=first, direction=0, label=alabel[0]),
                             Anchor(point=last, direction=0, label=alabel[1])])

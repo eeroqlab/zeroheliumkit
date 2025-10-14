@@ -290,8 +290,7 @@ class FieldAnalyzer():
             tuple: A tuple containing the x-coordinates, y-coordinates, and the potential data.
         """
         nx, ny = len(couplingConst['xlist']), len(couplingConst['ylist'])
-        print("nx, ny = ", nx, ny)
-        data = np.zeros((nx, ny), dtype=np.float64)
+        data = np.zeros((ny, nx), dtype=np.float64)
         for (k, v) in couplingConst.items():
             if k in ('xlist', 'ylist'):
                 pass
@@ -373,10 +372,10 @@ class FieldAnalyzer():
         X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
         if xy_cut == 'x':
             idx = find_nearest(Y, loc)
-            return X, Phi[:, idx]
+            return X, Phi[idx, :]
         elif xy_cut == 'y':
             idy = find_nearest(X, loc)
-            return Y, Phi[idy, :]
+            return Y, Phi[:, idy]
         else:
             raise ValueError("xy_cut must be either 'x' or 'y'.")
 
