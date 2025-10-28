@@ -11,7 +11,7 @@ import gmsh
 import sys, os, yaml
 import numpy as np
 
-from shapely import Polygon, MultiPolygon, get_coordinates
+from shapely import Polygon, MultiPolygon, get_coordinates, point_on_surface
 from alive_progress import alive_it
 from pathlib import Path
 
@@ -359,8 +359,13 @@ class GMSHmaker():
         # adding additional surfaces
         if self.additional_surfaces:
             for surface in self.additional_surfaces.values():
-                gmshID = self.create_gmsh_surface(surface['geometry'], surface['z0'])
-                surface['gmshID'] = gmshID
+                if isinstance(surface['geometry'], MultiPolygon):
+                    for poly in surface['geometry'].geoms:
+                        gmshID = self.create_gmsh_surface(poly, surface['z0'])
+                        surface['gmshID'] = gmshID
+                else:
+                    gmshID = self.create_gmsh_surface(surface['geometry'], surface['z0'])
+                    surface['gmshID'] = gmshID
 
         gmsh.model.occ.synchronize()
         
@@ -450,17 +455,29 @@ class GMSHmaker():
             dict: populated electrodes config dict
         """
         init_index = len(self.physicalVolumes.keys())
-        gmsh_entities_in_Metal = self.physicalVolumes['METAL']['entities']
+        print(init_index)
+        if 'METAL' in self.physicalVolumes:
+            gmsh_entities_in_Metal = self.physicalVolumes['METAL']['entities']
+        else:
+            gmsh_entities_in_Metal = None
         electrodes = self.electrodes_config
 
         # populating electrodes with gmshEntities
         for i, (k, v) in enumerate(electrodes.items()):
-            for gmsh_entity in gmsh_entities_in_Metal:
+            if gmsh_entities_in_Metal is not None:
+                for gmsh_entity in gmsh_entities_in_Metal:
+                    for polygon_id in v['polygons']:
+                        polygon = self.layout[v['ref_layer']][polygon_id]
+                        if self.gmsh_to_polygon_matches(gmsh_entity, polygon, v['gmsh_layer']):
+                            _, down = gmsh.model.getAdjacencies(3, gmsh_entity)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
+                            v['entities'].extend(down)
+            else:
+                allSurfaces = gmsh.model.occ.getEntities(dim=2)
                 for polygon_id in v['polygons']:
                     polygon = self.layout[v['ref_layer']][polygon_id]
-                    if self.gmsh_to_polygon_matches(gmsh_entity, polygon, v['gmsh_layer']):
-                        up, down = gmsh.model.getAdjacencies(3, gmsh_entity)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
-                        v['entities'].extend(down)
+                    point_inside = point_on_surface(polygon)
+                    outDimTags, _, _ = gmsh.model.occ.getClosestEntities(point_inside.x, point_inside.y, v['gmsh_layer'], allSurfaces, n=1)
+                    v['entities'].append(outDimTags[0][1])
         
         # assigning electrodes to group_ids
         unique_electrodes = {}
@@ -473,17 +490,18 @@ class GMSHmaker():
                 combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
                 unique_electrodes[physSurfName]['entities'] = combined_without_duplicates
             else:
+                print(group_id)
                 unique_electrodes[k] = {'group_id': group_id, 'entities': v['entities']}
-
+        print(unique_electrodes)
         for k, v in unique_electrodes.items():
             gmsh.model.addPhysicalGroup(2, v['entities'], v['group_id'], name=k)
 
         # assigning additional surfaces to group_ids
-        group_id += 1
-        if self.additional_surfaces:
-            for i, (k, v) in enumerate(self.additional_surfaces.items()):
-                gmsh.model.addPhysicalGroup(2, [v['gmshID']], group_id + i, name=k)
-                unique_electrodes[k] = {'group_id': group_id + i, 'entities': [v['gmshID']]}
+        # group_id += 1
+        # if self.additional_surfaces:
+        #     for i, (k, v) in enumerate(self.additional_surfaces.items()):
+        #         gmsh.model.addPhysicalGroup(2, [v['gmshID']], group_id + i, name=k)
+        #         unique_electrodes[k] = {'group_id': group_id + i, 'entities': [v['gmshID']]}
 
         gmsh.model.occ.synchronize()
 
@@ -535,7 +553,7 @@ class GMSHmaker():
         """
         Generates and writes the geometry definition to a file in GMSH format.
         """
-        gmsh.write(self.savedir / self.filename + ".geo_unrolled")
+        gmsh.write(str(self.savedir / self.filename) + ".geo_unrolled")
     
     def create_mesh(self, dim='2'):
         """
