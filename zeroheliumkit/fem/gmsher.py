@@ -134,7 +134,7 @@ class GMSHmaker():
         self.electrodes_config = electrodes_config
         self.savedir = Path(savedir)
         self.configdir = Path(configdir)
-        self.filename = filename + ".msh2"
+        self.filename = filename
 
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
@@ -359,13 +359,14 @@ class GMSHmaker():
         # adding additional surfaces
         if self.additional_surfaces:
             for surface in self.additional_surfaces.values():
+                surface['gmshID'] = []
                 if isinstance(surface['geometry'], MultiPolygon):
                     for poly in surface['geometry'].geoms:
                         gmshID = self.create_gmsh_surface(poly, surface['z0'])
-                        surface['gmshID'] = gmshID
+                        surface['gmshID'].append(gmshID)
                 else:
                     gmshID = self.create_gmsh_surface(surface['geometry'], surface['z0'])
-                    surface['gmshID'] = gmshID
+                    surface['gmshID'].append(gmshID)
 
         gmsh.model.occ.synchronize()
         
@@ -387,7 +388,8 @@ class GMSHmaker():
             item_rest.append((3, v))
         if self.additional_surfaces:
             for value in self.additional_surfaces.values():
-                item_rest.append((2, value['gmshID']))
+                for gID in value['gmshID']:
+                    item_rest.append((2, gID))
         new_volumes = gmsh.model.occ.fragment(item_base, item_rest)
         
         gmsh.model.occ.synchronize()
@@ -455,7 +457,6 @@ class GMSHmaker():
             dict: populated electrodes config dict
         """
         init_index = len(self.physicalVolumes.keys())
-        print(init_index)
         if 'METAL' in self.physicalVolumes:
             gmsh_entities_in_Metal = self.physicalVolumes['METAL']['entities']
         else:
@@ -490,9 +491,8 @@ class GMSHmaker():
                 combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
                 unique_electrodes[physSurfName]['entities'] = combined_without_duplicates
             else:
-                print(group_id)
                 unique_electrodes[k] = {'group_id': group_id, 'entities': v['entities']}
-        print(unique_electrodes)
+
         for k, v in unique_electrodes.items():
             gmsh.model.addPhysicalGroup(2, v['entities'], v['group_id'], name=k)
 
@@ -572,7 +572,10 @@ class GMSHmaker():
             for item in bar:
                 gmsh.model.mesh.generate(dim)
                 print("mesh is constructed")
-                gmsh.write(str(self.savedir / self.filename))
+                gmsh.model.mesh.setOrder(1)
+                gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+                gmsh.option.setNumber("Mesh.Binary", 0)
+                gmsh.write(str(self.savedir / self.filename) + ".msh2")
                 print("mesh saved")
         except KeyboardInterrupt:
             print('interrupted by user')
