@@ -3,6 +3,8 @@ from .freefemer import FreeFEM, ExtractConfig, FFconfigurator
 from .fieldreader import FieldAnalyzer, FreeFemResultParser
 from .heliumsurface import GMSHmaker2D, HeliumSurfaceFreeFEM
 
+from .gmsher_prototype import *
+
 __all__ = [
     "GMSHmaker",
     "FreeFEM",
