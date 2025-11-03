@@ -278,8 +278,26 @@ class GMSHmaker2():
                     list_gmsh_objects.append((3, gmsh_obj))
         
         return list_gmsh_objects
+
+
+    def build_additional_gmsh_surfaces(self):
+        """
+        Adds additional surfaces to the Gmsh model based on the provided surface configurations.
+
+        Each entry in `self.surfaces` must define:
+            - geometry (Polygon or MultiPolygon)
+            - z (float): the z-coordinate of the surface
+
+        The generated Gmsh surface IDs are appended to `config.index`.
+        """
+        for _, config in self.surfaces.items():
+            polygons = ensure_polygon_list(config.geometry)
+            for poly in polygons:
+                gmsh_id = self.build_gmsh_surface(poly, config.z)
+                config.index.append(gmsh_id)
+
     
-    def sort_gmshLayer_names(self) -> BuildPlan:
+    def make_plan(self) -> BuildPlan:
         """
         Prepares four lists of gmsh layer names defining the order of 3D gmsh construction
 
@@ -318,75 +336,68 @@ class GMSHmaker2():
         Returns:
             dict: configuration about gmsh layers and constructed Volumes contained in these layers.
         """
-        config = self.extrude_config
-        gmsh_layers = list(config.keys())
 
-        volumes = {key:[] for key in gmsh_layers if not config[key].get('forConstruction')}
-        volumes_forConstruction = {key:[] for key in gmsh_layers if config[key].get('forConstruction')}
+        volumes, volumes_forConstruction = {}, {}
+        for vol_name, config in self.extrude.items():
+            if config.forConstruction:
+                volumes_forConstruction[vol_name] = []
+            else:
+                volumes[vol_name] = []
 
         # Prepare the list of gmsh layers and define the order of the operation
-        first, final, first_forConstruction, final_forConstruction = self.sort_gmshLayer_names()
+        plan = self.make_plan()
 
         # first we create gmsh objects by extruding shPolygons
         # which doesn't have forConstruction tag and 'cut' argument
         # returns updated volumes dict
-        volumes = self.populate_volumes(first, volumes)
+        volumes = self.populate_volumes(plan.build_1, volumes)
 
         # next we create gmsh objects forConstruction
         # which doesn't have 'cut' argument and have forConstruction tag
         # returns updated volumes_forConstruction dict
-        volumes_forConstruction = self.populate_volumes(first_forConstruction, volumes_forConstruction)
+        volumes_forConstruction = self.populate_volumes(plan.build_2, volumes_forConstruction)
 
         # next we create gmsh objects forConstruction
         # which have 'cut' argument and have forConstruction tag
         # 'cut' tuple should contain only gmsh layers with tag forConstruction
         # returns updated volumes_forConstruction dict
-        for lname, cutting_layers in final_forConstruction:
-            params = self.extrude_config.get(lname)
-            polygons = self.layout.get(params['reference'])
+        for vol_name, cutting_layers in plan.build_3:
+            config = self.extrude.get(vol_name)
 
             gmshObjs_forCutting = self.gmshObjs_forCutting(cutting_layers, volumes_forConstruction)
 
-            for p in polygons:
-                base = self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness'])
+            for poly in config.geometry:
+                base = self.build_gmsh_volume(poly, config.z, config.thickness)
                 base = gmsh.model.occ.cut([(3, base)], gmshObjs_forCutting, removeTool=True)
                 for item in base[0]:
-                    volumes_forConstruction[lname].append(item[1])
+                    volumes_forConstruction[vol_name].append(item[1])
 
         # finally we create gmsh objects, which have 'cut' argument. 
         # 'cut' tuple can contain gmsh layers with and without forConstruction tag
         # returns updated volumes dict
-        for lname, cutting_layers in final:
-            params = self.extrude_config.get(lname)
-            polygons = self.layout.get(params['reference'])
-            
+        for vol_name, cutting_layers in plan.build_4:
+            config = self.extrude.get(vol_name)
+
             gmshObjs_forCutting = self.gmshObjs_forCutting(cutting_layers, volumes)
             gmshObjs_forCutting_andRemove = self.gmshObjs_forCutting(cutting_layers, volumes_forConstruction)
 
-            for p in polygons:
-                base = self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness'])
+            for poly in config.geometry:
+                base = self.build_gmsh_volume(poly, config.z, config.thickness)
                 base_gmshObj = gmsh.model.occ.cut([(3, base)], gmshObjs_forCutting, removeTool=False)
                 if gmshObjs_forCutting_andRemove:
                     base_gmshObj = gmsh.model.occ.cut(base_gmshObj[0], gmshObjs_forCutting_andRemove, removeTool=True)
                 for item in base_gmshObj[0]:
-                    volumes[lname].append(item[1])
+                    volumes[vol_name].append(item[1])
 
         # adding additional surfaces
-        if self.additional_surfaces:
-            for surface in self.additional_surfaces.values():
-                surface['gmshID'] = []
-                if isinstance(surface['geometry'], MultiPolygon):
-                    for poly in surface['geometry'].geoms:
-                        gmshID = self.create_gmsh_surface(poly, surface['z0'])
-                        surface['gmshID'].append(gmshID)
-                else:
-                    gmshID = self.create_gmsh_surface(surface['geometry'], surface['z0'])
-                    surface['gmshID'].append(gmshID)
+        if self.surfaces:
+            self.build_additional_gmsh_surfaces()
 
         gmsh.model.occ.synchronize()
-        
+
         return volumes
-    
+
+
     def fragmentation(self, volumes: list) -> list:
         """
         Gluing all Volumes together. Handles correctly the shared surfaces between Volumes.
