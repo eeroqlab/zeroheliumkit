@@ -341,7 +341,7 @@ class Base:
 
 
     ## just note that it has that length
-    def remove_holes_from_polygons(self, lname: str):
+    def remove_holes_from_polygons(self, lname: str, cut_position: float=None):
         """
         Removes any holes from a multipolygon in a layer by vertically cutting along the centroid of each hole and piecing together the remaining Polygon geometries.
         Vertical cut is made with a default length of 1e6. 
@@ -350,7 +350,7 @@ class Base:
             lname (str): Name of the layer where polygons with holes are located.
         """
         polygons = getattr(self, lname)
-        setattr(self, lname, flatten_multipolygon(polygons))
+        setattr(self, lname, flatten_multipolygon(polygons, cut_position))
     
 
     def remove_polygon(self, lname: str, polygon_id: int | tuple | list):

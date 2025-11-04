@@ -457,7 +457,7 @@ def has_interior(p: Polygon) -> bool:
     return False if not list(p.interiors) else True
 
 
-def flatten_polygon(p: Polygon) -> MultiPolygon:
+def flatten_polygon(p: Polygon, cut_position: float=None) -> MultiPolygon:
     """
     Creates a cut line along the centroid of each hole and dissects the polygon.
     1e6 is the length of the cut line. ## (is this a weird way to say it?)
@@ -482,8 +482,12 @@ def flatten_polygon(p: Polygon) -> MultiPolygon:
     if has_interior(p):
         disected_all = []
         for interior in p.interiors:
-            com = centroid(interior)
-            cut_line = LineString([(com.x, -YCOORD), (com.x, YCOORD)])
+            if cut_position is None:
+                com = centroid(interior)
+                cut_line = LineString([(com.x, -YCOORD), (com.x, YCOORD)])
+            else:
+                cut_line = LineString([(cut_position, -YCOORD), (cut_position, YCOORD)])
+
             disected = ops.split(multipolygon, cut_line)
             multipolygonlist = []
             for geom in list(disected.geoms):
@@ -495,7 +499,7 @@ def flatten_polygon(p: Polygon) -> MultiPolygon:
     return multipolygon
 
 
-def flatten_multipolygon(mp: MultiPolygon) -> MultiPolygon:
+def flatten_multipolygon(mp: MultiPolygon, cut_position: float=None) -> MultiPolygon:
     """ 
     Removes holes from a MultiPolygon object containing Polygons with holes.
 
@@ -516,7 +520,7 @@ def flatten_multipolygon(mp: MultiPolygon) -> MultiPolygon:
         mp = MultiPolygon([mp])
     p_list = []
     for p in mp.geoms:
-        polys_with_no_holes = flatten_polygon(p)
+        polys_with_no_holes = flatten_polygon(p, cut_position)
         p_list += list(polys_with_no_holes.geoms)
     return MultiPolygon(p_list)
 
