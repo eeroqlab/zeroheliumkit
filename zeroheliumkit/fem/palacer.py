@@ -71,10 +71,18 @@ class DrivenConfig:
     AdaptiveTol: float=1.0e-3
 
 @dataclass
+class EigenConfig:
+    N: int=6
+    Tol: float=1.0e-8
+    Target: float=5.0  # GHz
+    Save: int=6
+
+@dataclass
 class SolverConfig:
     Order: int = 1
     Device: str = "CPU"
     Driven: DrivenConfig = field(default_factory=DrivenConfig)
+    Eigenmode: EigenConfig = field(default_factory=EigenConfig)
 
 @dataclass
 class PalaceConfig:
@@ -90,10 +98,10 @@ class PalaceRunner:
     A class to run Palace simulations.
     """
 
-    def __init__(self, config: PalaceConfig, exec_path: str):
-        self.config = config    
+    def __init__(self, json_name: str, config: PalaceConfig, exec_path: str):
+        self.config = config
         self.exec_path = exec_path
-        self.json_path = self.config.Problem.Output + 'palace.json'
+        self.json_path = self.config.Problem.Output + json_name + '.json'
         self.save_json(self.json_path)
 
     def save_json(self, path: str = 'palace.json'):

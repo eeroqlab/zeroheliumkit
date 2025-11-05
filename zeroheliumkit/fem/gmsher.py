@@ -10,7 +10,7 @@
 import gmsh
 import sys, os, yaml
 
-from shapely import Polygon, MultiPolygon, get_coordinates, point_on_surface
+from shapely import Polygon, MultiPolygon, LineString, MultiLineString, get_coordinates, point_on_surface
 from alive_progress import alive_it
 from dataclasses import dataclass, field, asdict
 from tabulate import tabulate
@@ -27,6 +27,12 @@ def make_group(i: int):
 
 def ensure_polygon_list(geometry: Polygon | MultiPolygon):
     if isinstance(geometry, MultiPolygon):
+        return list(geometry.geoms)
+    else:
+        return [geometry]
+
+def ensure_linestring_list(geometry: LineString | MultiLineString):
+    if isinstance(geometry, MultiLineString):
         return list(geometry.geoms)
     else:
         return [geometry]
@@ -126,6 +132,18 @@ class BoxFieldMeshSettings:
     VOut: float
     box: list[float]  # [XMin, XMax, YMin, YMax, ZMin, ZMax]
 
+@dataclass
+class DistanceFieldMeshSettings:
+    geometry: LineString | MultiLineString
+    base_z: float
+    SizeMin: float
+    SizeMax: float
+    DistMin: float
+    DistMax: float
+
+    def __post_init__(self):
+        self.lines = ensure_linestring_list(self.geometry)
+
 
 @dataclass
 class BuildPlan:
@@ -200,6 +218,44 @@ class GMSHmaker():
             gmsh.finalize()
 
 
+    def build_gmsh_points(self, coordinates: list[tuple[float, float, float]]) -> list[int]:
+        """
+        Creates Gmsh points based on the given coordinates.
+
+        Args:
+            coordinates (list[tuple[float, float, float]]): List of (x, y, z) tuples defining the points.
+
+        Returns:
+            list[int]: List of IDs of the created Gmsh points.
+        """
+        points = []
+        for xyz in coordinates:
+            p = gmsh.model.occ.addPoint(xyz[0], xyz[1], xyz[2])
+            points.append(p)
+        return points
+
+
+    def build_gmsh_lines(self, point_ids: list[int], closed: bool) -> list[int]:
+        """
+        Creates Gmsh lines connecting the given point IDs.
+
+        Args:
+            point_ids (list[int]): List of Gmsh point IDs.
+            closed (bool): Whether to close the loop (connect last point to first).
+
+        Returns:
+            list[int]: List of IDs of the created Gmsh lines.
+        """
+        lines = []
+        for i in range(len(point_ids)-1):
+            l = gmsh.model.occ.addLine(point_ids[i], point_ids[i+1])
+            lines.append(l)
+        if closed:
+            closing_line = gmsh.model.occ.addLine(point_ids[-1], point_ids[0])
+            lines.append(closing_line)
+        return lines
+
+
     def build_gmsh_surface(self, base_polygon: Polygon, base_z: float) -> int:
         """
         Creates a Gmsh surface based on the given base_polygon and z-coordinate.
@@ -214,18 +270,10 @@ class GMSHmaker():
         coords = get_coordinates(base_polygon)
 
         # creating gmsh Points
-        points = []
-        for coord in coords[:-1]:
-            p = gmsh.model.occ.addPoint(coord[0], coord[1], base_z)
-            points.append(p)
+        points =  self.build_gmsh_points([(x, y, base_z) for x, y in coords[:-1]])
 
         # creating gmsh Lines
-        lines = []
-        for i in range(len(points)-1):
-            l = gmsh.model.occ.addLine(points[i], points[i+1])
-            lines.append(l)
-        closing_line = gmsh.model.occ.addLine(points[-1], points[0])
-        lines.append(closing_line)
+        lines =  self.build_gmsh_lines(points, closed=True)
 
         curvedLoop = gmsh.model.occ.addCurveLoop(lines)
         surface = gmsh.model.occ.addPlaneSurface([curvedLoop])
@@ -574,8 +622,65 @@ class GMSHmaker():
         return box_field_ids
     
 
-    def make_distance_field_mesh(self, lines: list[int]):
-        pass
+    def setup_distance_field_mesh(self, lines: list[LineString], base_z: float):
+        """ Sets up a distance field mesh in GMSH.
+
+        Args:
+            lines (list[LineString]): List of shapely LineStrings defining the lines for the distance field.
+            base_z (float): The base Z-coordinate for the distance field.
+
+        Returns:
+            int: The ID of the created distance field.
+        """
+        wires = []
+        for l in lines:
+            print(l)
+            coords = get_coordinates(l)
+            points = self.build_gmsh_points([(x, y, base_z) for x, y in coords])
+            wire_ids = self.build_gmsh_lines(points, closed=False)
+            wires.append(wire_ids)
+        wires = flatten(wires)
+
+        field_id = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(field_id, "CurvesList", wires)
+        gmsh.model.mesh.field.setNumber(field_id, "Sampling", 100)
+        return field_id
+
+
+    def setup_threshold_field_mesh(self, distance_field_id: int, SizeMin: float, SizeMax: float, DistMin: float, DistMax: float):
+        """ Sets up a threshold field mesh in GMSH.
+        Args:
+            distance_field_id (int): The ID of the distance field to base the threshold on.
+            SizeMin (float): Minimum mesh size.
+            SizeMax (float): Maximum mesh size.
+            DistMin (float): Minimum distance for mesh size transition.
+            DistMax (float): Maximum distance for mesh size transition.
+        Returns:
+            int: The ID of the created threshold field.
+        """
+        field_id = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(field_id, "InField", distance_field_id)
+        gmsh.model.mesh.field.setNumber(field_id, "SizeMin", SizeMin)
+        gmsh.model.mesh.field.setNumber(field_id, "SizeMax", SizeMax)
+        gmsh.model.mesh.field.setNumber(field_id, "DistMin", DistMin)
+        gmsh.model.mesh.field.setNumber(field_id, "DistMax", DistMax)
+        return field_id
+
+
+    def make_distance_threshold_field_mesh(self, distances: list[DistanceFieldMeshSettings]) -> list[int]:
+        """
+        Creates distance and threshold fields for mesh refinement in Gmsh.
+        Args:
+            distances (list[DistanceFieldMeshSettings]): List of distance field configurations.
+        Returns:
+            list (int): List of threshold field IDs created in Gmsh.
+        """
+        field_ids = []
+        for config in distances:
+            distance_field_id = self.setup_distance_field_mesh(config.lines, config.base_z)
+            threshold_field_id = self.setup_threshold_field_mesh(distance_field_id, config.SizeMin, config.SizeMax, config.DistMin, config.DistMax)
+            field_ids.append(threshold_field_id)
+        return field_ids
 
 
     def setup_mesh_fields(self):
@@ -588,11 +693,13 @@ class GMSHmaker():
         - If multiple fields are created, combines them with a "Min" field.
         - Sets the resulting field as the background mesh.
         """
-
-        for mesh_field_name, config in self.mesh.fields.items():
+        field_ids = []
+        for mesh_field_name, configs in self.mesh.fields.items():
             match mesh_field_name:
                 case "Box":
-                    field_ids = self.make_box_field_mesh(config)
+                    field_ids.extend(self.make_box_field_mesh(configs))
+                case "Distance":
+                    field_ids.extend(self.make_distance_threshold_field_mesh(configs))
                 case _:
                     print(f"Mesh field '{mesh_field_name}' is not recognized.")
 
