@@ -136,6 +136,7 @@ class BoxFieldMeshSettings:
 class DistanceFieldMeshSettings:
     geometry: LineString | MultiLineString
     base_z: float
+    sampling: int
     SizeMin: float
     SizeMax: float
     DistMin: float
@@ -143,6 +144,10 @@ class DistanceFieldMeshSettings:
 
     def __post_init__(self):
         self.lines = ensure_linestring_list(self.geometry)
+
+@dataclass
+class FixedFieldMeshSettings:
+    pass
 
 
 @dataclass
@@ -218,7 +223,7 @@ class GMSHmaker():
             gmsh.finalize()
 
 
-    def build_gmsh_points(self, coordinates: list[tuple[float, float, float]]) -> list[int]:
+    def build_gmsh_points(self, coordinates: list[tuple[float, float, float]], meshSize: float=0.0) -> list[int]:
         """
         Creates Gmsh points based on the given coordinates.
 
@@ -230,7 +235,7 @@ class GMSHmaker():
         """
         points = []
         for xyz in coordinates:
-            p = gmsh.model.occ.addPoint(xyz[0], xyz[1], xyz[2])
+            p = gmsh.model.occ.addPoint(xyz[0], xyz[1], xyz[2], meshSize=meshSize)
             points.append(p)
         return points
 
@@ -622,7 +627,7 @@ class GMSHmaker():
         return box_field_ids
     
 
-    def setup_distance_field_mesh(self, lines: list[LineString], base_z: float):
+    def setup_distance_field_mesh(self, lines: list[LineString], base_z: float, sampling: int=300):
         """ Sets up a distance field mesh in GMSH.
 
         Args:
@@ -634,7 +639,6 @@ class GMSHmaker():
         """
         wires = []
         for l in lines:
-            print(l)
             coords = get_coordinates(l)
             points = self.build_gmsh_points([(x, y, base_z) for x, y in coords])
             wire_ids = self.build_gmsh_lines(points, closed=False)
@@ -643,7 +647,7 @@ class GMSHmaker():
 
         field_id = gmsh.model.mesh.field.add("Distance")
         gmsh.model.mesh.field.setNumbers(field_id, "CurvesList", wires)
-        gmsh.model.mesh.field.setNumber(field_id, "Sampling", 100)
+        gmsh.model.mesh.field.setNumber(field_id, "Sampling", sampling)
         return field_id
 
 
@@ -677,7 +681,7 @@ class GMSHmaker():
         """
         field_ids = []
         for config in distances:
-            distance_field_id = self.setup_distance_field_mesh(config.lines, config.base_z)
+            distance_field_id = self.setup_distance_field_mesh(config.lines, config.base_z, config.sampling)
             threshold_field_id = self.setup_threshold_field_mesh(distance_field_id, config.SizeMin, config.SizeMax, config.DistMin, config.DistMax)
             field_ids.append(threshold_field_id)
         return field_ids

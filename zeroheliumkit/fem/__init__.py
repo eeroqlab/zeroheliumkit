@@ -5,7 +5,7 @@ from .heliumsurface import GMSHmaker2D, HeliumSurfaceFreeFEM
 from .palacer import (PalaceRunner, PalaceConfig, ProblemConfig, ModelConfig,
                       MaterialsConfig, PostProEnergyConfig, PostProProbeConfig,
                       DomainConfig, ElementConfig, LumpedPortConfig, BoundaryConfig,
-                      DrivenConfig, EigenConfig, SolverConfig)
+                      DrivenConfig, EigenConfig, SolverConfig, ImpedanceConfig)
 # from .gmsher import GMSHmaker, gmshLayer_info, physSurface_info
 
 
@@ -38,4 +38,5 @@ __all__ = [
     "DrivenConfig",
     "EigenConfig",
     "SolverConfig",
+    "ImpedanceConfig",
     ]

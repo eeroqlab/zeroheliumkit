@@ -488,15 +488,36 @@ def flatten_polygon(p: Polygon, cut_position: float=None) -> MultiPolygon:
             else:
                 cut_line = LineString([(cut_position, -YCOORD), (cut_position, YCOORD)])
 
-            disected = ops.split(multipolygon, cut_line)
-            multipolygonlist = []
-            for geom in list(disected.geoms):
-                if isinstance(geom, Polygon):
-                    multipolygonlist += [geom]
-            multipolygon = MultiPolygon(multipolygonlist)
+            multipolygon = split_polygon(multipolygon, cut_line)
             disected_all += list(multipolygon.geoms)
         return multipolygon
     return multipolygon
+
+
+def split_polygon(polygon: Polygon | MultiPolygon, splitter: LineString) -> MultiPolygon:
+    """ 
+    Splits a polygon using a given LineString.
+
+    Args:
+        polygon (Polygon | MultiPolygon): The polygon to be split.
+        splitter (LineString): The LineString used to split the polygon.
+
+    Returns:
+        MultiPolygon: A MultiPolygon object containing the resulting polygons after the split.
+
+    Example:
+        >>> polygon = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
+        >>> splitter = LineString([(1, -1), (1, 3)])
+        >>> result = split_polygon(polygon, splitter)
+        >>> print(result)
+            MULTIPOLYGON ...
+    """
+    split_result = ops.split(polygon, splitter)
+    polygons = []
+    for geom in list(split_result.geoms):
+        if isinstance(geom, Polygon):
+            polygons.append(geom)
+    return MultiPolygon(polygons)
 
 
 def flatten_multipolygon(mp: MultiPolygon, cut_position: float=None) -> MultiPolygon:

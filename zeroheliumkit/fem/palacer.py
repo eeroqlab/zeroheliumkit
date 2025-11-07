@@ -57,10 +57,29 @@ class LumpedPortConfig:
     Elements: list[ElementConfig] = field(default_factory=list)
 
 @dataclass
+class ImpedanceConfig:
+    Attributes: list[int]
+    Rs: float = 0.0
+    Ls: float = 0.0
+    Cs: float = 0.0
+
+@dataclass
+class AbsorbingConfig:
+    Attributes: list[int]
+    Order: int = 1
+
+@dataclass
 class BoundaryConfig:
-    PEC: dict=field(default_factory=lambda: {"Attributes": [1]})
-    #Absorbing: dict=field(default_factory=lambda: {"Attributes": [1], "Order": 1})
-    LumpedPort: list[LumpedPortConfig]=field(default_factory=list)
+    PEC: dict=None
+    Absorbing: AbsorbingConfig=None
+    LumpedPort: list[LumpedPortConfig]=None
+    Impedance: list[ImpedanceConfig]=None
+
+    def __post_init__(self):
+        self.__dataclass_fields__ = {
+            k: v for k, v in self.__dataclass_fields__.items()
+            if getattr(self, k) is not None
+        }
 
 @dataclass
 class DrivenConfig:
@@ -81,8 +100,14 @@ class EigenConfig:
 class SolverConfig:
     Order: int = 1
     Device: str = "CPU"
-    Driven: DrivenConfig = field(default_factory=DrivenConfig)
-    Eigenmode: EigenConfig = field(default_factory=EigenConfig)
+    Driven: DrivenConfig = None
+    Eigenmode: EigenConfig = None
+
+    def __post_init__(self):
+        self.__dataclass_fields__ = {
+            k: v for k, v in self.__dataclass_fields__.items()
+            if getattr(self, k) is not None
+        }
 
 @dataclass
 class PalaceConfig:

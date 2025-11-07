@@ -24,7 +24,7 @@ from .plotting import plot_geometry, interactive_widget_handler, tuplify_colors,
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior
+from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior, split_polygon
 from .errors import hard_deprecated
 
 
@@ -351,6 +351,20 @@ class Base:
         """
         polygons = getattr(self, lname)
         setattr(self, lname, flatten_multipolygon(polygons, cut_position))
+
+
+    def slice_layer(self, lname: str, slice_line: list[LineString]):
+        """
+        Slices polygons in a layer using a given line.
+
+        Args:
+            lname (str): The name of the layer.
+            slice_line (LineString): The line used for slicing.
+        """
+        polygons = getattr(self, lname)
+        for slice in slice_line:
+            polygons = split_polygon(polygons, slice)
+        setattr(self, lname, polygons)
     
 
     def remove_polygon(self, lname: str, polygon_id: int | tuple | list):
