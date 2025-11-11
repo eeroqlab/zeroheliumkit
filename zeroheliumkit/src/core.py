@@ -857,7 +857,7 @@ class Entity(Base):
 
     def quickplot(self, color_config: dict=None, zoom: tuple=None,
                   ax=None, show_idx: bool=False, labels: bool=False, 
-                  draw_anchor_dir: bool=True, **kwargs) -> None:
+                  draw_anchor_dir: bool=True, off: list=[], **kwargs) -> None:
         """
         Plots the Entity object with predefined colors for each layer.
 
@@ -884,6 +884,7 @@ class Entity(Base):
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
 
         #plot layers
+        plot_config = {k:v for k,v in plot_config.items() if k not in off}
         layer_colors = [plot_config[k] for k in plot_config]
         layers = list(plot_config.keys())
         self.plot(ax=ax, layer=layers, color=layer_colors, show_idx=show_idx, labels=labels, **kwargs)

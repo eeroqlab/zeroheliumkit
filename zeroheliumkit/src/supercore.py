@@ -201,17 +201,18 @@ class SuperStructure(Structure):
                 ab.move(xy=ab_coords)
 
                 # correcting the orientation of the airbridge if 'in' and 'out' are swapped
-                distance2in  = distance(ab.anchor["in"].point,  self.anchors[route_anchors[-1]].point)
-                distance2out = distance(ab.anchor["out"].point, self.anchors[route_anchors[-1]].point)
+                distance2in  = distance(ab.anchors["in"].point,  self.anchors[route_anchors[-1]].point)
+                distance2out = distance(ab.anchors["out"].point, self.anchors[route_anchors[-1]].point)
                 if distance2out < distance2in:
                     ab.rotate(180, origin=ab_coords)
 
                 for label in ['in', 'out']:
                     temporary_name = str(i) + label
-                    ab.modify_anchor(label=label,
-                                     new_name=temporary_name)
+                    ab.anchors.modify(label=label,
+                                      new_name=temporary_name)
                     route_anchors.append(temporary_name)
                     temporary_anchors.append(temporary_name)
+
                 self.append(ab)
             route_anchors.append(anchors[1])
 
@@ -304,6 +305,7 @@ class SuperStructure(Structure):
             s = structure.copy()
             s.rotate(angle + additional_rotation)
             s.move(xy=(point.x, point.y))
+            s.anchors.remove()
             self.append(s)
 
 

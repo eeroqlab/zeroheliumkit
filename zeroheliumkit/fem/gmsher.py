@@ -197,6 +197,12 @@ class GMSHmaker():
 
 
     def make_mesh(self):
+        """
+        Creates the mesh using GMSH.
+
+        Raises:
+            e: Exception raised during mesh creation.
+        """
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
 
@@ -229,6 +235,7 @@ class GMSHmaker():
 
         Args:
             coordinates (list[tuple[float, float, float]]): List of (x, y, z) tuples defining the points.
+            meshSize (float, optional): Mesh size at the points. Defaults to 0.0.
 
         Returns:
             list[int]: List of IDs of the created Gmsh points.
@@ -326,8 +333,10 @@ class GMSHmaker():
         3D object is created by extruding shapely Polygons.
 
         Args:
-            layer_names (list): names of gmsh layers to build.
+            plan (list): list of tuples with (gmsh layer name, cut_info)
             volume_registry (dict): volumes database
+            plan_id (int): defines the construction logic
+            tool_registry (dict, optional): volumes database for cutting tools. Defaults to None.
 
         Returns:
             dict: updated volume registry containing built Gmsh volume IDs.
@@ -487,7 +496,7 @@ class GMSHmaker():
         Gluing all Volumes together. Handles correctly the shared surfaces between Volumes.
 
         Args:
-            volumes (list): list of all Volumes
+            volume_registry (dict): dict with gmsh layer and corresponding volumes.
 
         Returns:
             list: list of reconfigured Volumes
@@ -549,9 +558,6 @@ class GMSHmaker():
         """
         Defines the physical Surfaces, where voltages will be applied.
 
-        Args:
-            electrodes (dict): electrodes config
-
         Returns:
             dict: populated electrodes config dict
         """
@@ -602,7 +608,7 @@ class GMSHmaker():
         #gmsh_ent_onSurf1 = gmsh.model.occ.getEntitiesInBoundingBox(xmin, ymin, zmin, xmax, ymax, zmax, dim=-1)
 
 
-    def make_box_field_mesh(self, boxes: list[BoxFieldMeshSettings]):
+    def make_box_field_mesh(self, boxes: list[BoxFieldMeshSettings]) -> list[int]:
         """
         Creates box fields for mesh refinement in Gmsh.
         Args:
@@ -627,12 +633,13 @@ class GMSHmaker():
         return box_field_ids
     
 
-    def setup_distance_field_mesh(self, lines: list[LineString], base_z: float, sampling: int=300):
+    def setup_distance_field_mesh(self, lines: list[LineString], base_z: float, sampling: int=300) -> int:
         """ Sets up a distance field mesh in GMSH.
 
         Args:
             lines (list[LineString]): List of shapely LineStrings defining the lines for the distance field.
             base_z (float): The base Z-coordinate for the distance field.
+            sampling (int, optional): Number of sampling points along the lines. Defaults to 300.
 
         Returns:
             int: The ID of the created distance field.
@@ -648,17 +655,20 @@ class GMSHmaker():
         field_id = gmsh.model.mesh.field.add("Distance")
         gmsh.model.mesh.field.setNumbers(field_id, "CurvesList", wires)
         gmsh.model.mesh.field.setNumber(field_id, "Sampling", sampling)
+
         return field_id
 
 
-    def setup_threshold_field_mesh(self, distance_field_id: int, SizeMin: float, SizeMax: float, DistMin: float, DistMax: float):
+    def setup_threshold_field_mesh(self, distance_field_id: int, SizeMin: float, SizeMax: float, DistMin: float, DistMax: float) -> int:
         """ Sets up a threshold field mesh in GMSH.
+
         Args:
             distance_field_id (int): The ID of the distance field to base the threshold on.
             SizeMin (float): Minimum mesh size.
             SizeMax (float): Maximum mesh size.
             DistMin (float): Minimum distance for mesh size transition.
             DistMax (float): Maximum distance for mesh size transition.
+
         Returns:
             int: The ID of the created threshold field.
         """
@@ -674,8 +684,10 @@ class GMSHmaker():
     def make_distance_threshold_field_mesh(self, distances: list[DistanceFieldMeshSettings]) -> list[int]:
         """
         Creates distance and threshold fields for mesh refinement in Gmsh.
+
         Args:
             distances (list[DistanceFieldMeshSettings]): List of distance field configurations.
+
         Returns:
             list (int): List of threshold field IDs created in Gmsh.
         """

@@ -2,10 +2,7 @@ from .gmsher import GMSHmaker, ExtrudeSettings, SurfaceSettings, PECSettings, Me
 from .freefemer import FreeFEM, ExtractConfig, FFconfigurator
 from .fieldreader import FieldAnalyzer, FreeFemResultParser
 from .heliumsurface import GMSHmaker2D, HeliumSurfaceFreeFEM
-from .palacer import (PalaceRunner, PalaceConfig, ProblemConfig, ModelConfig,
-                      MaterialsConfig, PostProEnergyConfig, PostProProbeConfig,
-                      DomainConfig, ElementConfig, LumpedPortConfig, BoundaryConfig,
-                      DrivenConfig, EigenConfig, SolverConfig, ImpedanceConfig)
+
 # from .gmsher import GMSHmaker, gmshLayer_info, physSurface_info
 
 
@@ -24,19 +21,4 @@ __all__ = [
     "HeliumSurfaceFreeFEM",
     "FFconfigurator",
     "FreeFemResultParser",
-    "PalaceRunner",
-    "PalaceConfig",
-    "ProblemConfig",
-    "ModelConfig",
-    "MaterialsConfig",
-    "PostProEnergyConfig",
-    "PostProProbeConfig",
-    "DomainConfig",
-    "ElementConfig",
-    "LumpedPortConfig",
-    "BoundaryConfig",
-    "DrivenConfig",
-    "EigenConfig",
-    "SolverConfig",
-    "ImpedanceConfig",
     ]

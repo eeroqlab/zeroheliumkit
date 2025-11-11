@@ -85,7 +85,7 @@ class BoundaryConfig:
 class DrivenConfig:
     MinFreq: float=1        # GHz
     MaxFreq: float=10       # GHz
-    FreqStep: float=0.1    # GHz
+    FreqStep: float=0.1     # GHz
     Save: list=field(default_factory=lambda: [1,10])
     AdaptiveTol: float=1.0e-3
 
