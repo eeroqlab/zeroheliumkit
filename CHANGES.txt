@@ -6,6 +6,13 @@ Changes
 - naming optimization in Anchors and Skeletone methods
 - removed moveby and move_by_snap -> instead not all handled in 'move' method
 - added hard deprecation warnings to dublicate methods in core.py
+- improved gmsher class (dataclasses added for mesh settings)
+- added surfaces support in gmsher
+- added more mesh settings in gmsher
+- added more examples for gmsher usage
+- small fixes and optimizations
+- added palacer, integration with AWS palacer
+- added tutorial for palacer usage
 
 0.5.2
 ----------------
