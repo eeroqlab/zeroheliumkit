@@ -27,6 +27,7 @@ Classes:
 - FieldAnalyzer: A class for analyzing and plotting field data extracted from FEM simulations.
 """
 
+from zipfile import Path
 import yaml
 import polars as pl
 import numpy as np
@@ -39,6 +40,7 @@ from numpy.typing import ArrayLike
 from scipy.ndimage import gaussian_filter
 from dataclasses import dataclass
 from shapely import Polygon, Point
+from pathlib import Path
 from ..src.settings import GRAY
 
 
@@ -210,7 +212,7 @@ class FreeFemResultParser():
             table.append(row)
         print(tabulate(table, headers=col_names))
 
-
+    
     def load_data(self, savedir: str, fname: str):
         """
         Loads electrode field data from a Parquet file and organizes it into a structured dictionary.
@@ -223,8 +225,8 @@ class FreeFemResultParser():
             dict: A dictionary containing electrode data arrays indexed by slice values, 
             as well as 'xlist' and 'ylist' arrays representing spatial coordinates.
         """
-
-        df = pl.read_parquet(savedir + fname + ".parquet")
+        fullpath = Path(savedir) / Path(fname + ".parquet")
+        df = pl.read_parquet(str(fullpath))
 
         data = {}
 

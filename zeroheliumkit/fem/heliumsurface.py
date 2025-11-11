@@ -6,6 +6,7 @@ from alive_progress import alive_it
 from shapely import Polygon, MultiPolygon, get_coordinates
 from scipy.interpolate import LinearNDInterpolator
 from matplotlib.ticker import MaxNLocator
+from pathlib import Path
 
 
 from zeroheliumkit import Structure, Entity
@@ -259,7 +260,8 @@ class GMSHmaker2D():
         """
         Generates and writes the geometry definition to a file in GMSH format.
         """
-        gmsh.write(self.savedir + self.filename + ".geo_unrolled")
+        fullpath = Path(self.savedir) / Path(self.filename + ".geo_unrolled")
+        gmsh.write(str(fullpath))
     
     def create_mesh(self, dim=2, print_progress=True):
         """
@@ -278,7 +280,8 @@ class GMSHmaker2D():
         try:
             for item in bar:
                 gmsh.model.mesh.generate(dim)
-                gmsh.write(self.savedir + self.filename + ".msh2")
+                fullpath = Path(self.savedir) / Path(self.filename + ".msh2")
+                gmsh.write(str(fullpath))
         except KeyboardInterrupt:
             print('interrupted by user')
         
@@ -361,7 +364,8 @@ class HeliumSurfaceFreeFEM():
 
         code = """load "gmsh"\n"""
         if meshfile_path:
-            code += f"""mesh heliumsurfTh = gmshload("{meshfile_path}{self.fem_config['meshname']}.msh2");\n"""
+            fullpath = Path(meshfile_path) / Path(f"{self.fem_config['meshname']}.msh2")
+            code += f"""mesh heliumsurfTh = gmshload("{str(fullpath)}");\n"""
         else:
             code += f"""mesh heliumsurfTh = gmshload("{self.fem_config['meshname']}.msh2");\n"""
 

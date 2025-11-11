@@ -258,7 +258,7 @@ class FreeFEM():
         code += """load "tetgen"\n"""
         code += "\n"
         path_meshfile = self.savedir / self.config["meshfile"]
-        code += f"""mesh3 Th = gmshload3("{path_meshfile}");\n"""
+        code += f"""mesh3 Th = gmshload3("{str(path_meshfile)}");\n"""
         return code
 
 
@@ -313,7 +313,7 @@ class FreeFEM():
             name = extract_cfg['name']
             code += f"""ofstream {name}"""
             name += f"_{electrode_name}"
-            code += f"""("{self.savedir / name}.npy", binary);\n"""
+            code += f"""("{str(self.savedir / name)}.npy", binary);\n"""
         
         return code
 
@@ -439,7 +439,7 @@ class FreeFEM():
             code (str): code containing the Capacitance Matrix.
         """
         code = headerFrame("START / Calculate Capacitance Matrix")
-        code += f"""ofstream cmextract("{self.savedir / Path('cm_' + electrode_name)}.txt");\n"""
+        code += f"""ofstream cmextract("{str(self.savedir / Path('cm_' + electrode_name))}.txt");\n"""
         code += "\n"
         code += "for(int i = 0; i < numV; i++){\n"
         code += add_spaces(4) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
@@ -498,7 +498,7 @@ class FreeFEM():
         progress = widgets.Label(f"⏳ Running calculations for {edp_file}")
         display(progress)
 
-        bashCommand = ['freefem++', self.savedir / edp_file]
+        bashCommand = ['freefem++', str(self.savedir / edp_file)]
         env = os.environ.copy()
         env['PATH'] += filepath
         process = await asyncio.create_subprocess_exec(
@@ -539,14 +539,14 @@ class FreeFEM():
     def __create_polarsdf(self, filenames: dict, remove_files: bool=True):
         dataframe = pl.DataFrame({})
         for elname, fname in filenames.items():
-            data = pl.read_csv(source=self.savedir / fname,
+            data = pl.read_csv(source=str(self.savedir / fname),
                                has_header=False,
                                new_columns=[elname],
                                schema_overrides={elname: pl.Float64})
 
             dataframe = pl.concat([dataframe, data], how="horizontal")
             if remove_files:
-                os.remove(self.savedir / fname)
+                os.remove(str(self.savedir / fname))
         return dataframe
 
 
@@ -557,7 +557,7 @@ class FreeFEM():
         Args:
             remove_files (bool): Whether or not to remove the .npy files in the user's file system. Defaults to True.
         """
-        yaml_path = self.savedir / "metadata.yaml"
+        yaml_path = str(self.savedir / "metadata.yaml")
         yaml_data = {}
 
         for eo in self.config.get('extract_opt'):
@@ -570,7 +570,7 @@ class FreeFEM():
                 filenames[elname] = exname + "_" + elname + ".npy"
             dataframe = self.__create_polarsdf(filenames, remove_files)
 
-            outfile_path = self.savedir / f"{exname}.parquet" 
+            outfile_path = str(self.savedir / f"{exname}.parquet")
             dataframe.write_parquet(outfile_path, compression="zstd")
 
         yaml_data['Capacitance Matrix'] = self.gather_cm_results(remove_files)
@@ -591,11 +591,11 @@ class FreeFEM():
         capacitance_matrix = []
 
         for electrode in list(self.physicalSurfs.keys()):
-            row = np.loadtxt(self.savedir / f"cm_{electrode}.txt")
+            row = np.loadtxt(str(self.savedir / f"cm_{electrode}.txt"))
             row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
             capacitance_matrix.append(row)
             if remove_original:
-                os.remove(self.savedir / f"cm_{electrode}.txt")
+                os.remove(str(self.savedir / f"cm_{electrode}.txt"))
 
         return capacitance_matrix
 
@@ -610,7 +610,7 @@ class FreeFEM():
         """
         curr_date = datetime.now()
         try:
-            with open(self.savedir / 'ff_history.md', 'r+', encoding='utf-8') as hist:
+            with open(str(self.savedir / 'ff_history.md'), 'r+', encoding='utf-8') as hist:
                 contents = hist.read()
                 start_header = contents.find("\n")
                 iteration = int(contents[0:start_header]) + 1 if contents else 1
@@ -662,7 +662,7 @@ class FreeFEM():
         names = list(self.physicalSurfs.keys())
 
         pattern = rf'^##\s+\[({iteration})]'
-        with open(self.savedir / "ff_history.md", 'r+') as hist:
+        with open(str(self.savedir / "ff_history.md"), 'r+') as hist:
             history_content = hist.read()
             match = re.search(pattern, history_content, re.MULTILINE)
 
@@ -741,18 +741,18 @@ class FreeFEM():
             self.logs += message
 
         finally:
-            with open(self.savedir / 'ff_logs.txt', 'w') as outfile:
+            with open(str(self.savedir / 'ff_logs.txt'), 'w') as outfile:
                 outfile.write(self.logs)
                 
             self.gather_results(remove_txt_files)
 
             filename = self.electrode_files[0]
-            with open(self.savedir / filename, 'r') as file:
+            with open(str(self.savedir / filename), 'r') as file:
                 skel_name = self.electrode_files[0].split('_')[-1]
                 skel_name = skel_name.split(".")[0]
                 edp_skel = file.read()
             for file in self.electrode_files:
-                os.remove(self.savedir / file)
+                os.remove(str(self.savedir / file))
             self.electrode_files.clear()
 
             end_time = time.perf_counter()
@@ -768,8 +768,8 @@ class FreeFEM():
         for file in os.listdir(f'{self.savedir}'):
             if file.startswith("ff_data") and file not in keep_files:
                 print(f'Cleaning {file} from directory')
-                os.remove(self.savedir / file)
-            
+                os.remove(str(self.savedir / file))
+
             if ".npy" in file and file not in keep_files:
                 print(f'Cleaning {file} from directory')
-                os.remove(self.savedir / file)
+                os.remove(str(self.savedir / file))

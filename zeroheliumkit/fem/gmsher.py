@@ -14,6 +14,7 @@ from shapely import Polygon, MultiPolygon, LineString, MultiLineString, get_coor
 from alive_progress import alive_it
 from dataclasses import dataclass, field, asdict
 from tabulate import tabulate
+from pathlib import Path
 
 
 #---------------------------------------------
@@ -181,7 +182,7 @@ class GMSHmaker():
                  surfaces: SurfaceSettings=None,
                  pecs: PECSettings=None,
                  mesh: MeshSettings=None,
-                 save: dict={"dir": "dump/", "filename": "device"},
+                 save: dict={"dir": "dump", "filename": "device"},
                  open_gmsh: bool=False,
                  debug_mode: bool=False):
         
@@ -726,8 +727,8 @@ class GMSHmaker():
 
 
     def create_geo(self):
-        gmsh.write(self.save["dir"] + self.save["filename"] + ".geo_unrolled")
-
+        fullpath = Path(self.save["dir"]) / Path(self.save["filename"] + ".geo_unrolled")
+        gmsh.write(str(fullpath))
 
     def create_mesh(self, dim=2):
         """
@@ -749,7 +750,8 @@ class GMSHmaker():
                 gmsh.model.mesh.setOrder(1)
                 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
                 gmsh.option.setNumber("Mesh.Binary", 0)
-                gmsh.write(self.save["dir"] + self.save["filename"] + ".msh2")
+                fullpath = Path(self.save["dir"]) / Path(self.save["filename"] + ".msh")
+                gmsh.write(str(fullpath))
                 print("mesh saved")
         except KeyboardInterrupt:
             print('interrupted by user')
@@ -797,7 +799,8 @@ class GMSHmaker():
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
         os.makedirs(self.save["dir"], exist_ok=True)
-        with open(self.save["dir"] + self.save["filename"] + ".yaml", 'w') as file:
+        fullpath = Path(self.save["dir"]) / Path(self.save["filename"] + ".yaml")
+        with open(str(fullpath), 'w') as file:
             yaml.safe_dump(gmsh_config, file, sort_keys=False, indent=3)
     
 
