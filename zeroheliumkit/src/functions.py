@@ -117,3 +117,19 @@ def create_boundary_anchors(polygon: Polygon, locs_cfg: list) -> list:
         anchors.append(Anchor(pt, norm_angle, label))
 
     return anchors
+
+
+def generate_random_anchors(n: int, x_range: tuple, y_range: tuple) -> list:
+    """ 
+    Generates a list of random Anchor objects within specified x and y ranges.
+
+    Args:
+        n (int): Number of random anchors to generate.
+        x_range (tuple): Range for x coordinates (min, max).
+        y_range (tuple): Range for y coordinates (min, max).
+
+    Returns:
+        list: A list of Anchor objects with random coordinates.
+    """
+    from random import uniform
+    return [Anchor(Point(uniform(*x_range), uniform(*y_range)), uniform(0, 360), f"anchor_{i}") for i in range(n)]

@@ -23,9 +23,9 @@ from shapely import (affinity, unary_union,
 from .plotting import plot_geometry, interactive_widget_handler, tuplify_colors, draw_labels, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
-
 from .anchors import Anchor, MultiAnchor, Skeletone
-from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior
+from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior, split_polygon
+from .errors import hard_deprecated
 
 
 class Base:
@@ -341,7 +341,7 @@ class Base:
 
 
     ## just note that it has that length
-    def remove_holes_from_polygons(self, lname: str):
+    def remove_holes_from_polygons(self, lname: str, cut_position: float=None):
         """
         Removes any holes from a multipolygon in a layer by vertically cutting along the centroid of each hole and piecing together the remaining Polygon geometries.
         Vertical cut is made with a default length of 1e6. 
@@ -350,7 +350,21 @@ class Base:
             lname (str): Name of the layer where polygons with holes are located.
         """
         polygons = getattr(self, lname)
-        setattr(self, lname, flatten_multipolygon(polygons))
+        setattr(self, lname, flatten_multipolygon(polygons, cut_position))
+
+
+    def slice_layer(self, lname: str, slice_line: list[LineString]):
+        """
+        Slices polygons in a layer using a given line.
+
+        Args:
+            lname (str): The name of the layer.
+            slice_line (LineString): The line used for slicing.
+        """
+        polygons = getattr(self, lname)
+        for slice in slice_line:
+            polygons = split_polygon(polygons, slice)
+        setattr(self, lname, polygons)
     
 
     def remove_polygon(self, lname: str, polygon_id: int | tuple | list):
@@ -449,10 +463,13 @@ class Entity(Base):
         """
         Removes all layers with empty polygons  
         """
+        empty_layers = []
         for lname in self.layers:
             geom = getattr(self, lname)
             if geom.is_empty:
+                empty_layers.append(lname)
                 delattr(self, lname)
+        self.layers = [lname for lname in self.layers if lname not in empty_layers]
 
 
     ################################
@@ -479,53 +496,62 @@ class Entity(Base):
         return self
 
 
-    def moveby(self, xy: tuple=(0,0)):
+    def move(self, xy: tuple=(0,0), *, anchor: str=None, to_point: tuple | str | Point=None):
         """
-        Move objects by the specified x and y offsets.
+        Move objects either by an (x, y) offset OR by snapping one anchor to another point.
 
         Args:
-            xy (tuple, optional): The x and y offsets to move the geometry by. Defaults to (0, 0).
-        
-        Returns:
-            Updated instance (self) of the class with all objects moved.
-        """
-        for l in self.layers:
-            translated_geometry = affinity.translate(getattr(self, l),
-                                                     xoff = xy[0],
-                                                     yoff = xy[1])
-            setattr(self, l, translated_geometry)
-
-        self.skeletone.move(*xy)
-        self.anchors.move(*xy)
-        return self
-
-
-    def moveby_snap(self, anchor: str, to_point: tuple | str | Point):
-        """
-        Move objects by snapping it to a new anchor point or coordinates.
-
-        Args:
-            anchor (str): The name of the anchor point to move from.
-            to_point (str | tuple | Point): The new anchor point or coordinates to snap to.
+            xy (tuple, optional): The (x, y) offset to move by. Defaults to (0, 0).
+            anchor (str, optional): The name of the anchor to move from (for snapping).
+            to_point (tuple | str | Point, optional): The target anchor, coordinates, or Point to snap to.
 
         Raises:
-            ValueError: If the type of 'to_point' is not supported.
+            ValueError: If both `xy` and (`anchor`, `to_point`) are provided at the same time,
+                        or if `to_point` has an unsupported type.
 
         Returns:
-            Updated instance (self) of the class with all objects moved to the new anchor point.
+            self: Updated instance with all geometries moved.
+        
+        Example:
+            >>> e = Entity()
+            >>> e.move((10, 5))  # Moves all geometries by (10, 5)
+            >>> e.move(anchor='anchor1', to_point=(20, 30))  # Snaps 'anchor1' to (20, 30) and moves all geometries accordingly.
         """
-        old_anchor_coord = self.anchors[anchor].coords
-        if isinstance(to_point, tuple):
-            new_anchor_coord = to_point
-        elif isinstance(to_point, str):
-            new_anchor_coord = self.anchors[to_point].coords
-        elif isinstance(to_point, Point):
-            new_anchor_coord = to_point.xy
+        if xy != (0,0) and (anchor is not None or to_point is not None):
+            raise ValueError("Either 'xy' or ('anchor', 'to_point') must be provided, not both.")
+
+        elif (anchor is not None) or (to_point is not None):
+            # --- Snap mode ---
+            if (anchor is None) or (to_point is None):
+                raise ValueError("Both 'anchor' and 'to_point' must be provided for snapping.")
+
+            old_anchor_coord = self.anchors[anchor].coords
+
+            if isinstance(to_point, tuple):
+                new_anchor_coord = to_point
+            elif isinstance(to_point, str):
+                new_anchor_coord = self.anchors[to_point].coords
+            elif isinstance(to_point, Point):
+                new_anchor_coord = to_point.xy
+            else:
+                raise ValueError("Unsupported type for 'to_point'")
+
+            dxdy = (new_anchor_coord[0] - old_anchor_coord[0],
+                    new_anchor_coord[1] - old_anchor_coord[1])
         else:
-            raise ValueError("not supported type for 'to_point'")
-        dxdy = (new_anchor_coord[0] - old_anchor_coord[0],
-                new_anchor_coord[1] - old_anchor_coord[1])
-        self.moveby(dxdy)
+            # --- Direct offset mode ---
+            dxdy = xy
+
+        # Apply movement to all geometry layers
+        for l in self.layers:
+            translated_geometry = affinity.translate(getattr(self, l),
+                                                    xoff=dxdy[0],
+                                                    yoff=dxdy[1])
+            setattr(self, l, translated_geometry)
+
+        self.skeletone.move(*dxdy)
+        self.anchors.move(*dxdy)
+
         return self
 
 
@@ -593,7 +619,7 @@ class Entity(Base):
     ###############################
     #### Operations on anchors ####
     ###############################
-
+    @hard_deprecated(alternative=".anchors.add()", since="0.5.2")
     def add_anchor(self, points: list[Anchor] | Anchor):
         """
         Adds specified anchors to the 'anchors' attribute.
@@ -607,7 +633,7 @@ class Entity(Base):
         self.anchors.add(points)
         return self
 
-
+    @hard_deprecated(alternative=".anchors[label_name]", since="0.5.2")
     def get_anchor(self, label: str) -> Anchor:
         """
         Returns the Anchor class with the given label.
@@ -620,7 +646,7 @@ class Entity(Base):
         """
         return self.anchors[label]
 
-
+    @hard_deprecated(alternative=".anchors.modify()", since="0.5.2")
     def modify_anchor(self,
                       label: str,
                       new_name: str=None,
@@ -640,7 +666,7 @@ class Entity(Base):
                             new_xy=new_xy,
                             new_direction=new_direction)
 
-    
+    @hard_deprecated(alternative=".anchors.remove()", since="0.5.2")
     def remove_anchor(self, *args: str) -> None:
         """
         Remove anchors from the Entity.
@@ -666,7 +692,7 @@ class Entity(Base):
     #############################
     #### Operations on lines ####
     #############################
-
+    @hard_deprecated(alternative=".skeletone.add()", since="0.5.2")
     def add_line(self,
                  line: LineString,
                  direction: float=None,
@@ -684,10 +710,10 @@ class Entity(Base):
         Returns:
             Updated instance (self) of the class with the new line added to the skeletone.
         """
-        self.skeletone.add_line(line, direction, ignore_crossing, chaining)
+        self.skeletone.add(line, direction, ignore_crossing, chaining)
         return self
 
-
+    @hard_deprecated(alternative=".skeletone.buffer()", since="0.5.2")
     def buffer_line(self, name: str, offset: float, color: str=None, alpha: float=1.0, **kwargs) -> None:
         """
         Create a new layer (attribute) by buffering the skeleton.
@@ -704,7 +730,7 @@ class Entity(Base):
         self.add_layer(name, self.skeletone.lines.buffer(offset, **kwargs), color, alpha)
         return self
 
-
+    @hard_deprecated(alternative=".skeletone.fix()", since="0.5.2")
     def fix_line(self):
         """ 
         Fixes the skeletone by merging the lines.
@@ -715,7 +741,7 @@ class Entity(Base):
         self.skeletone.fix()
         return self
 
-
+    @hard_deprecated(alternative=".skeletone.remove()", since="0.5.2")
     def remove_skeletone(self):
         """
         Resets the skeletone attribute to a new Skeletone instance.
@@ -726,7 +752,7 @@ class Entity(Base):
         self.skeletone = Skeletone()
         return self
     
-
+    @hard_deprecated(alternative=".skeletone.remove()", since="0.5.2")
     def remove_line(self, line_id: int | tuple | list):
         """
         Removes a line from the skeletone.
@@ -737,7 +763,7 @@ class Entity(Base):
         Returns:
             Updated instance (self) of the class with the specified line removed from the skeletone.
         """
-        self.skeletone.remove_line(line_id)
+        self.skeletone.remove(line_id)
         return self
 
 
@@ -764,9 +790,9 @@ class Entity(Base):
     #### Exporting operations ####
     ##############################
 
-    def get_zhk_dict(self, flatten_polygon: bool=False) -> dict:
+    def get_geoms(self, flatten_polygon: bool=False) -> dict:
         """ 
-        Returns all layer names and their corresponding geometries in a Dictionary.
+        Returns all layer names and their corresponding geometries in a Dictionary. Includes anchors and skeletone.
 
         Args:
             flatten_polygon (bool, optional): Flag to remove holes from polygons. Defaults to False.
@@ -792,7 +818,7 @@ class Entity(Base):
         Args:
             filename (str): The name of the pickle file to be exported.
         """
-        zhkdict = self.get_zhk_dict()
+        zhkdict = self.get_geoms()
         zhkdict["colors"] = self.colors
         exp = Exporter_Pickle(filename, zhkdict)
         exp.save()
@@ -807,7 +833,7 @@ class Entity(Base):
             layer_cfg (dict): A dictionary containing the layer configuration.
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
-        zhkdict = self.get_zhk_dict(flatten_polygon=True)
+        zhkdict = self.get_geoms(flatten_polygon=True)
         exp = Exporter_GDS(filename, zhkdict, layer_cfg)
         exp.save()
 
@@ -820,7 +846,7 @@ class Entity(Base):
             filename (str): The name of the dxf file to be exported.
             layer_cfg (dict): A list of layer to be exported.
         """
-        zhkdict = self.get_zhk_dict(flatten_polygon=True)
+        zhkdict = self.get_geoms(flatten_polygon=True)
         exp = Exporter_DXF(filename, zhkdict, layer_cfg)
         exp.save()
 
@@ -831,7 +857,7 @@ class Entity(Base):
 
     def quickplot(self, color_config: dict=None, zoom: tuple=None,
                   ax=None, show_idx: bool=False, labels: bool=False, 
-                  draw_anchor_dir: bool=True, **kwargs) -> None:
+                  draw_anchor_dir: bool=True, off: list=[], **kwargs) -> None:
         """
         Plots the Entity object with predefined colors for each layer.
 
@@ -858,6 +884,7 @@ class Entity(Base):
             _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
 
         #plot layers
+        plot_config = {k:v for k,v in plot_config.items() if k not in off}
         layer_colors = [plot_config[k] for k in plot_config]
         layers = list(plot_config.keys())
         self.plot(ax=ax, layer=layers, color=layer_colors, show_idx=show_idx, labels=labels, **kwargs)
@@ -928,15 +955,15 @@ class Structure(Entity):
 
         # snapping direction
         if direction_snap:
-            angle = - s.get_anchor(anchoring[1]).direction + self.get_anchor(anchoring[0]).direction
+            angle = - s.anchors[anchoring[1]].direction + self.anchors[anchoring[0]].direction
             s.rotate(angle, origin=(0, 0))
 
         # snapping anchors
         if anchoring:
-            c_point = self.get_anchor(anchoring[0])
-            a_point = s.get_anchor(anchoring[1])
+            c_point = self.anchors[anchoring[0]]
+            a_point = s.anchors[anchoring[1]]
             offset = (c_point.x - a_point.x, c_point.y - a_point.y)
-            s.moveby(offset)
+            s.move(xy=offset)
 
         # appending polygons
         for a in self.layers:
@@ -949,7 +976,7 @@ class Structure(Entity):
             setattr(self, a, value)
 
         # appending skeletones
-        self.skeletone.add_line(s.skeletone.lines, ignore_crossing=True, chaining=False)
+        self.skeletone.add(s.skeletone.lines, ignore_crossing=True, chaining=False)
 
         # updating anchor labels in the appending structure
         if upd_alabels:
@@ -958,12 +985,13 @@ class Structure(Entity):
 
         # remove or not to remove anchor after appending
         if remove_anchor is True:
-            self.remove_anchor(anchoring[0])
-            s.remove_anchor(anchoring[1])
+            self.anchors.remove(anchoring[0])
+            s.anchors.remove(anchoring[1])
         elif isinstance(remove_anchor, str):
-            self.remove_anchor(remove_anchor)
-            s.remove_anchor(remove_anchor)
-        self.add_anchor(s.anchors.multipoint)
+            self.anchors.remove(remove_anchor)
+            s.anchors.remove(remove_anchor)
+        self.anchors.add(s.anchors.multipoint)
+        del s
 
         return self
 

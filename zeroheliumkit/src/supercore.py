@@ -140,18 +140,18 @@ class SuperStructure(Structure):
             cap_style (str, optional):
                 The cap style for the buffered line. Defaults to "flat".
         """
-        p_start = self.get_anchor(anchors[0]).point
-        p_end = self.get_anchor(anchors[-1]).point
+        p_start = self.anchors[anchors[0]].point
+        p_end = self.anchors[anchors[-1]].point
 
         if airbridge:
-            if not airbridge.anchors.label_exist(['in', 'out']):
+            if not airbridge.anchors.has_label(['in', 'out']):
                 raise TypeError("airbridge anchors could be only 'in' and 'out'")
         
         # getting route line along the anchor points
         route_line = LineString()
         for labels in zip(anchors, anchors[1:]):
-            line = create_route(a1=self.get_anchor(labels[0]),
-                                a2=self.get_anchor(labels[1]),
+            line = create_route(a1=self.anchors[labels[0]],
+                                a2=self.anchors[labels[1]],
                                 radius=self._route_config.get("radius"),
                                 num_segments=self._route_config.get("num_segments"),
                                 print_status=print_status,
@@ -177,7 +177,7 @@ class SuperStructure(Structure):
             self.bufferize_routing_line(route_line, layers, keep_line=False, cap_style=cap_style)
             # remove or not to remove route line
             if not rm_route:
-                self.add_line(route_line, chaining=False, ignore_crossing=True)
+                self.skeletone.add(route_line, chaining=False, ignore_crossing=True)
 
         else:
             # getting list of distances of airbridge locations from starting point
@@ -198,27 +198,28 @@ class SuperStructure(Structure):
 
                 ab = airbridge.copy()
                 ab.rotate(angle=ab_angle)
-                ab.moveby(xy=ab_coords)
+                ab.move(xy=ab_coords)
 
                 # correcting the orientation of the airbridge if 'in' and 'out' are swapped
-                distance2in  = distance(ab.get_anchor("in").point,  self.get_anchor(route_anchors[-1]).point)
-                distance2out = distance(ab.get_anchor("out").point, self.get_anchor(route_anchors[-1]).point)
+                distance2in  = distance(ab.anchors["in"].point,  self.anchors[route_anchors[-1]].point)
+                distance2out = distance(ab.anchors["out"].point, self.anchors[route_anchors[-1]].point)
                 if distance2out < distance2in:
                     ab.rotate(180, origin=ab_coords)
 
                 for label in ['in', 'out']:
                     temporary_name = str(i) + label
-                    ab.modify_anchor(label=label,
-                                     new_name=temporary_name)
+                    ab.anchors.modify(label=label,
+                                      new_name=temporary_name)
                     route_anchors.append(temporary_name)
                     temporary_anchors.append(temporary_name)
+
                 self.append(ab)
             route_anchors.append(anchors[1])
 
             # adding all routes between airbridge anchors
             for labels in zip(route_anchors[::2], route_anchors[1::2]):
-                route_line = create_route(a1=self.get_anchor(labels[0]),
-                                          a2=self.get_anchor(labels[1]),
+                route_line = create_route(a1=self.anchors[labels[0]],
+                                          a2=self.anchors[labels[1]],
                                           radius=self._route_config.get("radius"),
                                           num_segments=self._route_config.get("num_segments"),
                                           print_status=print_status,
@@ -226,16 +227,16 @@ class SuperStructure(Structure):
                 self.bufferize_routing_line(route_line, layers, keep_line=False)
                 # remove or not to remove route line
                 if not rm_route:
-                    self.add_line(route_line, chaining=False, ignore_crossing=True)
+                    self.skeletone.add(route_line, chaining=False, ignore_crossing=True)
 
             # remove temporary anchors
-            self.remove_anchor(temporary_anchors)
+            self.anchors.remove(temporary_anchors)
 
         # remove or not to remove anchors used for routing
         if rm_anchor==True:
-            self.remove_anchor(anchors)
+            self.anchors.remove(anchors)
         elif isinstance(rm_anchor, (str, tuple)):
-            self.remove_anchor(rm_anchor)
+            self.anchors.remove(rm_anchor)
 
 
     def add_along_skeletone(self,
@@ -274,8 +275,8 @@ class SuperStructure(Structure):
         if len(bound_anchors) != 2:
             raise WrongSizeError(f"Provide 2 anchors! Instead {len(bound_anchors)} is given.")
 
-        p1 = self.get_anchor(bound_anchors[0]).point
-        p2 = self.get_anchor(bound_anchors[1]).point
+        p1 = self.anchors[bound_anchors[0]].point
+        p2 = self.anchors[bound_anchors[1]].point
 
         if line_idx:
             line = self.skeletone.lines.geoms[line_idx]
@@ -285,7 +286,7 @@ class SuperStructure(Structure):
         start_point = line_locate_point(line, p1, normalized=True)
         end_point = line_locate_point(line, p2, normalized=True)
         
-        extra_rotation = 0
+        extra_rotation = 0            
         if locs is None:
             if isinstance(endpoints, tuple):
                 i1, i2 = get_endpoint_indices(endpoints)
@@ -298,12 +299,13 @@ class SuperStructure(Structure):
             extra_rotation = 90
 
         pts = line_interpolate_point(line, locs, normalized=normalized).tolist()
-        normal_angles = get_normals_along_line(line, locs) + extra_rotation   # figure out why extra_rotation is added
+        normal_angles = get_normals_along_line(line, locs, normalized) + extra_rotation   # figure out why extra_rotation is added
 
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
             s.rotate(angle + additional_rotation)
-            s.moveby(xy=(point.x, point.y))
+            s.move(xy=(point.x, point.y))
+            s.anchors.remove()
             self.append(s)
 
 
@@ -335,7 +337,7 @@ class SuperStructure(Structure):
         """
         s = Structure()
         if keep_line:
-            s.add_line(line)
+            s.skeletone.add(line)
 
         if layers:
             for k, width in layers.items():
@@ -391,7 +393,7 @@ class SuperStructure(Structure):
             setattr(self, l, unary_union([base, rounded]))
 
 
-    def round_corner(self, layer: str, around_point: tuple | Point, radius: float, **kwargs) -> "SuperStructure":
+    def round_corner(self, layers: str | list[str], around_point: tuple | Point, radius: float, **kwargs) -> "SuperStructure":
         """ 
         Rounds the corner of the polygon closest to a given Point in a specific layer.
 
@@ -407,9 +409,12 @@ class SuperStructure(Structure):
         """
         if isinstance(around_point, tuple):
             around_point = Point(around_point)
-        original = getattr(self, layer)
-        rounded = round_corner(original, around_point, radius, **kwargs)
-        setattr(self, layer, rounded)
+        if isinstance(layers, str):
+            layers = [layers]
+        for layer in layers:
+            original = getattr(self, layer)
+            rounded = round_corner(original, around_point, radius, **kwargs)
+            setattr(self, layer, rounded)
 
         return self
 
@@ -505,10 +510,10 @@ class ContinuousLineBuilder():
         """
 
         new_line = LineString([(0,0), (length,0)])
-        self.skeletone.add_line(line = new_line,
-                                direction = self.absolute_angle,
-                                ignore_crossing = True,
-                                chaining = True)
+        self.skeletone.add(line = new_line,
+                           direction = self.absolute_angle,
+                           ignore_crossing = True,
+                           chaining = True)
         if self.starting_coords:
             self.skeletone.move(*self.starting_coords)
             self.starting_coords = None
@@ -533,10 +538,10 @@ class ContinuousLineBuilder():
                            start_angle = -np.sign(angle) * 90,
                            end_angle = -np.sign(angle) * 90 + angle,
                            numsegments = num_segments)
-        self.skeletone.add_line(line = new_line,
-                                direction = self.absolute_angle,
-                                ignore_crossing = True,
-                                chaining = True)
+        self.skeletone.add(line = new_line,
+                           direction = self.absolute_angle,
+                           ignore_crossing = True,
+                           chaining = True)
         self.absolute_angle = fmodnew(self.absolute_angle + angle)
         return self
 
@@ -619,10 +624,10 @@ class ContinuousLineBuilder():
                                 self.routing.radius,
                                 self.routing.num_segments,
                                 **kwargs)
-        self.skeletone.add_line(line = new_line,
-                                direction = None,
-                                ignore_crossing = True,
-                                chaining = False)
+        self.skeletone.add(line = new_line,
+                           direction = None,
+                           ignore_crossing = True,
+                           chaining = False)
         self.skeletone.fix()
         self.absolute_angle = anchor.direction
         self.anchors.remove("temp")
@@ -695,7 +700,7 @@ class ContinuousLineBuilder():
         for point, angle in zip(pts, normal_angles):
             s = self.objs_along.structure.copy()
             s.rotate(angle + self.objs_along.additional_rotation + 90)
-            s.moveby(xy=(point.x, point.y))
+            s.move(xy=(point.x, point.y))
             self.structure.append(s)
 
         return self
@@ -712,6 +717,30 @@ class ContinuousLineBuilder():
         if self.objs_along:
             self.add_along_skeletone()
         return self
+
+
+    def add_obj(self, obj: Structure, dir_snap: bool=True, add_rotation: float=None):
+        """
+        Adds a copy of the given Structure object to the current point in a Line, applying optional rotation and directional snapping.
+
+        Args:
+            obj (Structure): The structure object to be added.
+            dir_snap (bool, optional): If True, aligns the object's rotation to the absolute angle of the current instance. Defaults to True.
+            add_rotation (float, optional): An additional rotation (in degrees) to apply to the object before snapping. Defaults to None.
+        Returns:
+            None
+        """
+
+        s = obj.copy()
+        if add_rotation:
+            s.rotate(add_rotation)
+        if dir_snap:
+            s.rotate(self.absolute_angle)
+
+        _, end_p = self.skeletone.boundary
+        s.move((end_p.x, end_p.y))
+
+        self.structure.append(s)
 
 
     def taper(self, length: float|int, layers: dict):

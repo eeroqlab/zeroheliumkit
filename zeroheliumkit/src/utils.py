@@ -349,13 +349,15 @@ def get_intersection_point_bruteforce(p1: Point, p2: Point, p3: Point, p4: Point
 
 
 def get_normals_along_line(line: LineString | MultiLineString,
-                           locs: float | list) -> list:
+                           locs: float | list,
+                           norm: bool=True) -> list:
     """ 
     Calculates normal angles of a line at desired locations.
 
     Args:
         line (LineString | MultiLineString): The given line.
-        locs (float | list): The point locations along the line. It should be normalized.
+        locs (float | list): The point locations along the line.
+        norm (bool, optional): If True, locs are treated as normalized values (0 to 1). Defaults to True.
 
     Returns:
         normal_angles(list): A list of normal angles at the specified locations.
@@ -379,9 +381,8 @@ def get_normals_along_line(line: LineString | MultiLineString,
         epsilon_down[0] = 0.0
     elif locs[-1]==1:
         epsilon_up[-1] = 0.0
-
-    pts_up = line_interpolate_point(line, locs + epsilon_up, normalized=True).tolist()
-    pts_down = line_interpolate_point(line, locs - epsilon_down, normalized=True).tolist()
+    pts_up = line_interpolate_point(line, locs + epsilon_up, normalized=norm).tolist()
+    pts_down = line_interpolate_point(line, locs - epsilon_down, normalized=norm).tolist()
     normal_angles = np.asarray(list(map(azimuth, pts_down, pts_up))) + 90
 
     if not float_indicator:
@@ -456,7 +457,7 @@ def has_interior(p: Polygon) -> bool:
     return False if not list(p.interiors) else True
 
 
-def flatten_polygon(p: Polygon) -> MultiPolygon:
+def flatten_polygon(p: Polygon, cut_position: float=None) -> MultiPolygon:
     """
     Creates a cut line along the centroid of each hole and dissects the polygon.
     1e6 is the length of the cut line. ## (is this a weird way to say it?)
@@ -481,20 +482,45 @@ def flatten_polygon(p: Polygon) -> MultiPolygon:
     if has_interior(p):
         disected_all = []
         for interior in p.interiors:
-            com = centroid(interior)
-            cut_line = LineString([(com.x, -YCOORD), (com.x, YCOORD)])
-            disected = ops.split(multipolygon, cut_line)
-            multipolygonlist = []
-            for geom in list(disected.geoms):
-                if isinstance(geom, Polygon):
-                    multipolygonlist += [geom]
-            multipolygon = MultiPolygon(multipolygonlist)
+            if cut_position is None:
+                com = centroid(interior)
+                cut_line = LineString([(com.x, -YCOORD), (com.x, YCOORD)])
+            else:
+                cut_line = LineString([(cut_position, -YCOORD), (cut_position, YCOORD)])
+
+            multipolygon = split_polygon(multipolygon, cut_line)
             disected_all += list(multipolygon.geoms)
         return multipolygon
     return multipolygon
 
 
-def flatten_multipolygon(mp: MultiPolygon) -> MultiPolygon:
+def split_polygon(polygon: Polygon | MultiPolygon, splitter: LineString) -> MultiPolygon:
+    """ 
+    Splits a polygon using a given LineString.
+
+    Args:
+        polygon (Polygon | MultiPolygon): The polygon to be split.
+        splitter (LineString): The LineString used to split the polygon.
+
+    Returns:
+        MultiPolygon: A MultiPolygon object containing the resulting polygons after the split.
+
+    Example:
+        >>> polygon = Polygon([(0, 0), (2, 0), (2, 2), (0, 2)])
+        >>> splitter = LineString([(1, -1), (1, 3)])
+        >>> result = split_polygon(polygon, splitter)
+        >>> print(result)
+            MULTIPOLYGON ...
+    """
+    split_result = ops.split(polygon, splitter)
+    polygons = []
+    for geom in list(split_result.geoms):
+        if isinstance(geom, Polygon):
+            polygons.append(geom)
+    return MultiPolygon(polygons)
+
+
+def flatten_multipolygon(mp: MultiPolygon, cut_position: float=None) -> MultiPolygon:
     """ 
     Removes holes from a MultiPolygon object containing Polygons with holes.
 
@@ -515,7 +541,7 @@ def flatten_multipolygon(mp: MultiPolygon) -> MultiPolygon:
         mp = MultiPolygon([mp])
     p_list = []
     for p in mp.geoms:
-        polys_with_no_holes = flatten_polygon(p)
+        polys_with_no_holes = flatten_polygon(p, cut_position)
         p_list += list(polys_with_no_holes.geoms)
     return MultiPolygon(p_list)
 

@@ -407,11 +407,11 @@ class FreeFEM():
         if not config.get('curvature_config'):
             code += add_spaces(4) + "real ax3 = zcoords[m];\n"
         # second for loop
-        code += add_spaces(4) + "for(int i = 0; i < n1; i++){\n"
-        code += add_spaces(8) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
+        code += add_spaces(8) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
         # third for loop
-        code += add_spaces(8) + "for(int j = 0; j < n2; j++){\n"
-        code += add_spaces(12) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
+        code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         if config.get('curvature_config'):
             code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {config.get('curvature_config')['displacement']}(ax1,ax2);\n"
         

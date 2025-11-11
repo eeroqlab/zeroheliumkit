@@ -383,7 +383,7 @@ class ColorHandler():
         return self
 
 
-    def move_layer_back(self, layer: str, move_by: int):
+    def move_layer_back(self, layer: str, move_by: int=1):
         """
         Moves a layer back by a given number of indices in the color dictionary.
 

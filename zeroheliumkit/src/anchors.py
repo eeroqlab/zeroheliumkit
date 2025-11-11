@@ -415,7 +415,7 @@ class MultiAnchor():
             raise TypeError("label must be a string or an integer")
         
 
-    def label_exist(self, label: str | list) -> bool:
+    def has_label(self, label: str | list) -> bool:
         """ 
         Checks if a label exists in the list of labels.
 
@@ -546,22 +546,24 @@ class MultiAnchor():
         return self
 
 
-    def remove(self, labels: list | str) -> 'MultiAnchor':
+    def remove(self, *args: str) -> 'MultiAnchor':
         """ 
         Removes the specified anchors from the multipoint.
 
         Parameters
         ----------
-        labels : list or str
-            The anchors to be removed.
+        args : str
+            The labels of the anchors to be removed. If no arguments are provided, all anchors will be removed.
 
         Returns
         -------
             Updated instance (self) of the class with the specified anchors removed.
         """
-        if isinstance(labels, str):
-            labels = [labels]
-        S1 = set(self[labels])
+        if not args:
+            self.multipoint = []
+            return self
+
+        S1 = set(self[args])
         S2 = set(self.multipoint)
         self.multipoint = list(S2.difference(S1))
 
@@ -617,7 +619,7 @@ class MultiAnchor():
         if not isinstance(points, list):
             points = [points]
         for p in points:
-            if self.label_exist(p.label):
+            if self.has_label(p.label):
                 raise ValueError(f"""point label {p} already exists in MultiAnchor.
                                  Choose different label name.""")
         self.multipoint += points
@@ -659,7 +661,7 @@ class Skeletone():
         >>> from shapely.geometry import MultiLineString, LineString
         >>> skeletone = Skeletone(MultiLineString([LineString([(0, 0), (1, 1)])]))
         <SKELETONE MULTILINESTRING ((0 0, 1 1))>
-        >>> skeletone.add_line(LineString([(1, 1), (2, 2)]))
+        >>> skeletone.add(LineString([(1, 1), (2, 2)]))
         >>> print(skeletone.length)
         2.8284271247461903
         >>> skeletone.rotate(90, origin=(0, 0))
@@ -797,11 +799,11 @@ class Skeletone():
         return self
 
 
-    def add_line(self,
-                 line: LineString,
-                 direction: float=None,
-                 ignore_crossing=False,
-                 chaining=True) -> 'Skeletone':
+    def add(self,
+            line: LineString,
+            direction: float=None,
+            ignore_crossing=False,
+            chaining=True) -> 'Skeletone':
         """ 
         Appends a LineString to the skeleton.
 
@@ -827,7 +829,7 @@ class Skeletone():
         return self
 
 
-    def remove_line(self, line_id: int | tuple | list) -> 'Skeletone':
+    def remove(self, line_id: int | tuple | list = None) -> 'Skeletone':
         """ 
         Remove a line from the skeletone
 
@@ -839,6 +841,10 @@ class Skeletone():
         -------
             Updated instance (self) of the class with the specified line removed.
         """
+        if not line_id:
+            self.lines = MultiLineString()
+            return self
+
         if isinstance(line_id, int):
             line_id = [line_id]
 
@@ -862,7 +868,7 @@ class Skeletone():
         return self
 
 
-    def cut_with_polygon(self, polygon) -> 'Skeletone':
+    def trim_line(self, polygon) -> 'Skeletone':
         """ 
         Cuts the skeletone with a polygon.
 

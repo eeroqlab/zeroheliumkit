@@ -9,95 +9,153 @@
 
 import gmsh
 import sys, os, yaml
-import numpy as np
 
-from shapely import Polygon, MultiPolygon, get_coordinates
+from shapely import Polygon, MultiPolygon, LineString, MultiLineString, get_coordinates, point_on_surface
 from alive_progress import alive_it
-from pathlib import Path
-
-from ..src.core import Structure, Entity
+from dataclasses import dataclass, field, asdict
+from tabulate import tabulate
 
 
 #---------------------------------------------
 # some useful functions
 
-def gmshLayer_info(ref_layer: str, z: float, d: float, physical_name: str, cut: tuple=None, forConstruction: bool=False) -> dict:
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
+def make_group(i: int):
+    return {'group_id': i, 'tags': []}
+
+def ensure_polygon_list(geometry: Polygon | MultiPolygon):
+    if isinstance(geometry, MultiPolygon):
+        return list(geometry.geoms)
+    else:
+        return [geometry]
+
+def ensure_linestring_list(geometry: LineString | MultiLineString):
+    if isinstance(geometry, MultiLineString):
+        return list(geometry.geoms)
+    else:
+        return [geometry]
+
+def custom_dict_factory(data):
     """
-    Generates a dictionary containing information about a GMSH layer.
+    A custom dict_factory to exclude 'geometry' attributes.
+    """
+    return {k: v for (k, v) in data if k != "geometry"}
+
+
+#---------------------------------------------
+# gmsh configuration dataclasses
+
+@dataclass
+class ExtrudeSettings:
+    """
+    Settings for the extrusion process.
 
     Args:
-        ref_layer (str): Reference name or identifier for the layer from the layout.
+        geometry (Polygon | MultiPolygon): Geometry to be extruded.
         z (float): Z-coordinate or position of the layer.
         d (float): Thickness of the layer.
         physical_name (str): Physical name associated with the layer.
         cut (tuple, optional): Tuple specifying the volumes which will be cut from the main volume.
             Defaults to None.
         forConstruction (bool, optional): Flag indicating if the layer is for construction purposes. Defaults to False.
-
-    Returns:
-        dict: Dictionary containing layer information.
     """
+    geometry: Polygon | MultiPolygon
+    z_base: float = 0.0
+    height: float = 1.0
+    physical_name: str = "DIELECTRIC"
+    cut: tuple[str] = None
+    forConstruction: bool = False
 
-    return {
-        'reference':        ref_layer,
-        'z':                z,
-        'thickness':        d,
-        'physical':         physical_name,
-        'cut'     :         cut,
-        'forConstruction':  forConstruction
-        }
 
-def physSurface_info(ref_layer: str, polygon_idx: list, gmsh_layer: str, linked_to: str=None):
+@dataclass
+class SurfaceSettings:
     """
-    Creates a dictionary containing information about a physical surfaces.
+    Settings for defining additional surfaces on the volumes.
 
     Args:
-        ref_layer (str): Reference layer name or identifier from the layout.
-        polygon_idx (list): List of polygon indices associated with the surface.
-        gmsh_layer (str): Name or identifier of the corresponding GMSH layer.
-        linked_to (str, optional): Identifier of another entity this surface is linked to. Defaults to None.
-
-    Returns:
-        dict: A dictionary containing physical surface information.
+        geometry (Polygon | MultiPolygon): Geometry of the surface.
+        z (float): Z-coordinate of the surface.
+        index (list[int], optional): List of polygon indices associated with the surface. Defaults to an empty list.
     """
+    geometry: Polygon | MultiPolygon
+    z: float
+    index: list[int] = field(default_factory=list)
 
-    return {
-        'ref_layer':    ref_layer,
-        'polygons':     polygon_idx,
-        'gmsh_layer':   gmsh_layer,
-        'group_id':     int(),
-        'entities':     [],
-        'linked_to':    linked_to
-    }
 
-def flatten(l):
-    return [item for sublist in l for item in sublist]
-
-def group_dict(i: int):
-    return {'group_id': i, 'entities': []}
-
-def convert_polygons_to_list(geometry: Polygon | MultiPolygon):
-    if isinstance(geometry, MultiPolygon):
-        return list(geometry.geoms)
-    else:
-        return [geometry]
-    
-def convert_layout_to_dict(layout: Structure | Entity) -> dict:
-    """ Converts 'layout' class into dictionary.
+@dataclass
+class PECSettings:
+    """
+    Settings for defining Perfect Electric Conductor (PEC) boundaries.
 
     Args:
-        layout (Structure | Entity): geometry design
-
-    Returns:
-        dict: dictionary wih layout info
-                dict keys - layout layer names (only shapely Polygons are allowed)
-                dict items - list of shapely Polygons
+        geometry (Polygon | MultiPolygon): Geometry of the PEC boundary.
+        indices (list[int]): List of polygon indices associated with the PEC boundary.
+        volume (str, optional): Volume identifier associated with the PEC boundary. Defaults to None.
+        z (float, optional): Z-coordinate of the PEC boundary. Defaults to None.
+        linked_to (str, optional): Identifier of another entity this PEC boundary is linked to. Defaults to None.
     """
+    geometry: Polygon | MultiPolygon
+    indices: list[int]
+    volume: ExtrudeSettings = None
+    z: float = None
+    group_id: int = None
+    tags: list[int] = field(default_factory=list)
+    linked_to: str = None
+    prepared_polygons: list[Polygon] = field(init=False, default_factory=list)
 
-    layer_geoms = [getattr(layout, k) for k in layout.layers]     # list of Polygons and MultiPolygons
-    geoms_list  = [convert_polygons_to_list(geoms) for geoms in layer_geoms]
-    
-    return dict(zip(layout.layers, geoms_list))
+    def __post_init__(self):
+        if (self.z is not None) and (self.volume is not None):
+            raise ValueError("PECSettings: Only one of 'z' or 'volume' should be provided initially.")
+        for id in self.indices:
+            if isinstance(self.geometry, MultiPolygon):
+                self.prepared_polygons.append(self.geometry.geoms[id])
+            elif isinstance(self.geometry, Polygon):
+                self.prepared_polygons.append(self.geometry)
+            else:
+                raise TypeError("PECSettings: 'geometry' must be a Polygon or MultiPolygon.")
+        if self.volume:
+            self.z = self.volume.z_base + self.volume.height/2  # center z-coordinate of the volume
+
+
+@dataclass
+class MeshSettings:
+    dim: int = 3
+    fields: dict = field(default_factory=dict)
+
+
+@dataclass
+class BoxFieldMeshSettings:
+    Thickness: float
+    VIn: float
+    VOut: float
+    box: list[float]  # [XMin, XMax, YMin, YMax, ZMin, ZMax]
+
+@dataclass
+class DistanceFieldMeshSettings:
+    geometry: LineString | MultiLineString
+    base_z: float
+    sampling: int
+    SizeMin: float
+    SizeMax: float
+    DistMin: float
+    DistMax: float
+
+    def __post_init__(self):
+        self.lines = ensure_linestring_list(self.geometry)
+
+@dataclass
+class FixedFieldMeshSettings:
+    pass
+
+
+@dataclass
+class BuildPlan:
+    build_1: list[str] = field(default_factory=list)
+    build_2: list[str] = field(default_factory=list)
+    build_3: list[tuple[str, list]] = field(default_factory=list)
+    build_4: list[tuple[str, list]] = field(default_factory=list)
 
 
 #---------------------------------------------
@@ -118,182 +176,268 @@ class GMSHmaker():
         filename (str, optional): name of the mesh file. Defaults to "device".
     """
 
-    def __init__(self, 
-                 layout: Structure | Entity,
-                 extrude_config: dict,
-                 electrodes_config: dict,
-                 mesh_params: tuple,
-                 additional_surfaces: dict=None,
-                 savedir: str="dump",
-                 configdir: str="config",
-                 filename: str="device"):
+    def __init__(self,
+                 extrude: ExtrudeSettings,
+                 surfaces: SurfaceSettings=None,
+                 pecs: PECSettings=None,
+                 mesh: MeshSettings=None,
+                 save: dict={"dir": "dump/", "filename": "device"},
+                 open_gmsh: bool=False,
+                 debug_mode: bool=False):
         
-        self.layout = convert_layout_to_dict(layout)
-        self.extrude_config = extrude_config
-        self.additional_surfaces = additional_surfaces
-        self.electrodes_config = electrodes_config
-        self.savedir = Path(savedir)
-        self.configdir = Path(configdir)
-        self.filename = filename + ".msh2"
+        self.extrude = extrude
+        self.surfaces = surfaces
+        self.pecs = pecs
+        self.mesh = mesh
+        self.save = save
+        self.open_gmsh = open_gmsh
+        self.debug_mode = debug_mode
 
+        self.make_mesh()
+
+
+    def make_mesh(self):
+        """
+        Creates the mesh using GMSH.
+
+        Raises:
+            e: Exception raised during mesh creation.
+        """
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
-        
-        vols = self.create_gmsh_objects()
-        
-        self.fragmentation(flatten(list(vols.values())))
-        
-        self.physicalVolumes = self.create_PhysicalVolumes(vols)
-        if electrodes_config:
-            self.physicalSurfaces = self.create_PhysicalSurfaces()
-        else:
-            self.physicalSurfaces = {}
 
-        self.export_config()
-        self.define_mesh(mesh_params)
+        if not self.debug_mode:
+            self.disable_consoleOutput()
         
-    def get_polygon(self, lname: str, idx: int) -> Polygon:
-        """ Returns a shapely Polygon from a specific layer and idx in layout dict"""
-        return self.layout.get(lname)[idx]
-    
-    def create_gmsh_surface(self, polygon: Polygon, zcoord: float) -> int:
+        try:
+            vols = self.create_gmsh_objects()
+            self.fragmentation(vols)
+            self.physicalVolumes = self.create_PhysicalVolumes(vols)
+            self.physicalSurfaces = self.create_PhysicalSurfaces()
+            self.export_config()
+
+            self.setup_mesh_fields()
+            self.create_geo()
+            self.create_mesh(dim=self.mesh.dim)
+            if self.open_gmsh:
+                self.launch_gmsh_gui()
+        
+        except Exception as e:
+            print(f'Error during gmsh mesh creation: {e}')
+            raise e
+        finally:
+            gmsh.finalize()
+
+
+    def build_gmsh_points(self, coordinates: list[tuple[float, float, float]], meshSize: float=0.0) -> list[int]:
         """
-        Creates a Gmsh surface based on the given polygon and z-coordinate.
+        Creates Gmsh points based on the given coordinates.
 
         Args:
-            polygon (Polygon): Shapely polygon defining the shape of the surface.
-            zcoord (float): The z-coordinate of the surface.
+            coordinates (list[tuple[float, float, float]]): List of (x, y, z) tuples defining the points.
+            meshSize (float, optional): Mesh size at the points. Defaults to 0.0.
+
+        Returns:
+            list[int]: List of IDs of the created Gmsh points.
+        """
+        points = []
+        for xyz in coordinates:
+            p = gmsh.model.occ.addPoint(xyz[0], xyz[1], xyz[2], meshSize=meshSize)
+            points.append(p)
+        return points
+
+
+    def build_gmsh_lines(self, point_ids: list[int], closed: bool) -> list[int]:
+        """
+        Creates Gmsh lines connecting the given point IDs.
+
+        Args:
+            point_ids (list[int]): List of Gmsh point IDs.
+            closed (bool): Whether to close the loop (connect last point to first).
+
+        Returns:
+            list[int]: List of IDs of the created Gmsh lines.
+        """
+        lines = []
+        for i in range(len(point_ids)-1):
+            l = gmsh.model.occ.addLine(point_ids[i], point_ids[i+1])
+            lines.append(l)
+        if closed:
+            closing_line = gmsh.model.occ.addLine(point_ids[-1], point_ids[0])
+            lines.append(closing_line)
+        return lines
+
+
+    def build_gmsh_surface(self, base_polygon: Polygon, base_z: float) -> int:
+        """
+        Creates a Gmsh surface based on the given base_polygon and z-coordinate.
+
+        Args:
+            base_polygon (Polygon): Shapely polygon defining the shape of the surface.
+            base_z (float): The z-coordinate of the surface.
 
         Returns:
             int: The ID of the created Gmsh surface.
         """
-        coords = get_coordinates(polygon)
+        coords = get_coordinates(base_polygon)
 
         # creating gmsh Points
-        points = []
-        for coord in coords[:-1]:
-            p = gmsh.model.occ.addPoint(coord[0], coord[1], zcoord)
-            points.append(p)
+        points =  self.build_gmsh_points([(x, y, base_z) for x, y in coords[:-1]])
 
         # creating gmsh Lines
-        lines = []
-        for i in range(len(points)-1):
-            l = gmsh.model.occ.addLine(points[i], points[i+1])
-            lines.append(l)
-        closing_line = gmsh.model.occ.addLine(points[-1], points[0])
-        lines.append(closing_line)
+        lines =  self.build_gmsh_lines(points, closed=True)
 
         curvedLoop = gmsh.model.occ.addCurveLoop(lines)
         surface = gmsh.model.occ.addPlaneSurface([curvedLoop])
 
         return surface
 
-    def create_gmsh_volume_by_extrusion(self, polygon: Polygon, zcoord: float, thickness: float):
+
+    def build_gmsh_volume(self, base_polygon: Polygon, base_z: float, height: float):
         """
         Creates 3D gmsh Volume by extruding shapely Polygon.
 
         Args:
-            polygon (Polygon): shapely Polygon
-            zcoord (float): staring z-coordinate
-            thickness (float): thickness of the Volume
+            base_polygon (Polygon): shapely Polygon
+            base_z (float): staring z-coordinate
+            height (float): height of the Volume
 
         Returns:
             gmsh Volume tag
         """
 
-        surface = self.create_gmsh_surface(polygon, zcoord)
-        shell = gmsh.model.occ.extrude([(2, surface)], 0, 0, thickness)
+        surface_id = self.build_gmsh_surface(base_polygon, base_z)
+        volume_dimTags = gmsh.model.occ.extrude([(2, surface_id)], 0, 0, height)
         
         surfaces = []
-        for item in shell:
-            dimTag, objTag = item
-            if dimTag == 2:
-                surfaces.append(objTag)
-            elif dimTag ==3: 
-                volume = objTag
+        for dim, tag in volume_dimTags:
+            if dim == 2:
+                surfaces.append(tag)
+            elif dim == 3: 
+                volume = (3, tag)
             else:
                 print('could not create extruded Polygon')
         
         return volume
 
-    def populate_volumes(self, names_list: list, volumes: dict) -> dict:
+
+    def build_gmsh_volumes_from_plan(
+            self,
+            plan: list[tuple],
+            volume_registry: dict,
+            plan_id: int,
+            tool_registry: dict=None) -> dict:
         """
+        Build multiple Gmsh volumes and register them in the volume registry.
         Populates predefined 'volumes' dict with gmsh 3D objects.
         3D object is created by extruding shapely Polygons.
 
         Args:
-            names_list (list): list of gmsh volume names
-            volumes (dict): volumes database
+            plan (list): list of tuples with (gmsh layer name, cut_info)
+            volume_registry (dict): volumes database
+            plan_id (int): defines the construction logic
+            tool_registry (dict, optional): volumes database for cutting tools. Defaults to None.
 
         Returns:
-            dict: volumes database
+            dict: updated volume registry containing built Gmsh volume IDs.
         """
         
-        for name in names_list:
-            params = self.extrude_config.get(name)
-            polygons = self.layout.get(params['reference'])
+        for layer_name, cut_info in plan:
+            config = self.extrude.get(layer_name)
+            polygons = ensure_polygon_list(config.geometry)
 
-            for p in polygons:
-                volumes[name].append(self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness']))
-            
-        return volumes
-    
-    def gmshObjs_forCutting(self, cutting_layer_names: tuple, volumes: dict) -> list:
+            # Gather cutting entities (as (dim, tag) pairs) from registries if requested
+            if cut_info:
+                cut_entities = self.get_gmsh_cut_entities(cut_info, volume_registry)
+            if tool_registry:
+                # used in the final step of build, if forConstruction volumes are also used for cutting
+                temp_cut_entities = self.get_gmsh_cut_entities(cut_info, tool_registry)
+
+            for poly in polygons:
+                volume_dimTag = self.build_gmsh_volume(poly, config.z_base, config.height)
+                
+                match plan_id:
+                    case 1 | 2:
+                        out_entities = [volume_dimTag]
+                    case 3:
+                        # used to prepare forConstruction volumes, which will be cut
+                        out_entities, _ = gmsh.model.occ.cut([volume_dimTag], cut_entities, removeTool=True)
+                    case 4:
+                        out_entities, _ = gmsh.model.occ.cut([volume_dimTag], cut_entities, removeTool=False)
+                        if tool_registry:
+                            # used in the final step of build, if forConstruction volumes are also used for cutting
+                            out_entities, _ = gmsh.model.occ.cut(out_entities, temp_cut_entities, removeTool=True)
+
+                for dim, tag in out_entities:
+                    if dim == 3:
+                        volume_registry[layer_name].append(tag)
+        return volume_registry
+
+
+    def get_gmsh_cut_entities(self, cut_layer_names: tuple, volume_registry: dict) -> list:
         """
-        Creates a list of gmsh Volumes from the list of cutting_layer_names.
+        Collects Gmsh 3D entities (dim=3) from specified layers to be used as cutting tools.
 
         Args:
-            cutting_layer_names (tuple): contains a list of gmsh layer names will be used for cutting
-            volumes (dict): volumes database, from which gmsh Volumes will be selected
+            cut_layer_names (tuple): Names of layers whose volumes will be used for cutting.
+            volume_registry (dict): volumes database, from which gmsh Volumes will be selected
 
         Returns:
-            list: list of Volumes, which will be used for cutting
+            list: List of (dimension, tag) pairs representing Gmsh volumes to cut with.
         """
-        list_gmsh_objects = []
-        for lname in cutting_layer_names:
-            if lname in volumes.keys():
-                for gmsh_obj in volumes.get(lname):    
-                    list_gmsh_objects.append((3, gmsh_obj))
-        
-        return list_gmsh_objects
+        cut_dimTags = [
+            (3, volume_id)
+            for name in cut_layer_names
+            for volume_id in volume_registry.get(name, [])
+        ]
+        return cut_dimTags
+
+
+    def build_additional_gmsh_surfaces(self):
+        """
+        Adds additional surfaces to the Gmsh model based on the provided surface configurations.
+
+        Each entry in `self.surfaces` must define:
+            - geometry (Polygon or MultiPolygon)
+            - z (float): the z-coordinate of the surface
+
+        The generated Gmsh surface IDs are appended to `config.index`.
+        """
+        for _, config in self.surfaces.items():
+            polygons = ensure_polygon_list(config.geometry)
+            for poly in polygons:
+                gmsh_id = self.build_gmsh_surface(poly, config.z)
+                config.index.append(gmsh_id)
+
     
-    def sort_gmshLayer_names(self) -> tuple:
+    def make_plan(self) -> BuildPlan:
         """
         Prepares four lists of gmsh layer names defining the order of 3D gmsh construction
 
         Construction logic
-        1. first - contains a list of gmsh layer names, which will be constructed first by extruding polygons
-        2. first_forConstruction - contains a list of gmsh layer names, 
-                                    which will be temporarely constructed and but not present in the end geometry
-        3. final_forConstruction - temporarely constructed, not present in the end geometry
-                                    contains cut_info, which is the list of gmsh layers to be cutted
-        4. final - list of gmsh layer to be constructed the last
-                    contains cut_info, which could be gmsh layer names from 'first', 'first_foConstruction' and 'final_forConstruction' lists
+        1. build_1 - contains a list of gmsh layer names, which will be constructed first by extruding polygons
+        2. build_2 - contains a list of gmsh layer names, 
+                    which will be temporarely constructed and but not present in the end geometry
+        3. build_3 - temporarely constructed, not present in the end geometry
+                    contains cut_info, which is the list of gmsh layers to be cutted
+        4. build_4 - list of gmsh layer to be constructed the last
+                    contains cut_info, which could be gmsh layer names from 'build_1', 'build_2' and 'build_3' lists
 
         Returns:
-            tuple: 4 lists with gmsh layer names with or without cut_info
+            BuildPlan: 4 lists with gmsh layer names with or without cut_info
         """
-        config = self.extrude_config
-        gmsh_layers = list(config.keys())
-
-        first = []
-        final = []
-        first_forConstruction = []
-        final_forConstruction = []
-        for l in gmsh_layers:
-            cut_info = config[l].get('cut')
-            if not config[l].get('forConstruction'):
-                if cut_info!=None:
-                    final.append((l, cut_info))
-                else:
-                    first.append(l)
-            else:
-                if cut_info!=None:
-                    final_forConstruction.append((l, cut_info))
-                else:
-                    first_forConstruction.append(l)
-        
-        return first, final, first_forConstruction, final_forConstruction
+        plan = BuildPlan()
+        for vol_name, config in self.extrude.items():
+            match (config.forConstruction, isinstance(config.cut, tuple)):
+                case (False, False):
+                    plan.build_1.append((vol_name, None))
+                case (True, False):
+                    plan.build_2.append((vol_name, None))
+                case (True, True):
+                    plan.build_3.append((vol_name, config.cut))
+                case (False, True):
+                    plan.build_4.append((vol_name, config.cut))
+        return plan
     
     
     def create_gmsh_objects(self) -> dict:
@@ -303,91 +447,76 @@ class GMSHmaker():
         Returns:
             dict: configuration about gmsh layers and constructed Volumes contained in these layers.
         """
-        config = self.extrude_config
-        gmsh_layers = list(config.keys())
 
-        volumes = {key:[] for key in gmsh_layers if not config[key].get('forConstruction')}
-        volumes_forConstruction = {key:[] for key in gmsh_layers if config[key].get('forConstruction')}
+        vol_registry, vol_registry_forConstruction = {}, {}
+        for name, config in self.extrude.items():
+            if config.forConstruction:
+                vol_registry_forConstruction[name] = []
+            else:
+                vol_registry[name] = []
 
         # Prepare the list of gmsh layers and define the order of the operation
-        first, final, first_forConstruction, final_forConstruction = self.sort_gmshLayer_names()
+        plan = self.make_plan()
 
         # first we create gmsh objects by extruding shPolygons
         # which doesn't have forConstruction tag and 'cut' argument
-        # returns updated volumes dict
-        volumes = self.populate_volumes(first, volumes)
+        # returns updated vol_registry dict
+        vol_registry = self.build_gmsh_volumes_from_plan(plan.build_1, vol_registry, plan_id=1)
 
         # next we create gmsh objects forConstruction
-        # which doesn't have 'cut' argument and have forConstruction tag
-        # returns updated volumes_forConstruction dict
-        volumes_forConstruction = self.populate_volumes(first_forConstruction, volumes_forConstruction)
+        # which have forConstruction tag and doesn't have 'cut' argument
+        # returns updated vol_registry_forConstruction dict
+        vol_registry_forConstruction = self.build_gmsh_volumes_from_plan(plan.build_2, vol_registry_forConstruction, plan_id=2)
 
         # next we create gmsh objects forConstruction
-        # which have 'cut' argument and have forConstruction tag
+        # which have have forConstruction tag and 'cut' argument 
         # 'cut' tuple should contain only gmsh layers with tag forConstruction
         # returns updated volumes_forConstruction dict
-        for lname, cutting_layers in final_forConstruction:
-            params = self.extrude_config.get(lname)
-            polygons = self.layout.get(params['reference'])
+        vol_registry_forConstruction = self.build_gmsh_volumes_from_plan(plan.build_3, vol_registry_forConstruction, plan_id=3)
 
-            gmshObjs_forCutting = self.gmshObjs_forCutting(cutting_layers, volumes_forConstruction)
-
-            for p in polygons:
-                base = self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness'])
-                base = gmsh.model.occ.cut([(3, base)], gmshObjs_forCutting, removeTool=True)
-                for item in base[0]:
-                    volumes_forConstruction[lname].append(item[1])
-
-        # finally we create gmsh objects, which have 'cut' argument. 
+        # finally we create gmsh objects, which have 'cut' only argument.
         # 'cut' tuple can contain gmsh layers with and without forConstruction tag
-        # returns updated volumes dict
-        for lname, cutting_layers in final:
-            params = self.extrude_config.get(lname)
-            polygons = self.layout.get(params['reference'])
-            
-            gmshObjs_forCutting = self.gmshObjs_forCutting(cutting_layers, volumes)
-            gmshObjs_forCutting_andRemove = self.gmshObjs_forCutting(cutting_layers, volumes_forConstruction)
-
-            for p in polygons:
-                base = self.create_gmsh_volume_by_extrusion(p, params['z'], params['thickness'])
-                base_gmshObj = gmsh.model.occ.cut([(3, base)], gmshObjs_forCutting, removeTool=False)
-                if gmshObjs_forCutting_andRemove:
-                    base_gmshObj = gmsh.model.occ.cut(base_gmshObj[0], gmshObjs_forCutting_andRemove, removeTool=True)
-                for item in base_gmshObj[0]:
-                    volumes[lname].append(item[1])
+        # returns updated vol_registry dict
+        vol_registry = self.build_gmsh_volumes_from_plan(plan.build_4, vol_registry, tool_registry=vol_registry_forConstruction, plan_id=4)
 
         # adding additional surfaces
-        if self.additional_surfaces:
-            for surface in self.additional_surfaces.values():
-                gmshID = self.create_gmsh_surface(surface['geometry'], surface['z0'])
-                surface['gmshID'] = gmshID
+        if self.surfaces:
+            self.build_additional_gmsh_surfaces()
 
         gmsh.model.occ.synchronize()
-        
-        return volumes
-    
-    def fragmentation(self, volumes: list) -> list:
+
+        if self.debug_mode:
+            self.launch_gmsh_gui()
+
+        return vol_registry
+
+
+    def fragmentation(self, volume_registry: dict) -> list:
         """
         Gluing all Volumes together. Handles correctly the shared surfaces between Volumes.
 
         Args:
-            volumes (list): list of all Volumes
+            volume_registry (dict): dict with gmsh layer and corresponding volumes.
 
         Returns:
             list: list of reconfigured Volumes
         """
+        volumes = flatten(list(volume_registry.values()))
         item_base = [(3, volumes[0])]
         item_rest = []
-        for v in volumes[1:]:
-            item_rest.append((3, v))
-        if self.additional_surfaces:
-            for value in self.additional_surfaces.values():
-                item_rest.append((2, value['gmshID']))
+        for volume_tag in volumes[1:]:
+            item_rest.append((3, volume_tag))
+        if self.surfaces:
+            indicies = []
+            for config in self.surfaces.values():
+                indicies.append(config.index)
+            for surface_tag in flatten(indicies):
+                item_rest.append((2, surface_tag))
+
         new_volumes = gmsh.model.occ.fragment(item_base, item_rest)
-        
         gmsh.model.occ.synchronize()
-        
         return new_volumes
+
 
     def create_PhysicalVolumes(self, volumes: dict) -> dict:
         """
@@ -399,96 +528,77 @@ class GMSHmaker():
         Returns:
             dict: key - physical volume names; value - list of Volumes.
         """
-        config = self.extrude_config
-        
-        layers = [key for key in config.keys() if not config[key].get('forConstruction')]
-        volume_names = [item['physical'] for key, item in list(config.items()) if not config[key].get('forConstruction')]
+        config = self.extrude
+
+        layer_names = []
+        volume_names = []
+        for name, config in self.extrude.items():
+            if not config.forConstruction:
+                layer_names.append(name)
+                volume_names.append(config.physical_name)
         unique_names = list(set(volume_names))
-        physVolumes_groups = {key: group_dict(i + 1) for i, key in enumerate(unique_names)}
+        physVolumes_groups = {key: make_group(i + 1) for i, key in enumerate(unique_names)}
+
         # assigning gmshEntities to 'layer' in paramteres
-        for l in layers:
-            physical_name = config[l]['physical']
-            physVolumes_groups[physical_name]['entities'].extend(volumes[l])
-        
+        for name in layer_names:
+            physical_name = self.extrude[name].physical_name
+            physVolumes_groups[physical_name]['tags'].extend(volumes[name])
+
         # assigning volumes to group_ids
         for name in unique_names:
             group_id = physVolumes_groups[name]['group_id']
-            gmsh.model.addPhysicalGroup(3, physVolumes_groups[name]['entities'], group_id, name=name)
+            gmsh.model.addPhysicalGroup(3, physVolumes_groups[name]['tags'], group_id, name=name)
         
         gmsh.model.occ.synchronize()
         
         return physVolumes_groups
-    
-    def gmsh_to_polygon_matches(self, Volume: int, polygon: Polygon, gmsh_layer: str) -> bool:
-        """
-        Compares gmsh Volumes with extruded shapely Polygon.
 
-        Args:
-            Volume (int): gmsh Volume
-            polygon (Polygon): shapely Polygon
-            gmsh_layer (str): gmsh layer name, which contains info about z-coordinates
-
-        Returns:
-            bool: True, if Volume equals to extruded Polygon within tolerance
-        """
-        tol = 1e-4
-        com = gmsh.model.occ.getCenterOfMass(3, Volume)
-        centroid_xy = list(polygon.centroid.coords)
-        centroid_z = self.extrude_config[gmsh_layer]['z'] + self.extrude_config[gmsh_layer]['thickness']/2
-        centroid = (centroid_xy[0][0], centroid_xy[0][1], centroid_z)
-
-        return np.allclose(np.asarray(com), np.asarray(centroid), atol=tol)
     
     def create_PhysicalSurfaces(self) -> dict:
         """
         Defines the physical Surfaces, where voltages will be applied.
 
-        Args:
-            electrodes (dict): electrodes config
-
         Returns:
             dict: populated electrodes config dict
         """
-        init_index = len(self.physicalVolumes.keys())
-        gmsh_entities_in_Metal = self.physicalVolumes['METAL']['entities']
-        electrodes = self.electrodes_config
+        
+        metal_group = self.physicalVolumes.get("METAL")
+        metal_volume_tags = metal_group['tags'] if metal_group else []
+
+        allSurfaces = gmsh.model.occ.getEntities(dim=2)
 
         # populating electrodes with gmshEntities
-        for i, (k, v) in enumerate(electrodes.items()):
-            for gmsh_entity in gmsh_entities_in_Metal:
-                for polygon_id in v['polygons']:
-                    polygon = self.layout[v['ref_layer']][polygon_id]
-                    if self.gmsh_to_polygon_matches(gmsh_entity, polygon, v['gmsh_layer']):
-                        up, down = gmsh.model.getAdjacencies(3, gmsh_entity)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
-                        v['entities'].extend(down)
+        for pec_name, config in self.pecs.items():
+            for poly in config.prepared_polygons:
+                point_inside = point_on_surface(poly)
+                for volumetag in metal_volume_tags:
+                    if gmsh.model.isInside(3, volumetag, [point_inside.x, point_inside.y, config.z], parametric=False):
+                        _, down = gmsh.model.getAdjacencies(3, volumetag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
+                        config.tags.extend(down)
+                if config.volume is None:
+                    outDimTags, _, _ = gmsh.model.occ.getClosestEntities(point_inside.x, point_inside.y, config.z, allSurfaces, n=1)
+                    config.tags.append(outDimTags[0][1])
         
-        # assigning electrodes to group_ids
+        # assigning self.pecs to group_ids
+        offset = len(self.physicalVolumes) # to avoid overlapping group_ids between volumes and surfaces
         unique_electrodes = {}
-        for i, (k, v) in enumerate(electrodes.items()):
-            group_id = i + init_index + 1    
-            if v['linked_to']:
-                physSurfName = v['linked_to']
-                new_surfaces = v['entities']
-                uniques = unique_electrodes[physSurfName]['entities']
-                combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
-                unique_electrodes[physSurfName]['entities'] = combined_without_duplicates
+        for i, (pec_name, config) in enumerate(self.pecs.items()):
+            group_id = i + offset + 1    
+            if not config.linked_to:
+                unique_electrodes[pec_name] = {'group_id': group_id, 'tags': config.tags}
             else:
-                unique_electrodes[k] = {'group_id': group_id, 'entities': v['entities']}
+                new_surfaces = config.tags
+                uniques = unique_electrodes[config.linked_to]['tags']
+                combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
+                unique_electrodes[config.linked_to]['tags'] = combined_without_duplicates
 
         for k, v in unique_electrodes.items():
-            gmsh.model.addPhysicalGroup(2, v['entities'], v['group_id'], name=k)
-
-        # assigning additional surfaces to group_ids
-        group_id += 1
-        if self.additional_surfaces:
-            for i, (k, v) in enumerate(self.additional_surfaces.items()):
-                gmsh.model.addPhysicalGroup(2, [v['gmshID']], group_id + i, name=k)
-                unique_electrodes[k] = {'group_id': group_id + i, 'entities': [v['gmshID']]}
-
+            gmsh.model.addPhysicalGroup(2, v['tags'], v['group_id'], name=k)
         gmsh.model.occ.synchronize()
 
         return unique_electrodes
-    
+
+
     def get_surfaces_onEdges(self, Btype: str):
         allowed_types = ['x', 'y', 'z']
         if Btype not in allowed_types:
@@ -496,48 +606,130 @@ class GMSHmaker():
         
         #gmsh_ent_points = gmsh.model.occ.getEntities(dim=0)
         #gmsh_ent_onSurf1 = gmsh.model.occ.getEntitiesInBoundingBox(xmin, ymin, zmin, xmax, ymax, zmax, dim=-1)
-    
-    def define_mesh(self, mesh_config: dict | list[dict]):
+
+
+    def make_box_field_mesh(self, boxes: list[BoxFieldMeshSettings]) -> list[int]:
         """
-        The mesh setup config. It can be a single dictionary or a list of dictionaries.
+        Creates box fields for mesh refinement in Gmsh.
+        Args:
+            boxes (list[BoxFieldMeshSettings]): List of box field configurations.
+        Returns:
+            list: List of box field IDs created in Gmsh.
+        """
+        box_field_ids = []
+        for config in boxes:
+            box_id = gmsh.model.mesh.field.add("Box")
+            gmsh.model.mesh.field.setNumber(box_id, "Thickness", config.Thickness)
+            gmsh.model.mesh.field.setNumber(box_id, "VIn", config.VIn)
+            gmsh.model.mesh.field.setNumber(box_id, "VOut", config.VOut)
+            gmsh.model.mesh.field.setNumber(box_id, "XMin", config.box[0])
+            gmsh.model.mesh.field.setNumber(box_id, "XMax", config.box[1])
+            gmsh.model.mesh.field.setNumber(box_id, "YMin", config.box[2])
+            gmsh.model.mesh.field.setNumber(box_id, "YMax", config.box[3])
+            gmsh.model.mesh.field.setNumber(box_id, "ZMin", config.box[4])
+            gmsh.model.mesh.field.setNumber(box_id, "ZMax", config.box[5])
+            box_field_ids.append(box_id)
+
+        return box_field_ids
+    
+
+    def setup_distance_field_mesh(self, lines: list[LineString], base_z: float, sampling: int=300) -> int:
+        """ Sets up a distance field mesh in GMSH.
 
         Args:
-            mesh_config (dict | list[dict]):
-                Each dictionary should contain the following keys:
-                - "Thickness" (float): The thickness of the box.
-                - "VIn" (float): The inner value of the box.
-                - "VOut" (float): The outer value of the box.
-                - "box" (list[float]): The coordinates of the box in the format [XMin, XMax, YMin, YMax, ZMin, ZMax].
-        """
+            lines (list[LineString]): List of shapely LineStrings defining the lines for the distance field.
+            base_z (float): The base Z-coordinate for the distance field.
+            sampling (int, optional): Number of sampling points along the lines. Defaults to 300.
 
-        if isinstance(mesh_config, dict):
-            mesh_config = [mesh_config]
-        boxes = []
-        for cfg in mesh_config:
-            box = gmsh.model.mesh.field.add("Box")
-            gmsh.model.mesh.field.setNumber(box, "Thickness", cfg["Thickness"])
-            gmsh.model.mesh.field.setNumber(box, "VIn", cfg["VIn"])
-            gmsh.model.mesh.field.setNumber(box, "VOut", cfg["VOut"])
-            gmsh.model.mesh.field.setNumber(box, "XMin", cfg["box"][0])
-            gmsh.model.mesh.field.setNumber(box, "XMax", cfg["box"][1])
-            gmsh.model.mesh.field.setNumber(box, "YMin", cfg["box"][2])
-            gmsh.model.mesh.field.setNumber(box, "YMax", cfg["box"][3])
-            gmsh.model.mesh.field.setNumber(box, "ZMin", cfg["box"][4])
-            gmsh.model.mesh.field.setNumber(box, "ZMax", cfg["box"][5])
-            boxes.append(box)
+        Returns:
+            int: The ID of the created distance field.
+        """
+        wires = []
+        for l in lines:
+            coords = get_coordinates(l)
+            points = self.build_gmsh_points([(x, y, base_z) for x, y in coords])
+            wire_ids = self.build_gmsh_lines(points, closed=False)
+            wires.append(wire_ids)
+        wires = flatten(wires)
+
+        field_id = gmsh.model.mesh.field.add("Distance")
+        gmsh.model.mesh.field.setNumbers(field_id, "CurvesList", wires)
+        gmsh.model.mesh.field.setNumber(field_id, "Sampling", sampling)
+
+        return field_id
+
+
+    def setup_threshold_field_mesh(self, distance_field_id: int, SizeMin: float, SizeMax: float, DistMin: float, DistMax: float) -> int:
+        """ Sets up a threshold field mesh in GMSH.
+
+        Args:
+            distance_field_id (int): The ID of the distance field to base the threshold on.
+            SizeMin (float): Minimum mesh size.
+            SizeMax (float): Maximum mesh size.
+            DistMin (float): Minimum distance for mesh size transition.
+            DistMax (float): Maximum distance for mesh size transition.
+
+        Returns:
+            int: The ID of the created threshold field.
+        """
+        field_id = gmsh.model.mesh.field.add("Threshold")
+        gmsh.model.mesh.field.setNumber(field_id, "InField", distance_field_id)
+        gmsh.model.mesh.field.setNumber(field_id, "SizeMin", SizeMin)
+        gmsh.model.mesh.field.setNumber(field_id, "SizeMax", SizeMax)
+        gmsh.model.mesh.field.setNumber(field_id, "DistMin", DistMin)
+        gmsh.model.mesh.field.setNumber(field_id, "DistMax", DistMax)
+        return field_id
+
+
+    def make_distance_threshold_field_mesh(self, distances: list[DistanceFieldMeshSettings]) -> list[int]:
+        """
+        Creates distance and threshold fields for mesh refinement in Gmsh.
+
+        Args:
+            distances (list[DistanceFieldMeshSettings]): List of distance field configurations.
+
+        Returns:
+            list (int): List of threshold field IDs created in Gmsh.
+        """
+        field_ids = []
+        for config in distances:
+            distance_field_id = self.setup_distance_field_mesh(config.lines, config.base_z, config.sampling)
+            threshold_field_id = self.setup_threshold_field_mesh(distance_field_id, config.SizeMin, config.SizeMax, config.DistMin, config.DistMax)
+            field_ids.append(threshold_field_id)
+        return field_ids
+
+
+    def setup_mesh_fields(self):
+        """
+        Build and set the background mesh field.
+
+        - Iterates over self.mesh.fields (name -> config)
+        - For each recognized field name, calls the corresponding builder
+        (e.g., self.make_box_field_mesh).
+        - If multiple fields are created, combines them with a "Min" field.
+        - Sets the resulting field as the background mesh.
+        """
+        field_ids = []
+        for mesh_field_name, configs in self.mesh.fields.items():
+            match mesh_field_name:
+                case "Box":
+                    field_ids.extend(self.make_box_field_mesh(configs))
+                case "Distance":
+                    field_ids.extend(self.make_distance_threshold_field_mesh(configs))
+                case _:
+                    print(f"Mesh field '{mesh_field_name}' is not recognized.")
 
         minimum = gmsh.model.mesh.field.add("Min")
-        gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", boxes)
+        gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", field_ids)
         gmsh.model.mesh.field.setAsBackgroundMesh(minimum)
         gmsh.model.occ.synchronize()
-    
+
+
     def create_geo(self):
-        """
-        Generates and writes the geometry definition to a file in GMSH format.
-        """
-        gmsh.write(self.savedir / self.filename + ".geo_unrolled")
-    
-    def create_mesh(self, dim='2'):
+        gmsh.write(self.save["dir"] + self.save["filename"] + ".geo_unrolled")
+
+
+    def create_mesh(self, dim=2):
         """
         Generates a mesh using Gmsh and saves it to the specified directory.
 
@@ -548,18 +740,22 @@ class GMSHmaker():
             KeyboardInterrupt: If the mesh generation is interrupted by the user.
         """
 
-        os.makedirs(self.savedir, exist_ok=True)
+        os.makedirs(self.save["dir"], exist_ok=True)
         bar = alive_it([0], title='Gmsh generation ', length=3, spinner='elements', force_tty=True) 
         try:
-            for item in bar:
+            for _ in bar:
                 gmsh.model.mesh.generate(dim)
                 print("mesh is constructed")
-                gmsh.write(str(self.savedir / self.filename))
+                gmsh.model.mesh.setOrder(1)
+                gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+                gmsh.option.setNumber("Mesh.Binary", 0)
+                gmsh.write(self.save["dir"] + self.save["filename"] + ".msh2")
                 print("mesh saved")
         except KeyboardInterrupt:
             print('interrupted by user')
-        
-    def open_gmsh(self):
+
+
+    def launch_gmsh_gui(self):
         """
         Opens the Gmsh graphical user interface with customized color options for geometry points and text.
         """
@@ -576,13 +772,6 @@ class GMSHmaker():
             while gmsh.fltk.isAvailable():
                 gmsh.fltk.wait()
 
-    def finalize(self):
-        """
-        Finalizes the GMSH session and releases all associated resources.
-        This method should be called after all mesh generation and processing
-        tasks are complete to properly clean up the GMSH environment.
-        """
-        gmsh.finalize()
     
     def disable_consoleOutput(self):
         """
@@ -592,6 +781,7 @@ class GMSHmaker():
         """
         gmsh.option.setNumber("General.Terminal", 0)
 
+
     def export_config(self):
         """
         Exports the current GMSH configuration to a YAML file.
@@ -600,13 +790,32 @@ class GMSHmaker():
         """
 
         gmsh_config ={
-            'savedir': str(self.savedir),
-            'meshfile': self.filename,
-            'extrude': self.extrude_config,
+            'savedir': self.save["dir"],
+            'meshfile': self.save["filename"] + ".msh2",
+            'extrude': {k: asdict(v, dict_factory=custom_dict_factory) for (k, v) in self.extrude.items()},
             'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
-        os.makedirs(self.configdir, exist_ok=True)
-        config_filename = self.filename.replace(".msh2","") + ".yaml"
-        with open(self.configdir / config_filename, 'w') as file:
+        os.makedirs(self.save["dir"], exist_ok=True)
+        with open(self.save["dir"] + self.save["filename"] + ".yaml", 'w') as file:
             yaml.safe_dump(gmsh_config, file, sort_keys=False, indent=3)
+    
+
+    def print_physical(self):
+        """
+        Prints tables of physical volumes and surfaces with their corresponding group IDs.
+        """
+
+        table = []
+        for k, v in self.physicalVolumes.items():
+            row = [k, v["group_id"]]
+            table.append(row)
+        print(tabulate(table, headers=["Volume", "ID"]))
+
+        print("\n #-----------------------------------\n")
+
+        table = []
+        for k, v in self.physicalSurfaces.items():
+            row = [k, v["group_id"]]
+            table.append(row)
+        print(tabulate(table, headers=["Surface", "ID"]))
