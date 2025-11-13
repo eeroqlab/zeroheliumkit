@@ -96,14 +96,17 @@ class PECSettings:
         volume (str, optional): Volume identifier associated with the PEC boundary. Defaults to None.
         z (float, optional): Z-coordinate of the PEC boundary. Defaults to None.
         linked_to (str, optional): Identifier of another entity this PEC boundary is linked to. Defaults to None.
+        group_id (int, optional): Group ID for the PEC boundary. Automatically assigned.
+        tags (list[int], optional): List of tags associated with the PEC boundary. Automatically assigned.
+        prepared_polygons (list[Polygon], optional): List of prepared polygons for the PEC boundary. Automatically assigned.
     """
     geometry: Polygon | MultiPolygon
     indices: list[int]
     volume: ExtrudeSettings = None
     z: float = None
-    group_id: int = None
-    tags: list[int] = field(default_factory=list)
     linked_to: str = None
+    group_id: int = field(init=False, default_factory=int)
+    tags: list[int] = field(init=False, default_factory=list)
     prepared_polygons: list[Polygon] = field(init=False, default_factory=list)
 
     def __post_init__(self):
