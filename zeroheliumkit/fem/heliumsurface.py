@@ -7,6 +7,7 @@ from shapely import Polygon, MultiPolygon, get_coordinates
 from scipy.interpolate import LinearNDInterpolator
 from matplotlib.ticker import MaxNLocator
 from pathlib import Path
+from platform import system
 
 
 from zeroheliumkit import Structure, Entity
@@ -27,6 +28,18 @@ def scaling_size(bulk_helium_distance: float=1e-1):
     lengthscale = (rho * g * bulk_helium_distance)/alpha * 1e-6      # in um
     return lengthscale
 
+def get_platform_path(*args):
+    platform = system()
+    if platform in [ 'Linux', 'Darwin' ] : # Linux or MacOS
+        delimeter = r"/"
+    elif platform == "Windows":
+        delimeter = r"\\"
+    else :
+        print('Unable to identify platform. Cannot run FreeFem++.')
+    output = args[0]
+    for arg in args[1:]:
+        output += delimeter + arg
+    return output
 
 class GMSHmaker2D():
     def __init__(self,
@@ -364,8 +377,8 @@ class HeliumSurfaceFreeFEM():
 
         code = """load "gmsh"\n"""
         if meshfile_path:
-            fullpath = Path(meshfile_path) / Path(f"{self.fem_config['meshname']}.msh2")
-            code += f"""mesh heliumsurfTh = gmshload("{str(fullpath)}");\n"""
+            fullpath = get_platform_path(meshfile_path, self.fem_config['meshname'] + ".msh2")
+            code += f"""mesh heliumsurfTh = gmshload("{fullpath}");\n"""
         else:
             code += f"""mesh heliumsurfTh = gmshload("{self.fem_config['meshname']}.msh2");\n"""
 

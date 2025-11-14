@@ -4,17 +4,22 @@ freefemer.py
 This module contains functions and a class for creating freefem files. Created by Niyaz B / January 10th, 2023.
 """
 
-import os, yaml, re, time
-import asyncio, psutil
+import os, yaml, re, time, sys
+import asyncio, psutil, shutil
 import polars as pl
 import numpy as np
 import ipywidgets as widgets
+from platform import system
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from datetime import datetime
 from IPython.display import display
 from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
+from typing import List, Optional
+import subprocess
+import logging
+# from logging.handlers import FileHandler
 
 
 axis_ordering = {'xy':   'ax1,ax2,ax3',
@@ -70,6 +75,38 @@ def add_spaces(num: int) -> str:
         str: A string containing the specified number of spaces.
     """
     return ' ' * num
+
+
+def get_dict_by_name(items: list[dict], name: str) -> dict | None:
+    """
+    Return the first dictionary from the list where dict['name'] == name.
+    If not found, return None.
+    """
+    return next((item for item in items if item.get("name") == name), None)
+
+
+def format_freefem_path(*parts: str) -> str:
+    """
+    Join path components using OS-correct separators, while ensuring FreeFEM-compatible escaping on Windows.
+
+    Args:
+        *parts (str): Components of the path.
+
+    Returns:
+        str: A fully joined, platform-correct path.
+    """
+    platform = system()
+    # Use os.path.join to get a correct native path
+    path = os.path.join(*parts)
+
+    # FreeFEM requires escaped backslashes on Windows for string literals
+    if platform == "Windows":
+        path = path.replace("\\", "\\\\")  # escape backslashes for FreeFEM
+    return path
+
+
+class FreeFemError(Exception):
+    pass
 
 
 @dataclass
@@ -151,16 +188,112 @@ class FFconfigurator():
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
 
-class FreeFEM():
+
+# ============================================================
+# Automatic Discovery of FreeFem Installation
+# ============================================================
+
+def detect_freefem() -> Optional[str]:
+    """
+    Returns the directory containing FreeFem++ or None.
+    Works on Windows, macOS, Linux.
+    """
+
+    candidates = []
+
+    if sys.platform.startswith("win"):
+        # standard Windows installs
+        candidates += [
+            r"C:\Program Files\FreeFem++",
+            r"C:\Program Files (x86)\FreeFem++",
+        ]
+    elif sys.platform == "darwin":
+        # macOS standard locations
+        candidates += [
+            "/Applications/FreeFem++.app/Contents/MacOS",
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+        ]
+    else:
+        # Linux
+        candidates += [
+            "/usr/bin",
+            "/usr/local/bin",
+            "/snap/bin",
+        ]
+
+    exe_names = ["FreeFem++", "FreeFem++.exe"]
+
+    for d in candidates:
+        d = Path(d)
+        for exe in exe_names:
+            if (d / exe).exists():
+                return str(d)
+
+    # Try PATH
+    for exe in exe_names:
+        if shutil.which(exe):
+            return str(Path(shutil.which(exe)).parent)
+
+    return None
+
+
+
+
+def get_edp_logger(edp_file: str) -> logging.Logger:
+    """
+    Create or return a logger dedicated to a specific EDP file.
+    Thread-safe and can be called multiple times.
+    """
+
+    file_path =  Path(edp_file)
+    log_dir = file_path.parent / Path("logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    logger_name = f"freefem.{file_path.stem}"
+    logger = logging.getLogger(logger_name)
+
+    # Avoid adding handlers twice
+    if logger.handlers:
+        for h in logger.handlers:
+            h.close()
+        logger.handlers.clear()
+
+    logger.setLevel(logging.DEBUG)
+
+    # Log file path
+    log_path = log_dir / f"{file_path.stem}.log"
+
+    # Rotating file handler (2MB per file, keep 3 backups)
+    file_handler = logging.FileHandler(log_path, mode="w", encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s | %(levelname)s | %(message)s"
+    ))
+
+    # Console handler (INFO-level)
+    # console_handler = logging.StreamHandler()
+    # console_handler.setLevel(logging.INFO)
+    # console_handler.setFormatter(logging.Formatter(
+    #     f"[{edp_file}] %(levelname)s: %(message)s"
+    # ))
+
+    logger.addHandler(file_handler)
+    # logger.addHandler(console_handler)
+
+    logger.propagate = False  # keep logs separate
+
+    return logger
+
+
+
+
+class EDPpreparer():
     """
     Class for creating and running FreeFEM scripts.
 
     Args:
         config (str): filepath containing FreeFEM config yaml file.
-        electrode_files (list): List of coupling constant files.
-        result_files (list): 2D list of existing electrode result files based on extract configs.
-        extract_names (str): List of names for the cumulative result files based on extract configs.
-        logs (str): Log messages from the FreeFEM execution.
     """
     
     def __init__(self,
@@ -173,12 +306,16 @@ class FreeFEM():
         if self.config.get('additional_dir'):
             self.savedir = Path(self.savedir / self.config.get('additional_dir'))
             self.savedir.mkdir(exist_ok=True)
-        self.electrode_files = []
-        self.extract_names = [eo['name'] for eo in self.config.get('extract_opt')]
-        self.logs = ""
+
         self.physicalVols = self.config.get('physicalVolumes')
         self.physicalSurfs = self.config.get('physicalSurfaces')
-        self.num_electrodes = len(list(self.physicalSurfs.keys()))
+
+        self.edp_files = []
+        # self.result_files = {k: {"data": [], "cm": None} for k in self.physicalSurfs.keys()}
+        self.result_files = {config["name"]: [] for config in self.config["extract_opt"]}
+        self.result_files["cm"] = []
+        self.num_electrodes = len(self.physicalSurfs)
+
         if isinstance(self.config.get('extract_opt'), dict):
             self.config['extract_opt'] = [self.config['extract_opt']]
 
@@ -201,7 +338,19 @@ class FreeFEM():
         return code
     
 
-    def write_edpContent(self, electrode_name: int) -> str:
+    def write_edpScript(self):
+        """
+        Creates the main FreeFEM script based on the configuration and physical surfaces.
+        """
+        for electrode in self.physicalSurfs.keys():
+            code = self.make_edp_content(electrode)
+            path = format_freefem_path(str(self.savedir), "ff_" + electrode + ".edp")
+            self.edp_files.append(path)
+            with open(path, 'w') as file:
+                file.write(code)
+
+
+    def make_edp_content(self, electrode_name: int) -> str:
         """
         Returns the contents of an electrode_k.edp file with the desired electrode name in the place of 'k'.
 
@@ -229,19 +378,31 @@ class FreeFEM():
             code += self.script_save_data(extract_config)
 
         return code
-    
 
-    def write_edpScript(self):
+
+    def script_create_savefiles(self, electrode_name: str):
         """
-        Creates the main FreeFEM script based on the configuration and physical surfaces.
+        Creates the necessary files for saving results based on the configuration and electrode index.
+
+        Args:
+            electrode_name (str): Name of the electrode for which the files are being created.
+
+        Returns:
+            code (str): string containing the necessary lines of code to save the data.
         """
-        #create new files for each electrode, only inputting the lines of code needed
-        for electrode in self.physicalSurfs.keys():
-            code = self.write_edpContent(electrode)
-            filename = "electrode_" + electrode + ".edp"
-            self.electrode_files.append(filename)
-            with open(self.savedir / filename, 'w') as file:
-                file.write(code)
+        code = "\n"
+
+        for econfig in self.config.get('extract_opt'):
+            name = econfig['name']
+            code += f"ofstream {name}"
+            name += f"_{electrode_name}"
+
+            path = format_freefem_path(str(self.savedir), name + ".npy")
+            self.result_files[econfig['name']].append((electrode_name, path))
+            
+            code += f"""("{path}", binary);\n"""
+        
+        return code
 
 
     def script_load_packages_and_mesh(self) -> str:
@@ -257,8 +418,9 @@ class FreeFEM():
         code += """load "mshmet"\n"""
         code += """load "tetgen"\n"""
         code += "\n"
-        path_meshfile = self.savedir / self.config["meshfile"]
-        code += f"""mesh3 Th = gmshload3("{str(path_meshfile)}");\n"""
+        path = format_freefem_path(str(self.savedir), self.config["meshfile"])
+
+        code += f"""mesh3 Th = gmshload3("{str(path)}");\n"""
         return code
 
 
@@ -296,26 +458,6 @@ class FreeFEM():
 
         return code
 
-
-    def script_create_savefiles(self, electrode_name: str):
-        """
-        Creates the necessary files for saving results based on the configuration and electrode index.
-
-        Args:
-            electrode_name (str): Name of the electrode for which the files are being created.
-
-        Returns:
-            code (str): string containing the necessary lines of code to save the data.
-        """
-        code = "\n"
-
-        for extract_cfg in self.config.get('extract_opt'):
-            name = extract_cfg['name']
-            code += f"""ofstream {name}"""
-            name += f"_{electrode_name}"
-            code += f"""("{str(self.savedir / name)}.npy", binary);\n"""
-        
-        return code
 
     def script_problem_definition(self, electrode_name: str) -> str:
         """
@@ -438,8 +580,12 @@ class FreeFEM():
         Returns:
             code (str): code containing the Capacitance Matrix.
         """
-        code = headerFrame("START / Calculate Capacitance Matrix")
-        code += f"""ofstream cmextract("{str(self.savedir / Path('cm_' + electrode_name))}.txt");\n"""
+        path = format_freefem_path(str(self.savedir), 'cm_' + electrode_name + ".txt")
+        self.result_files["cm"].append((electrode_name, path))
+
+
+        code = headerFrame("START / Calculate Capacitance Matrix")        
+        code += f"""ofstream cmextract("{path}");\n"""
         code += "\n"
         code += "for(int i = 0; i < numV; i++){\n"
         code += add_spaces(4) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
@@ -486,101 +632,245 @@ class FreeFEM():
         return code
 
 
-    async def edp_exec(self, edp_file: str, filepath: str, print_log: bool=False):
-        """
-        Executes the FreeFEM script asynchronously and captures the output.
-        
-        Args:
-            edp_file (str): Name of the FreeFEM script file to execute.
-            filepath (str): Path to the FreeFEM executable.
-            print_log (bool): Flag to indicate whether to print the output log.
-        """
-        progress = widgets.Label(f"⏳ Running calculations for {edp_file}")
-        display(progress)
 
-        bashCommand = ['freefem++', str(self.savedir / edp_file)]
-        env = os.environ.copy()
-        env['PATH'] += filepath
-        process = await asyncio.create_subprocess_exec(
-            *bashCommand,
-            stdout=asyncio.subprocess.PIPE,
-            env=env
+
+# ============================================================
+# FreeFEM Runner
+# ============================================================
+
+class FreeFEMrunner:
+    def __init__(self, edp_files: List[str]):
+        self.edp_files = edp_files
+        
+    
+    # ---------------------------------------------------------
+    # Build correct FreeFem executable path
+    # ---------------------------------------------------------
+
+    def _resolve_freefem_exe(self, freefem_path: str) -> str:
+        """Return full path to FreeFem executable based on OS."""
+
+        d = Path(freefem_path)
+
+        if d.is_file():
+            return str(d)
+
+        if sys.platform.startswith("win"):
+            exe = d / "FreeFem++.exe"
+            if exe.exists():
+                return str(exe)
+        else:
+            exe = d / "FreeFem++"
+            if exe.exists():
+                return str(exe)
+
+        raise FileNotFoundError(
+            f"FreeFem++ not found in {freefem_path}. "
+            "Provide the directory OR full path to executable."
         )
 
-        async for line in process.stdout:
-            output_log = line.decode()
-            self.logs += edp_file + ':' + output_log
-            if output_log[1:6] == "Error":
-                raise FreefemError(output_log)
-            elif print_log:
-                print(output_log)
+    # ---------------------------------------------------------
+    # Run a FreeFEM script in a thread (Jupyter-safe)
+    # ---------------------------------------------------------
 
-        await process.wait()
-        progress.value = f"✅ {edp_file} complete"
-    
+    async def edp_exec(
+        self,
+        edp_file: str,
+        freefem_path: str,
+        print_log: bool = False,
+        timeout: Optional[int] = None,
+        retry: int = 0,
+    ):
+        """
+        Runs one FreeFEM job using threads (Jupyter-safe).
+        """
+        logger = get_edp_logger(edp_file)
+        logger.info(f"Starting EDP: {edp_file}")
 
-    def __write_res_header(self, header_data):
+        progress = widgets.HTML(
+            f"<b>⏳ Running:</b> {edp_file}",
+            layout=widgets.Layout(margin="4px 0")
+        )
+        display(progress)
+
+        exe = self._resolve_freefem_exe(freefem_path)
+
+        cmd = [exe, "-ns", edp_file]
+
+        # Threaded subprocess
+        def run_subprocess():
+            for attempt in range(retry + 1):
+                try:
+                    return subprocess.run(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        # env=env,
+                        shell=(os.name == "nt"),
+                        timeout=timeout
+                    )
+                except subprocess.TimeoutExpired:
+                    logger.error(f"Timeout on attempt {attempt+1}/{retry+1}")
+                    if attempt == retry:
+                        raise
+            return None
+
+        # Await result
+        try:
+            result = await asyncio.to_thread(run_subprocess)
+        except subprocess.TimeoutExpired:
+            progress.value = f"<b>❌ Timeout:</b> {edp_file}"
+            logger.error("Execution timed out")
+            raise FreeFemError(f"Timeout running FreeFEM: {edp_file}")
+
+        # Parse output
+        output = result.stdout or ""
+        logger.debug("Full output captured")  
+
+        for line in output.splitlines():
+            logger.info(line)
+
+            if print_log:
+                print(line)
+
+        if output.splitlines()[-1] == "Ok: Normal End":
+            progress.value = f"<b>✅ Done:</b> {edp_file}"
+            logger.info(f"Completed EDP: {edp_file}")
+        else:
+            progress.value = f"<b>❌ Error:</b> {edp_file}"
+            logger.error(f"FreeFEM error")
+            #raise FreeFemError(error)
+
+    # ---------------------------------------------------------
+    # Parallel execution (async semaphore)
+    # ---------------------------------------------------------
+
+    async def limited_exec(self, semaphore, *args, **kwargs):
+        async with semaphore:
+            await self.edp_exec(*args, **kwargs)
+
+    # ---------------------------------------------------------
+    # Master run function
+    # ---------------------------------------------------------
+
+    async def run(
+        self,
+        cores: int = 4,
+        print_log: bool = False,
+        freefem_path: Optional[str] = None,
+        timeout: Optional[int] = None,
+        retry: int = 0
+    ):
+        """
+        Runs all FreeFEM EDP files in parallel.
+        """
+
+        # Auto-detect FreeFem++ if not provided
+        if freefem_path is None:
+            freefem_path = detect_freefem()
+            if not freefem_path:
+                raise FileNotFoundError(
+                    "FreeFem++ not found automatically. "
+                    "Specify freefem_path manually."
+                )
+
+        sys_cores = psutil.cpu_count(logical=False)
+        if cores > sys_cores:
+            raise ValueError(f"Input core count is greater than the available cores on this system.")
+        semaphore = asyncio.Semaphore(cores)
+
+        tasks = [
+            self.limited_exec(
+                semaphore,
+                file,
+                freefem_path,
+                print_log,
+                timeout,
+                retry
+            )
+            for file in self.edp_files
+        ]
+
+        await asyncio.gather(*tasks)
+
+
+
+class ResultGatherer():
+
+    def __init__(
+            self,
+            savedir: str | Path,
+            result_files: dict,
+            extract_opt: list[dict],
+            remove_files: bool=False
+            ):
+        self.savedir = Path(savedir)
+        self.result_files = result_files   
+        self.extract_opt = extract_opt             
+        self.gather_results(remove_files)
+
+
+    def __make_header(self, result_name: str) -> dict:
+        opt = get_dict_by_name(self.extract_opt, result_name)
         data = {}
-        data['Quantity'] = header_data['quantity']
-        data['Plane'] = header_data['plane']
-        data['X Min'] = header_data['coordinate1'][0]
-        data['X Max'] = header_data['coordinate1'][1]
-        data['X Num'] = header_data['coordinate1'][2]
-        data['Y Min'] = header_data['coordinate2'][0]
-        data['Y Max'] = header_data['coordinate2'][1]
-        data['Y Num'] = header_data['coordinate2'][2]
-        data['Slices'] = len(header_data['coordinate3'])
-        data['Slice Values'] = header_data['coordinate3']
-        data['Curved Surface'] = bool(header_data['curvature_config'])
-        data['Schema'] = str((len(header_data['coordinate3']), header_data['coordinate2'][2], header_data['coordinate1'][2]))
+        data['Quantity'] = opt['quantity']
+        data['Plane'] = opt['plane']
+        data['X Min'] = opt['coordinate1'][0]
+        data['X Max'] = opt['coordinate1'][1]
+        data['X Num'] = opt['coordinate1'][2]
+        data['Y Min'] = opt['coordinate2'][0]
+        data['Y Max'] = opt['coordinate2'][1]
+        data['Y Num'] = opt['coordinate2'][2]
+        data['Slices'] = len(opt['coordinate3'])
+        data['Slice Values'] = opt['coordinate3']
+        data['Curved Surface'] = bool(opt['curvature_config'])
+        data['Schema'] = str((len(opt['coordinate3']), opt['coordinate2'][2], opt['coordinate1'][2]))
         return data
 
 
-    def __create_polarsdf(self, filenames: dict, remove_files: bool=True):
+    def __create_polarsdf(
+            self,
+            filename: str,
+            result_files: list,
+            remove: bool=False
+        ):
         dataframe = pl.DataFrame({})
-        for elname, fname in filenames.items():
-            data = pl.read_csv(source=str(self.savedir / fname),
+        for elname, fname in result_files:
+            data = pl.read_csv(source=fname,
                                has_header=False,
                                new_columns=[elname],
                                schema_overrides={elname: pl.Float64})
 
             dataframe = pl.concat([dataframe, data], how="horizontal")
-            if remove_files:
-                os.remove(str(self.savedir / fname))
-        return dataframe
+            if remove:
+                os.remove(fname)
+        filename = filename + ".parquet"
+        dataframe.write_parquet(self.savedir / filename, compression="zstd")
 
 
-    def gather_results(self, remove_files: bool=True):
+    def gather_results(self, remove: bool=False):
         """
         Gathers results for all electrodes into one polars DataFrame for each extract config. Redirected to .parquet files for easy parsing.
 
         Args:
-            remove_files (bool): Whether or not to remove the .npy files in the user's file system. Defaults to True.
+            remove (bool): Whether or not to remove the .npy files in the user's file system. Defaults to True.
         """
-        yaml_path = str(self.savedir / "metadata.yaml")
         yaml_data = {}
 
-        for eo in self.config.get('extract_opt'):
-            exname = eo.get("name")
-            header_data = self.__write_res_header(eo)
-            yaml_data[exname] = header_data
+        for result_name, files in self.result_files.items():
+            if result_name != "cm":
+                self.__create_polarsdf(result_name, files, remove)
+                yaml_data[result_name] = self.__make_header(result_name)
 
-            filenames = {}
-            for elname in self.physicalSurfs.keys():
-                filenames[elname] = exname + "_" + elname + ".npy"
-            dataframe = self.__create_polarsdf(filenames, remove_files)
+        yaml_data['Capacitance Matrix'] = self.gather_cm_results(remove)
+        yaml_data['Control Electrodes'] = [item[0] for item in files]
 
-            outfile_path = str(self.savedir / f"{exname}.parquet")
-            dataframe.write_parquet(outfile_path, compression="zstd")
-
-        yaml_data['Capacitance Matrix'] = self.gather_cm_results(remove_files)
-        yaml_data['Control Electrodes'] = list(self.physicalSurfs.keys())
-
-        with open(yaml_path, 'w') as f:
+        with open(self.savedir / "metadata.yaml", 'w') as f:
             yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
     
 
-    def gather_cm_results(self, remove_original: bool=True) -> list:
+    def gather_cm_results(self, remove: bool=True) -> list:
         """
         Gathers the capacitance matrix results from the saved text files into a 2D list.
         
@@ -590,186 +880,37 @@ class FreeFEM():
 
         capacitance_matrix = []
 
-        for electrode in list(self.physicalSurfs.keys()):
-            row = np.loadtxt(str(self.savedir / f"cm_{electrode}.txt"))
-            row = row.reshape(len(list(self.physicalSurfs.keys()))).tolist()
+        for ename, file in self.result_files["cm"]:
+            row = np.loadtxt(file)
+            row = row.reshape(len(self.result_files["cm"])).tolist()
             capacitance_matrix.append(row)
-            if remove_original:
-                os.remove(str(self.savedir / f"cm_{electrode}.txt"))
+            if remove:
+                os.remove(file)
 
         return capacitance_matrix
 
+
+
+class FreeFEM():
+    def __init__(self, config_file: str):
+    
+        edps = EDPpreparer(config_file)
+        self.savedir = edps.savedir
+        self.result_files = edps.result_files
+        self.extract_opt = edps.config['extract_opt']
+        self.ffrunner = FreeFEMrunner(edps.edp_files)
+
+    
+    async def run(
+        self,
+        cores: int = 4,
+        print_log: bool = False,
+        freefem_path: Optional[str] = None,
+        timeout: Optional[int] = None,
+        retry: int = 0,
+        remove: bool=True
+        ):
         
-    def log_history(self, edp_code: str, total_time: float):
-        """
-        Logs the current run and edp code to an existing, running history file (ff_history.md)
+        await self.ffrunner.run(cores, print_log, freefem_path, timeout, retry)
+        rg = ResultGatherer(self.savedir, self.result_files, self.extract_opt, remove_files=remove)
 
-        Args:
-            edp_code (str): Skeleton edp code to place in the body of the history entry.
-            total_time (float): Time elapsed from the latest FreeFem calculation to input in the header.
-        """
-        curr_date = datetime.now()
-        try:
-            with open(str(self.savedir / 'ff_history.md'), 'r+', encoding='utf-8') as hist:
-                contents = hist.read()
-                start_header = contents.find("\n")
-                iteration = int(contents[0:start_header]) + 1 if contents else 1
-                hist.seek(0)
-                hist.write(str(iteration) + "\n")
-                hist.seek(0, 2) 
-                hist.write(f"\n## [{iteration}] - {curr_date} - Run in {total_time} seconds\n")
-                config = self.config.get('extract_opt')
-                for c in config:
-                    hist.write(f"## QUANTITY: {c['quantity']} - PLANE: {c['plane']} - COORD1: {c['coordinate1']} - COORD2: {c['coordinate2']} - COORD3: {c['coordinate3']}\n")
-                hist.write("```freefem\n")
-                hist.write(edp_code)
-                hist.write("```\n")
-        except FileNotFoundError:
-            with open(self.savedir / 'ff_history.md', 'w', encoding='utf-8') as hist:
-                hist.seek(0)
-                hist.write('1')
-                hist.write(f"\n## [1] - {curr_date} - Run in {total_time} seconds\n")
-                hist.write("```freefem\n")
-                hist.write(edp_code)
-                hist.write("```\n")
-        except Exception as e:
-            print(e)
-
-
-    async def limited_exec(self, semaphore, *args, **kwargs):
-        """
-        Executes the FreeFEM script with a semaphore to limit the number of concurrent executions.
-
-        Args:
-            semaphore (asyncio.Semaphore): Semaphore to run the edp_exec method with.
-        """
-        async with semaphore:
-            await self.edp_exec(*args, **kwargs)
-
-
-    async def run_from_history(self, iteration: int, cores: int, 
-                               print_log: bool=False, freefem_path: str=":/Applications/FreeFem++.app/Contents/ff-4.15/bin"):
-        """
-        Runs the edp file from a given iteration of the ff_history.md file.
-
-        Args:
-            iteration (int): Iteration number to grab the edp code from.
-            electrode name (int | list): Name(s) of the electrode(s) to run again on this edp file.
-            print_log (bool): Whether or not to print the logs to stdout. Defaults to False.
-            freefem_path (str): Path to the FreeFem package. Has a default path. 
-        """
-        names = []
-        names = list(self.physicalSurfs.keys())
-
-        pattern = rf'^##\s+\[({iteration})]'
-        with open(str(self.savedir / "ff_history.md"), 'r+') as hist:
-            history_content = hist.read()
-            match = re.search(pattern, history_content, re.MULTILINE)
-
-            if match is None:
-                raise ValueError("No iteration of that kind can be found")
-            
-            code_start = history_content.find("```freefem", match.end())
-            if code_start == -1:
-                raise ValueError("Given index does not have freefem code logged in history.")
-            code_end = history_content.find("```", code_start + 4)
-            if code_end == -1:
-                raise ValueError("Given index does not have freefem code logged in history.")
-
-            hist.seek(0)
-            history_content = hist.read()
-            code = history_content[code_start + 12:code_end]
-            self.electrode_files.clear()
-            self.logs = ""
-            
-            relative_idx = code.find("ofstream")
-            problem_start = code.find("fespace", relative_idx)
-            if problem_start != -1:
-                problem_end = code.find("Electro;", problem_start)
-            else:
-                raise ValueError("Given edp file from History does not contain a problem definition block.")
-            
-            for idx, cfg in enumerate(self.config.get('extract_opt')):
-                for name in names:
-                    temp_code = self.script_problem_definition(name)
-                    new_code = code[0:problem_start] + temp_code + code[problem_end + 8::]
-                    new_code = new_code.replace("electrode_name", name)
-                    
-                    with open(self.savedir / f"electrode_{name}.edp", 'w+') as edp:
-                        edp.write(new_code)
-                    if self.config.get('extract_opt')[-1] == cfg:
-                        self.electrode_files.append(f"electrode_{name}.edp")
-                    extract_names = self.extract_names[idx]
-                    extract_names += f'_{name}'
-                    new_code = ""
-                    temp_code = ""
-            await self.run(cores, print_log, freefem_path)
-
-
-    async def run(self,
-            cores,
-            print_log=False,
-            freefem_path=":/Applications/FreeFem++.app/Contents/ff-4.15/bin",
-            remove_txt_files: bool=True):
-        """
-        Runs the FreeFEM calculations asynchronously with a specified number of cores.
-        
-        Args:
-            cores (int): Number of cores to use for the calculations.
-            print_log (bool): Flag to indicate whether to print the output log.
-            freefem_path (str): Path to the FreeFEM executable.
-        """
-        
-        sys_cores = psutil.cpu_count(logical=False)
-        if cores > sys_cores:
-            raise ValueError(f"Input core count is greater than the available cores on this system.")
-        semaphore = asyncio.Semaphore(cores)
-
-        start_time = time.perf_counter()
-        
-        try:
-            asynch_in = [
-                self.limited_exec(semaphore, edp_name, freefem_path, print_log)
-                for edp_name in self.electrode_files
-            ]
-
-            await asyncio.gather(*asynch_in)
-
-        except KeyboardInterrupt:
-            message = 'Interrupted by user'
-            print(message)
-            self.logs += message
-
-        finally:
-            with open(str(self.savedir / 'ff_logs.txt'), 'w') as outfile:
-                outfile.write(self.logs)
-                
-            self.gather_results(remove_txt_files)
-
-            filename = self.electrode_files[0]
-            with open(str(self.savedir / filename), 'r') as file:
-                skel_name = self.electrode_files[0].split('_')[-1]
-                skel_name = skel_name.split(".")[0]
-                edp_skel = file.read()
-            for file in self.electrode_files:
-                os.remove(str(self.savedir / file))
-            self.electrode_files.clear()
-
-            end_time = time.perf_counter()
-            total_time = end_time - start_time
-
-            edp_skel = edp_skel.replace(skel_name, "electrode_name")
-            self.log_history(edp_skel, total_time)
-
-            print(f'Freefem calculations are complete. Ran in {total_time:.2f} seconds.')
-
-
-    def clean_directory(self, keep_files: list=None):
-        for file in os.listdir(f'{self.savedir}'):
-            if file.startswith("ff_data") and file not in keep_files:
-                print(f'Cleaning {file} from directory')
-                os.remove(str(self.savedir / file))
-
-            if ".npy" in file and file not in keep_files:
-                print(f'Cleaning {file} from directory')
-                os.remove(str(self.savedir / file))

@@ -796,7 +796,7 @@ class GMSHmaker():
 
         gmsh_config ={
             'savedir': self.save["dir"],
-            'meshfile': self.save["filename"] + ".msh2",
+            'meshfile': self.save["filename"] + ".msh",
             'extrude': {k: asdict(v, dict_factory=custom_dict_factory) for (k, v) in self.extrude.items()},
             'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
