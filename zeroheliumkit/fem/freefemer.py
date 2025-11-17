@@ -4,21 +4,27 @@ freefemer.py
 This module contains functions and a class for creating freefem files. Created by Niyaz B / January 10th, 2023.
 """
 
-import os, yaml, re, time, sys
-import asyncio, psutil, shutil
+import os
+import yaml
+import sys
+import asyncio
+import psutil
+import shutil
+import subprocess
+import logging
 import polars as pl
 import numpy as np
 import ipywidgets as widgets
+
+from pathlib import Path
 from platform import system
 from dataclasses import dataclass, asdict
-from pathlib import Path
-from datetime import datetime
+from typing import List, Optional
 from IPython.display import display
+
 from ..src.errors import *
 from ..helpers.constants import rho, g, alpha
-from typing import List, Optional
-import subprocess
-import logging
+
 # from logging.handlers import FileHandler
 
 
@@ -161,15 +167,12 @@ class FFconfigurator():
         extract_opt (list[ExtractConfig] | dict): List of ExtractConfig objects or a dictionary containing extraction options.
         msh_refinements (int): The number of iterations over which to refine the GMSH meshfile using TetGen.
             If no number is provided, will default to None and not iterate at all.
-        additional_dir (str): Name for the additional subdirectory to direct files into.
-            If no name is provided, will default to None and files will be directed to the standard provided path. 
     """
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
     msh_refinements: int = None
-    additional_dir: str = None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
@@ -247,7 +250,7 @@ def get_edp_logger(edp_file: str) -> logging.Logger:
     """
 
     file_path =  Path(edp_file)
-    log_dir = file_path.parent / Path("logs")
+    log_dir = file_path.parent.parent / Path("logs")
     log_dir.mkdir(parents=True, exist_ok=True)
 
     logger_name = f"freefem.{file_path.stem}"
@@ -296,22 +299,18 @@ class EDPpreparer():
         config (str): filepath containing FreeFEM config yaml file.
     """
     
-    def __init__(self,
-                 config_file: str):
+    def __init__(self, config_file: str):
 
         with open(config_file, 'r') as file:
             self.config = yaml.safe_load(file)
 
-        self.savedir = Path(self.config["savedir"])
-        if self.config.get('additional_dir'):
-            self.savedir = Path(self.savedir / self.config.get('additional_dir'))
-            self.savedir.mkdir(exist_ok=True)
+        self.savedir = Path(self.config["savedir"]) / Path("edp")
+        self.savedir.mkdir(exist_ok=True)
 
         self.physicalVols = self.config.get('physicalVolumes')
         self.physicalSurfs = self.config.get('physicalSurfaces')
 
         self.edp_files = []
-        # self.result_files = {k: {"data": [], "cm": None} for k in self.physicalSurfs.keys()}
         self.result_files = {config["name"]: [] for config in self.config["extract_opt"]}
         self.result_files["cm"] = []
         self.num_electrodes = len(self.physicalSurfs)
@@ -418,7 +417,8 @@ class EDPpreparer():
         code += """load "mshmet"\n"""
         code += """load "tetgen"\n"""
         code += "\n"
-        path = format_freefem_path(str(self.savedir), self.config["meshfile"])
+        # path = format_freefem_path(str(self.savedir), self.config["meshfile"])
+        path = Path(self.config["meshfile"])
 
         code += f"""mesh3 Th = gmshload3("{str(path)}");\n"""
         return code
@@ -805,7 +805,7 @@ class ResultGatherer():
             extract_opt: list[dict],
             remove_files: bool=False
             ):
-        self.savedir = Path(savedir)
+        self.savedir = savedir
         self.result_files = result_files   
         self.extract_opt = extract_opt             
         self.gather_results(remove_files)
@@ -845,8 +845,8 @@ class ResultGatherer():
             dataframe = pl.concat([dataframe, data], how="horizontal")
             if remove:
                 os.remove(fname)
-        filename = filename + ".parquet"
-        dataframe.write_parquet(self.savedir / filename, compression="zstd")
+        path = self.savedir / Path(filename)
+        dataframe.write_parquet(path.with_suffix(".parquet"), compression="zstd")
 
 
     def gather_results(self, remove: bool=False):
@@ -866,7 +866,7 @@ class ResultGatherer():
         yaml_data['Capacitance Matrix'] = self.gather_cm_results(remove)
         yaml_data['Control Electrodes'] = [item[0] for item in files]
 
-        with open(self.savedir / "metadata.yaml", 'w') as f:
+        with open(self.savedir.parent / "metadata.yaml", 'w') as f:
             yaml.dump(yaml_data, f, sort_keys=False, default_flow_style=False)
     
 
@@ -895,7 +895,8 @@ class FreeFEM():
     def __init__(self, config_file: str):
     
         edps = EDPpreparer(config_file)
-        self.savedir = edps.savedir
+        self.savedir = Path(edps.config['savedir']) / Path("results")
+        self.savedir.mkdir(exist_ok=True)
         self.result_files = edps.result_files
         self.extract_opt = edps.config['extract_opt']
         self.ffrunner = FreeFEMrunner(edps.edp_files)
@@ -913,4 +914,4 @@ class FreeFEM():
         
         await self.ffrunner.run(cores, print_log, freefem_path, timeout, retry)
         rg = ResultGatherer(self.savedir, self.result_files, self.extract_opt, remove_files=remove)
-
+        logging.shutdown()

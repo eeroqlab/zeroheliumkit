@@ -52,7 +52,7 @@ class GMSHmaker2D():
         self.electrode_config = electode_config
         self.mesh_config = mesh_config
         self.filename = filename
-        self.savedir = savedir
+        self.savedir = Path(savedir)
 
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
@@ -273,8 +273,8 @@ class GMSHmaker2D():
         """
         Generates and writes the geometry definition to a file in GMSH format.
         """
-        fullpath = Path(self.savedir) / Path(self.filename + ".geo_unrolled")
-        gmsh.write(str(fullpath))
+        path = self.savedir / Path(self.filename)
+        gmsh.write(str(path.with_suffix(".geo_unrolled")))
     
     def create_mesh(self, dim=2, print_progress=True):
         """
@@ -293,8 +293,11 @@ class GMSHmaker2D():
         try:
             for item in bar:
                 gmsh.model.mesh.generate(dim)
-                fullpath = Path(self.savedir) / Path(self.filename + ".msh2")
-                gmsh.write(str(fullpath))
+                gmsh.model.mesh.setOrder(1)
+                gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
+                gmsh.option.setNumber("Mesh.Binary", 0)
+                path = self.savedir / Path(self.filename)
+                gmsh.write(str(path.with_suffix(".msh")))
         except KeyboardInterrupt:
             print('interrupted by user')
         
@@ -342,7 +345,7 @@ class GMSHmaker2D():
                                "value": v.get("value")
                                } for (k, v) in self.physlines.items()],
             "meshname": self.filename,
-            "savedir": self.savedir
+            "savedir": str(self.savedir)
         }
         return gmsh_physical_config
 
@@ -377,10 +380,10 @@ class HeliumSurfaceFreeFEM():
 
         code = """load "gmsh"\n"""
         if meshfile_path:
-            fullpath = get_platform_path(meshfile_path, self.fem_config['meshname'] + ".msh2")
+            fullpath = get_platform_path(meshfile_path, self.fem_config['meshname'] + ".msh")
             code += f"""mesh heliumsurfTh = gmshload("{fullpath}");\n"""
         else:
-            code += f"""mesh heliumsurfTh = gmshload("{self.fem_config['meshname']}.msh2");\n"""
+            code += f"""mesh heliumsurfTh = gmshload("{self.fem_config['meshname']}.msh");\n"""
 
         code += """cout << "Area: " << int2d(heliumsurfTh)(1.0) << endl;\n"""
         code += """\n"""

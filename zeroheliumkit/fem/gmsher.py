@@ -78,11 +78,11 @@ class SurfaceSettings:
     Args:
         geometry (Polygon | MultiPolygon): Geometry of the surface.
         z (float): Z-coordinate of the surface.
-        index (list[int], optional): List of polygon indices associated with the surface. Defaults to an empty list.
+        index (list[int], optional): List of polygon indices associated with the surface. Defaults to an empty list. Not user defined.
     """
     geometry: Polygon | MultiPolygon
     z: float
-    index: list[int] = field(default_factory=list)
+    index: list[int] = field(init=False, default_factory=list)
 
 
 @dataclass
@@ -96,9 +96,9 @@ class PECSettings:
         volume (str, optional): Volume identifier associated with the PEC boundary. Defaults to None.
         z (float, optional): Z-coordinate of the PEC boundary. Defaults to None.
         linked_to (str, optional): Identifier of another entity this PEC boundary is linked to. Defaults to None.
-        group_id (int, optional): Group ID for the PEC boundary. Automatically assigned.
-        tags (list[int], optional): List of tags associated with the PEC boundary. Automatically assigned.
-        prepared_polygons (list[Polygon], optional): List of prepared polygons for the PEC boundary. Automatically assigned.
+        group_id (int, optional): Group ID for the PEC boundary. Automatically assigned. Not user defined.
+        tags (list[int], optional): List of tags associated with the PEC boundary. Automatically assigned. Not user defined.
+        prepared_polygons (list[Polygon], optional): List of prepared polygons for the PEC boundary. Automatically assigned. Not user defined.
     """
     geometry: Polygon | MultiPolygon
     indices: list[int]
@@ -151,6 +151,7 @@ class DistanceFieldMeshSettings:
 
 @dataclass
 class FixedFieldMeshSettings:
+    #TODO: to be implemented
     pass
 
 
@@ -193,7 +194,10 @@ class GMSHmaker():
         self.surfaces = surfaces
         self.pecs = pecs
         self.mesh = mesh
-        self.save = save
+
+        os.makedirs(Path(save["dir"]) / Path("geo"), exist_ok=True)
+        self.save =  Path(save["dir"]) / Path("geo") / Path(save["filename"])
+        
         self.open_gmsh = open_gmsh
         self.debug_mode = debug_mode
 
@@ -604,6 +608,7 @@ class GMSHmaker():
 
 
     def get_surfaces_onEdges(self, Btype: str):
+        #TODO: to be implemented
         allowed_types = ['x', 'y', 'z']
         if Btype not in allowed_types:
             raise TypeError(f'Btype error: only {allowed_types} is allowed')
@@ -615,8 +620,10 @@ class GMSHmaker():
     def make_box_field_mesh(self, boxes: list[BoxFieldMeshSettings]) -> list[int]:
         """
         Creates box fields for mesh refinement in Gmsh.
+
         Args:
             boxes (list[BoxFieldMeshSettings]): List of box field configurations.
+
         Returns:
             list: List of box field IDs created in Gmsh.
         """
@@ -730,8 +737,9 @@ class GMSHmaker():
 
 
     def create_geo(self):
-        fullpath = Path(self.save["dir"]) / Path(self.save["filename"] + ".geo_unrolled")
-        gmsh.write(str(fullpath))
+        path = self.save.with_suffix(".geo_unrolled")
+        gmsh.write(str(path))
+
 
     def create_mesh(self, dim=2):
         """
@@ -744,7 +752,6 @@ class GMSHmaker():
             KeyboardInterrupt: If the mesh generation is interrupted by the user.
         """
 
-        os.makedirs(self.save["dir"], exist_ok=True)
         bar = alive_it([0], title='Gmsh generation ', length=3, spinner='elements', force_tty=True) 
         try:
             for _ in bar:
@@ -753,8 +760,8 @@ class GMSHmaker():
                 gmsh.model.mesh.setOrder(1)
                 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
                 gmsh.option.setNumber("Mesh.Binary", 0)
-                fullpath = Path(self.save["dir"]) / Path(self.save["filename"] + ".msh")
-                gmsh.write(str(fullpath))
+                path = self.save.with_suffix(".msh")
+                gmsh.write(str(path))
                 print("mesh saved")
         except KeyboardInterrupt:
             print('interrupted by user')
@@ -795,15 +802,14 @@ class GMSHmaker():
         """
 
         gmsh_config ={
-            'savedir': self.save["dir"],
-            'meshfile': self.save["filename"] + ".msh",
+            'savedir': str(self.save.parent.parent),
+            'meshfile': str(self.save.with_suffix(".msh")),
             'extrude': {k: asdict(v, dict_factory=custom_dict_factory) for (k, v) in self.extrude.items()},
             'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
-        os.makedirs(self.save["dir"], exist_ok=True)
-        fullpath = Path(self.save["dir"]) / Path(self.save["filename"] + ".yaml")
-        with open(str(fullpath), 'w') as file:
+        path = Path(self.save.parent.parent) / Path(self.save.name)
+        with open(path.with_suffix(".yaml"), 'w') as file:
             yaml.safe_dump(gmsh_config, file, sort_keys=False, indent=3)
     
 
