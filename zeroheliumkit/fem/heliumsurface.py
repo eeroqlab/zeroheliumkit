@@ -52,7 +52,7 @@ class GMSHmaker2D():
         self.electrode_config = electode_config
         self.mesh_config = mesh_config
         self.filename = filename
-        self.savedir = Path(savedir)
+        self.savedir = Path(savedir) / Path("geo")
 
         gmsh.initialize()
         gmsh.model.add("DFG 3D")
@@ -344,8 +344,8 @@ class GMSHmaker2D():
                                "id": v.get('group_id'),
                                "value": v.get("value")
                                } for (k, v) in self.physlines.items()],
-            "meshname": self.filename,
-            "savedir": str(self.savedir)
+            "meshname": str(self.savedir / Path(self.filename).with_suffix(".msh")),
+            "savedir": str(self.savedir.parent)
         }
         return gmsh_physical_config
 
@@ -367,10 +367,13 @@ class HeliumSurfaceFreeFEM():
                 save_edp: bool = False):
         self.fem_config = fem_config
         if save_edp:
-            self.save_edp(fem_config['meshname'])
+            meshfile_path = Path(fem_config['meshname'])
+            path = Path(fem_config['savedir']) / Path("edp")
+            path.mkdir(parents=True, exist_ok=True)
+            self.save_edp(path / Path(meshfile_path.stem))
 
 
-    def create_edp(self, meshfile_path: str=None):
+    def create_edp(self):
         """
         Generates the FreeFEM script for the helium surface problem.
         
@@ -379,11 +382,13 @@ class HeliumSurfaceFreeFEM():
         """
 
         code = """load "gmsh"\n"""
-        if meshfile_path:
-            fullpath = get_platform_path(meshfile_path, self.fem_config['meshname'] + ".msh")
-            code += f"""mesh heliumsurfTh = gmshload("{fullpath}");\n"""
+        path = Path(self.fem_config['meshname'])
+        if sys.platform.startswith("win"):
+            meshfile_path = str(path).replace("\\", "\\\\")
         else:
-            code += f"""mesh heliumsurfTh = gmshload("{self.fem_config['meshname']}.msh");\n"""
+            meshfile_path = str(path)
+        code += f"""mesh heliumsurfTh = gmshload("{meshfile_path}");\n"""
+
 
         code += """cout << "Area: " << int2d(heliumsurfTh)(1.0) << endl;\n"""
         code += """\n"""
@@ -414,8 +419,9 @@ class HeliumSurfaceFreeFEM():
         Args:
             filename (str): The name of the file to save the script to (without extension).
         """
-        with open(filename + ".edp", 'w') as f:
-            f.write(self.create_edp(self.fem_config['savedir']))
+        with open(str(filename) + ".edp", 'w') as f:
+            edp_code = self.create_edp()
+            f.write(edp_code)
 
 
     def get_code_config(self, bulk_helium_distances: float|list=0, surface_helium_level: float=0):
@@ -430,7 +436,7 @@ class HeliumSurfaceFreeFEM():
             dict: Configuration dictionary containing the FreeFEM script and simulation parameters.
         """
         config = {
-            "script": self.create_edp(self.fem_config['savedir']),
+            "script": self.create_edp(),
             "displacement": "disp",
             "bulk_helium_distances": bulk_helium_distances if isinstance(bulk_helium_distances, list) else [bulk_helium_distances],
             "surface_helium_level": surface_helium_level
@@ -447,7 +453,7 @@ class HeliumSurfaceFreeFEM():
         except ImportError:
             print("pyfreefem not installed. See https://github.com/neoh54/pyFreeFem for instructions.")
 
-        script = pyff.edpScript(self.create_edp(self.fem_config['savedir']))
+        script = pyff.edpScript(self.create_edp())
         script += """fespace Vh2(heliumsurfTh,P1);\n"""
         script += """Vh2 dispOutput = disp;\n"""
         script += pyff.OutputScript( heliumsurfTh = 'mesh' )

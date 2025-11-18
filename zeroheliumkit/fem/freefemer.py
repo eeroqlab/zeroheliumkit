@@ -419,8 +419,12 @@ class EDPpreparer():
         code += "\n"
         # path = format_freefem_path(str(self.savedir), self.config["meshfile"])
         path = Path(self.config["meshfile"])
+        if sys.platform.startswith("win"):
+            path = str(path).replace("\\", "\\\\")
+        else:
+            path = str(path)
 
-        code += f"""mesh3 Th = gmshload3("{str(path)}");\n"""
+        code += f"""mesh3 Th = gmshload3("{path}");\n"""
         return code
 
 
