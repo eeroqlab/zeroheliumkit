@@ -353,18 +353,21 @@ class Base:
         setattr(self, lname, flatten_multipolygon(polygons, cut_position))
 
 
-    def slice_layer(self, lname: str, slice_line: list[LineString]):
+    def slice_layers(self, lnames: str | list[str], slice_line: LineString | list[LineString]):
         """
         Slices polygons in a layer using a given line.
 
         Args:
-            lname (str): The name of the layer.
+            lname (str | list[str]): The name of the layer.
             slice_line (LineString): The line used for slicing.
         """
-        polygons = getattr(self, lname)
-        for slice in slice_line:
-            polygons = split_polygon(polygons, slice)
-        setattr(self, lname, polygons)
+        if isinstance(lnames, str):
+            lnames = [lnames]
+        for lname in lnames:
+            polygons = getattr(self, lname)
+            for slice in slice_line:
+                polygons = split_polygon(polygons, slice)
+            setattr(self, lname, polygons)
     
 
     def remove_polygon(self, lname: str, polygon_id: int | tuple | list):
