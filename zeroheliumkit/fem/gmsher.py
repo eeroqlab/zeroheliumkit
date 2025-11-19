@@ -124,6 +124,27 @@ class PECSettings:
 
 
 @dataclass
+class PMCSetting:
+    geometry: Polygon | MultiPolygon
+    indices: list[int]
+    volume: ExtrudeSettings = None
+    linked_to: str = None
+    normals: int = field(init=False, default_factory=int)
+    prepared_polygons: list[Polygon] = field(init=False, default_factory=list)
+
+    def __post_init__(self):
+        for id in self.indices:
+            if isinstance(self.geometry, MultiPolygon):
+                self.prepared_polygons.append(self.geometry.geoms[id])
+            elif isinstance(self.geometry, Polygon):
+                self.prepared_polygons.append(self.geometry)
+            else:
+                raise TypeError("PECSettings: 'geometry' must be a Polygon or MultiPolygon.")
+        if self.volume:
+            self.z = self.volume.z_base + self.volume.height/2  # center z-coordinate of the volume
+
+
+@dataclass
 class MeshSettings:
     dim: int = 3
     fields: dict = field(default_factory=dict)
@@ -185,6 +206,7 @@ class GMSHmaker():
                  extrude: ExtrudeSettings,
                  surfaces: SurfaceSettings=None,
                  pecs: PECSettings=None,
+                 pmcs: PMCSetting=None,
                  mesh: MeshSettings=None,
                  save: dict={"dir": "dump", "filename": "device"},
                  open_gmsh: bool=False,
@@ -193,6 +215,7 @@ class GMSHmaker():
         self.extrude = extrude
         self.surfaces = surfaces
         self.pecs = pecs
+        self.pmcs = pmcs
         self.mesh = mesh
 
         os.makedirs(Path(save["dir"]) / Path("geo"), exist_ok=True)
@@ -221,7 +244,10 @@ class GMSHmaker():
             vols = self.create_gmsh_objects()
             self.fragmentation(vols)
             self.physicalVolumes = self.create_PhysicalVolumes(vols)
-            self.physicalSurfaces = self.create_PhysicalSurfaces()
+            if self.pecs:
+                self.physicalSurfaces = self.create_PhysicalSurfaces()
+            if self.pmcs:
+                self.physicalSurfaces = self.create_PhysicalSurfaces()
             self.export_config()
 
             self.setup_mesh_fields()
@@ -577,6 +603,51 @@ class GMSHmaker():
 
         # populating electrodes with gmshEntities
         for pec_name, config in self.pecs.items():
+            for poly in config.prepared_polygons:
+                point_inside = point_on_surface(poly)
+                for volumetag in metal_volume_tags:
+                    if gmsh.model.isInside(3, volumetag, [point_inside.x, point_inside.y, config.z], parametric=False):
+                        _, down = gmsh.model.getAdjacencies(3, volumetag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
+                        config.tags.extend(down)
+                if config.volume is None:
+                    outDimTags, _, _ = gmsh.model.occ.getClosestEntities(point_inside.x, point_inside.y, config.z, allSurfaces, n=1)
+                    config.tags.append(outDimTags[0][1])
+        
+        # assigning self.pecs to group_ids
+        offset = len(self.physicalVolumes) # to avoid overlapping group_ids between volumes and surfaces
+        unique_electrodes = {}
+        for i, (pec_name, config) in enumerate(self.pecs.items()):
+            group_id = i + offset + 1    
+            if not config.linked_to:
+                unique_electrodes[pec_name] = {'group_id': group_id, 'tags': config.tags}
+            else:
+                new_surfaces = config.tags
+                uniques = unique_electrodes[config.linked_to]['tags']
+                combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
+                unique_electrodes[config.linked_to]['tags'] = combined_without_duplicates
+
+        for k, v in unique_electrodes.items():
+            gmsh.model.addPhysicalGroup(2, v['tags'], v['group_id'], name=k)
+        gmsh.model.occ.synchronize()
+
+        return unique_electrodes
+
+
+    def create_PhysicalSurfaces_for_pmcs(self) -> dict:
+        """
+        Defines the physical Surfaces, where voltages will be applied.
+
+        Returns:
+            dict: populated electrodes config dict
+        """
+        
+        metal_group = self.physicalVolumes.get("METAL")
+        metal_volume_tags = metal_group['tags'] if metal_group else []
+
+        allSurfaces = gmsh.model.occ.getEntities(dim=2)
+
+        # populating electrodes with gmshEntities
+        for pmc_name, config in self.pmcs.items():
             for poly in config.prepared_polygons:
                 point_inside = point_on_surface(poly)
                 for volumetag in metal_volume_tags:
