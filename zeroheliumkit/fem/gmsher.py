@@ -9,6 +9,7 @@
 
 import gmsh
 import sys, os, yaml
+import numpy as np
 
 from shapely import Polygon, MultiPolygon, LineString, MultiLineString, get_coordinates, point_on_surface
 from alive_progress import alive_it
@@ -125,23 +126,14 @@ class PECSettings:
 
 @dataclass
 class PMCSetting:
-    geometry: Polygon | MultiPolygon
-    indices: list[int]
-    volume: ExtrudeSettings = None
-    linked_to: str = None
-    normals: int = field(init=False, default_factory=int)
-    prepared_polygons: list[Polygon] = field(init=False, default_factory=list)
+    volume: str
+    magnet_axis: list[int]
+    normals: list[tuple] = field(init=False, default_factory=list)
+    surface_currents: list[tuple] = field(init=False, default_factory=list)
 
     def __post_init__(self):
-        for id in self.indices:
-            if isinstance(self.geometry, MultiPolygon):
-                self.prepared_polygons.append(self.geometry.geoms[id])
-            elif isinstance(self.geometry, Polygon):
-                self.prepared_polygons.append(self.geometry)
-            else:
-                raise TypeError("PECSettings: 'geometry' must be a Polygon or MultiPolygon.")
-        if self.volume:
-            self.z = self.volume.z_base + self.volume.height/2  # center z-coordinate of the volume
+        if isinstance(self.magnet_axis, list):
+            self.magnet_axis = np.asarray(self.magnet_axis)
 
 
 @dataclass
@@ -247,7 +239,7 @@ class GMSHmaker():
             if self.pecs:
                 self.physicalSurfaces = self.create_PhysicalSurfaces()
             if self.pmcs:
-                self.physicalSurfaces = self.create_PhysicalSurfaces()
+                self.create_PhysicalSurfaces_for_pmcs()
             self.export_config()
 
             self.setup_mesh_fields()
@@ -635,47 +627,27 @@ class GMSHmaker():
 
     def create_PhysicalSurfaces_for_pmcs(self) -> dict:
         """
-        Defines the physical Surfaces, where voltages will be applied.
-
-        Returns:
-            dict: populated electrodes config dict
+        Defines the physical Surfaces for PMC boundaries.
         """
-        
-        metal_group = self.physicalVolumes.get("METAL")
-        metal_volume_tags = metal_group['tags'] if metal_group else []
 
-        allSurfaces = gmsh.model.occ.getEntities(dim=2)
-
-        # populating electrodes with gmshEntities
-        for pmc_name, config in self.pmcs.items():
-            for poly in config.prepared_polygons:
-                point_inside = point_on_surface(poly)
-                for volumetag in metal_volume_tags:
-                    if gmsh.model.isInside(3, volumetag, [point_inside.x, point_inside.y, config.z], parametric=False):
-                        _, down = gmsh.model.getAdjacencies(3, volumetag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
-                        config.tags.extend(down)
-                if config.volume is None:
-                    outDimTags, _, _ = gmsh.model.occ.getClosestEntities(point_inside.x, point_inside.y, config.z, allSurfaces, n=1)
-                    config.tags.append(outDimTags[0][1])
-        
-        # assigning self.pecs to group_ids
-        offset = len(self.physicalVolumes) # to avoid overlapping group_ids between volumes and surfaces
-        unique_electrodes = {}
-        for i, (pec_name, config) in enumerate(self.pecs.items()):
-            group_id = i + offset + 1    
-            if not config.linked_to:
-                unique_electrodes[pec_name] = {'group_id': group_id, 'tags': config.tags}
+        for _, pmcsetting in self.pmcs.items():
+            volume_group = self.physicalVolumes.get(pmcsetting.volume)
+            print(self.physicalVolumes)
+            
+            if volume_group:
+                volumTags = volume_group['tags']
             else:
-                new_surfaces = config.tags
-                uniques = unique_electrodes[config.linked_to]['tags']
-                combined_without_duplicates = uniques + list(set(new_surfaces) - set(uniques))
-                unique_electrodes[config.linked_to]['tags'] = combined_without_duplicates
+                raise ValueError(f'PMCSetting: volume {pmcsetting.volume} not found in physicalVolumes or empty')
 
-        for k, v in unique_electrodes.items():
-            gmsh.model.addPhysicalGroup(2, v['tags'], v['group_id'], name=k)
+            for volumeTag in volumTags:
+                _, surfaceTags = gmsh.model.getAdjacencies(3, volumeTag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
+                for surfTag in surfaceTags:
+                    surf_physicalTag = gmsh.model.addPhysicalGroup(2, [surfTag], tag=-1, name="magnet" + str(surfTag))
+                    normal = gmsh.model.getNormal(surfTag, [0,0])
+                    pmcsetting.normals.append((surf_physicalTag, normal))
+                    pmcsetting.surface_currents.append((surf_physicalTag, np.cross(pmcsetting.magnet_axis, normal)))
+
         gmsh.model.occ.synchronize()
-
-        return unique_electrodes
 
 
     def get_surfaces_onEdges(self, Btype: str):
@@ -872,11 +844,18 @@ class GMSHmaker():
         and mappings of physical surfaces and volumes to their group IDs.
         """
 
+        if self.pecs:
+            phys_surfaces = {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()}
+        elif self.pmcs:
+            phys_surfaces = {}
+        else:
+            phys_surfaces = {}
+
         gmsh_config ={
             'savedir': str(self.save.parent.parent),
             'meshfile': str(self.save.with_suffix(".msh")),
             'extrude': {k: asdict(v, dict_factory=custom_dict_factory) for (k, v) in self.extrude.items()},
-            'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
+            'physicalSurfaces': phys_surfaces,
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
         path = Path(self.save.parent.parent) / Path(self.save.name)
@@ -897,8 +876,12 @@ class GMSHmaker():
 
         print("\n #-----------------------------------\n")
 
-        table = []
-        for k, v in self.physicalSurfaces.items():
-            row = [k, v["group_id"]]
-            table.append(row)
-        print(tabulate(table, headers=["Surface", "ID"]))
+        if self.pecs:
+            table = []
+            for k, v in self.physicalSurfaces.items():
+                row = [k, v["group_id"]]
+                table.append(row)
+            print(tabulate(table, headers=["Surface", "ID"]))
+        
+        if self.pmcs:
+            print("look into .pmcs attribute for normals or surface_currents details")
