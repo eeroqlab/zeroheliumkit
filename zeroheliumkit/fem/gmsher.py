@@ -9,6 +9,7 @@
 
 import gmsh
 import sys, os, yaml
+import numpy as np
 
 from shapely import Polygon, MultiPolygon, LineString, MultiLineString, get_coordinates, point_on_surface
 from alive_progress import alive_it
@@ -124,6 +125,18 @@ class PECSettings:
 
 
 @dataclass
+class PMCSetting:
+    volume: str
+    magnet_axis: list[int]
+    normals: list[tuple] = field(init=False, default_factory=list)
+    surface_currents: list[tuple] = field(init=False, default_factory=list)
+
+    def __post_init__(self):
+        if isinstance(self.magnet_axis, list):
+            self.magnet_axis = np.asarray(self.magnet_axis)
+
+
+@dataclass
 class MeshSettings:
     dim: int = 3
     fields: dict = field(default_factory=dict)
@@ -185,6 +198,7 @@ class GMSHmaker():
                  extrude: ExtrudeSettings,
                  surfaces: SurfaceSettings=None,
                  pecs: PECSettings=None,
+                 pmcs: PMCSetting=None,
                  mesh: MeshSettings=None,
                  save: dict={"dir": "dump", "filename": "device"},
                  open_gmsh: bool=False,
@@ -193,6 +207,7 @@ class GMSHmaker():
         self.extrude = extrude
         self.surfaces = surfaces
         self.pecs = pecs
+        self.pmcs = pmcs
         self.mesh = mesh
 
         os.makedirs(Path(save["dir"]) / Path("geo"), exist_ok=True)
@@ -221,7 +236,10 @@ class GMSHmaker():
             vols = self.create_gmsh_objects()
             self.fragmentation(vols)
             self.physicalVolumes = self.create_PhysicalVolumes(vols)
-            self.physicalSurfaces = self.create_PhysicalSurfaces()
+            if self.pecs:
+                self.physicalSurfaces = self.create_PhysicalSurfaces()
+            if self.pmcs:
+                self.create_PhysicalSurfaces_for_pmcs()
             self.export_config()
 
             self.setup_mesh_fields()
@@ -607,6 +625,31 @@ class GMSHmaker():
         return unique_electrodes
 
 
+    def create_PhysicalSurfaces_for_pmcs(self) -> dict:
+        """
+        Defines the physical Surfaces for PMC boundaries.
+        """
+
+        for _, pmcsetting in self.pmcs.items():
+            volume_group = self.physicalVolumes.get(pmcsetting.volume)
+            print(self.physicalVolumes)
+            
+            if volume_group:
+                volumTags = volume_group['tags']
+            else:
+                raise ValueError(f'PMCSetting: volume {pmcsetting.volume} not found in physicalVolumes or empty')
+
+            for volumeTag in volumTags:
+                _, surfaceTags = gmsh.model.getAdjacencies(3, volumeTag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
+                for surfTag in surfaceTags:
+                    surf_physicalTag = gmsh.model.addPhysicalGroup(2, [surfTag], tag=-1, name="magnet" + str(surfTag))
+                    normal = gmsh.model.getNormal(surfTag, [0,0])
+                    pmcsetting.normals.append((surf_physicalTag, normal))
+                    pmcsetting.surface_currents.append((surf_physicalTag, np.cross(pmcsetting.magnet_axis, normal)))
+
+        gmsh.model.occ.synchronize()
+
+
     def get_surfaces_onEdges(self, Btype: str):
         #TODO: to be implemented
         allowed_types = ['x', 'y', 'z']
@@ -801,11 +844,18 @@ class GMSHmaker():
         and mappings of physical surfaces and volumes to their group IDs.
         """
 
+        if self.pecs:
+            phys_surfaces = {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()}
+        elif self.pmcs:
+            phys_surfaces = {}
+        else:
+            phys_surfaces = {}
+
         gmsh_config ={
             'savedir': str(self.save.parent.parent),
             'meshfile': str(self.save.with_suffix(".msh")),
             'extrude': {k: asdict(v, dict_factory=custom_dict_factory) for (k, v) in self.extrude.items()},
-            'physicalSurfaces': {k: v.get('group_id') for (k, v) in self.physicalSurfaces.items()},
+            'physicalSurfaces': phys_surfaces,
             'physicalVolumes': {k: v.get('group_id') for (k, v) in self.physicalVolumes.items()}
         }
         path = Path(self.save.parent.parent) / Path(self.save.name)
@@ -826,8 +876,12 @@ class GMSHmaker():
 
         print("\n #-----------------------------------\n")
 
-        table = []
-        for k, v in self.physicalSurfaces.items():
-            row = [k, v["group_id"]]
-            table.append(row)
-        print(tabulate(table, headers=["Surface", "ID"]))
+        if self.pecs:
+            table = []
+            for k, v in self.physicalSurfaces.items():
+                row = [k, v["group_id"]]
+                table.append(row)
+            print(tabulate(table, headers=["Surface", "ID"]))
+        
+        if self.pmcs:
+            print("look into .pmcs attribute for normals or surface_currents details")

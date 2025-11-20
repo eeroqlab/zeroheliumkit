@@ -69,11 +69,23 @@ class AbsorbingConfig:
     Order: int = 1
 
 @dataclass
+class SurfaceCurrentElementConfig:
+    Attributes: list[int]
+    Direction: list[float]
+    CoordinateSystem: str="Cartesian"
+
+@dataclass
+class SurfaceCurrentConfig:
+    Index: int
+    Elements: list[SurfaceCurrentElementConfig]
+
+@dataclass
 class BoundaryConfig:
     PEC: dict=None
     Absorbing: AbsorbingConfig=None
     LumpedPort: list[LumpedPortConfig]=None
     Impedance: list[ImpedanceConfig]=None
+    SurfaceCurrent: list[SurfaceCurrentConfig]=None
 
     def __post_init__(self):
         self.__dataclass_fields__ = {
@@ -102,12 +114,23 @@ class SolverConfig:
     Device: str = "CPU"
     Driven: DrivenConfig = None
     Eigenmode: EigenConfig = None
+    Magnetostatic: dict = None
+    Linear: dict = None
 
     def __post_init__(self):
+        if self.Magnetostatic is not None:
+            self.Linear = {
+                "Type": "AMS",
+                "KSPType": "CG",
+                "Tol": 1.0e-6,
+                "MaxIts": 100
+            }
+
         self.__dataclass_fields__ = {
             k: v for k, v in self.__dataclass_fields__.items()
             if getattr(self, k) is not None
         }
+        
 
 @dataclass
 class PalaceConfig:

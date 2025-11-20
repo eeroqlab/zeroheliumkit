@@ -1,4 +1,4 @@
-from .gmsher import GMSHmaker, ExtrudeSettings, SurfaceSettings, PECSettings, MeshSettings, BoxFieldMeshSettings, DistanceFieldMeshSettings
+from .gmsher import GMSHmaker, ExtrudeSettings, SurfaceSettings, PECSettings, PMCSetting, MeshSettings, BoxFieldMeshSettings, DistanceFieldMeshSettings
 from .freefemer import FreeFEM, ExtractConfig, FFconfigurator
 from .fieldreader import FieldAnalyzer, FreeFemResultParser
 from .heliumsurface import GMSHmaker2D, HeliumSurfaceFreeFEM
@@ -11,6 +11,7 @@ __all__ = [
     "ExtrudeSettings",
     "SurfaceSettings",
     "PECSettings",
+    "PMCSetting",
     "MeshSettings",
     "BoxFieldMeshSettings",
     "DistanceFieldMeshSettings",
