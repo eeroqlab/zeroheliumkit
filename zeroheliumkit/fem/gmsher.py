@@ -629,6 +629,10 @@ class GMSHmaker():
         """
         Defines the physical Surfaces for PMC boundaries.
         """
+        offset = len(self.physicalVolumes) # to avoid overlapping group_ids between volumes and surfaces
+        if self.pecs:
+            offset += len(self.physicalSurfaces)
+        group_id = offset
 
         for _, pmcsetting in self.pmcs.items():
             volume_group = self.physicalVolumes.get(pmcsetting.volume)
@@ -642,10 +646,14 @@ class GMSHmaker():
             for volumeTag in volumTags:
                 _, surfaceTags = gmsh.model.getAdjacencies(3, volumeTag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
                 for surfTag in surfaceTags:
-                    surf_physicalTag = gmsh.model.addPhysicalGroup(2, [surfTag], tag=-1, name="magnet" + str(surfTag))
+                    group_id += 1
+                    surf_physicalTag = gmsh.model.addPhysicalGroup(2, [surfTag], tag=group_id, name="magnet" + str(surfTag))
                     normal = gmsh.model.getNormal(surfTag, [0,0])
                     pmcsetting.normals.append((surf_physicalTag, normal))
                     pmcsetting.surface_currents.append((surf_physicalTag, np.cross(pmcsetting.magnet_axis, normal)))
+
+                gmsh.model.occ.remove([(3, volumeTag)])
+            del self.physicalVolumes[pmcsetting.volume]
 
         gmsh.model.occ.synchronize()
 
