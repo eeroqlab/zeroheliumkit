@@ -35,6 +35,26 @@ class PostProEnergyConfig:
     Attributes: list[int]=field(default_factory=lambda: [1])
 
 @dataclass
+class PostProProbeConfigurator:
+    xlist: list[float]
+    ylist: list[float]
+    zlist: list[float]
+    config: list[dict]=field(default_factory=list)
+    schema: tuple=field(default_factory=tuple)
+
+    def __post_init__(self):
+        index = 0
+        self.schema = (len(self.zlist), len(self.ylist), len(self.xlist))
+        for z in self.zlist:
+            for y in self.ylist:
+                for x in self.xlist:
+                    index += 1
+                    self.config.append({
+                        "Index": index,
+                        "Center": [x, y, z]
+                    })
+
+@dataclass
 class PostProProbeConfig:
     Index: int=1
     Center: list[float]=field(default_factory=lambda: [0,0,0])
