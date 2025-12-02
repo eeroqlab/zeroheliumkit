@@ -22,7 +22,7 @@ def Rectangle(width: float,
               height: float,
               location: tuple | Point=None,
               direction: float=None,
-              round_radius: float=None,
+              round_radius: float=None
               **kwargs) -> Polygon:
     """
     Returns a rectangle Polygon

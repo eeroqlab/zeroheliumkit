@@ -636,7 +636,6 @@ class GMSHmaker():
 
         for _, pmcsetting in self.pmcs.items():
             volume_group = self.physicalVolumes.get(pmcsetting.volume)
-            print(self.physicalVolumes)
             
             if volume_group:
                 volumTags = volume_group['tags']
