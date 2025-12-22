@@ -436,16 +436,21 @@ class MultiAnchor():
         return label_set.issubset(set(self.labels))
 
 
-    def copy(self) -> 'MultiAnchor':
+    def copy(self, upd_labels_with_suffix: str = None) -> 'MultiAnchor':
         """
         Creates a deep copy of the MultiAnchor instance.
+        Optionally updates the labels of the anchors with a specified suffix.
         
         Returns
         -------
         MultiAnchor
             A new instance of MultiAnchor with the same multipoint anchors.
         """
-        return copy.deepcopy(self)
+        new_instance = copy.deepcopy(self)
+        if upd_labels_with_suffix:
+            for p in new_instance.multipoint:
+                p.label = p.label + upd_labels_with_suffix
+        return new_instance
 
 
     def rotate(self, angle: float, origin: tuple=(0,0)) -> 'MultiAnchor':
@@ -591,7 +596,7 @@ class MultiAnchor():
         """
         if new_xy:
             self[label].coords = new_xy
-        if new_direction:
+        if isinstance(new_direction, [float, int]):
             self[label].direction = new_direction
         if new_name:
             self[label].label = new_name
@@ -707,6 +712,17 @@ class Skeletone():
     def numlines(self) -> int:
         """The number of lines in the skeletone."""
         return len(self.lines.geoms)
+
+
+    def copy(self) -> 'Skeletone':
+        """ 
+        Creates a deep copy of the Skeletone instance.
+
+        Returns
+        -------
+            A new instance of Skeletone with the same lines.
+        """
+        return copy.deepcopy(self)
 
 
     def rotate(self, angle: float=0, origin=(0,0)) -> 'Skeletone':

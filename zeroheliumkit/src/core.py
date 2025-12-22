@@ -470,6 +470,23 @@ class Entity(Base):
         if len(repr_name) > max_length:
             return f"{repr_name[: max_length - 3]}..."
         return repr_name
+    
+
+    def copy(self, upd_anchor_labels_with_suffix: str = None) -> 'Entity':
+        """
+        Creates a deep copy of the Entity instance.
+        Optionally updates the labels of the anchors with a specified suffix.
+
+        Args:
+            upd_anchor_labels_with_suffix (str, optional): Suffix to append to anchor labels in the copied instance.
+
+        Returns:
+            Entity: A new instance of Entity with the same layers, skeletone, and anchors.
+        """
+        new_instance = copy.deepcopy(self)
+        if upd_anchor_labels_with_suffix:
+            new_instance.anchors = self.anchors.copy(upd_labels_with_suffix=upd_anchor_labels_with_suffix)
+        return new_instance
 
 
     def clean(self):
