@@ -1,6 +1,15 @@
 Changes
 =======
 
+0.5.4
+----------------
+- gmesher.py - added PMC (perfect magnetic conductor) boundary condition support
+- core.py - added method "clear_layer" to clear all objects in specified layers
+          - quickplot method added size option to set figure size
+          - append method: added arguments to rotates and move appending structure
+- plotting.py - reworked ColorHandler class with updated move_layer method
+              - new methods: bring_to_front, send_to_back, bring_foward, send_backward
+
 0.5.3
 ----------------
 - naming optimization in Anchors and Skeletone methods

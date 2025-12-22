@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, asdict
 from tabulate import tabulate
 from pathlib import Path
 
+EPS = 1e-6
+
 
 #---------------------------------------------
 # some useful functions
@@ -134,6 +136,8 @@ class PMCSetting:
     def __post_init__(self):
         if isinstance(self.magnet_axis, list):
             self.magnet_axis = np.asarray(self.magnet_axis)
+        self.normals = []
+        self.surface_currents = []
 
 
 @dataclass
@@ -634,6 +638,8 @@ class GMSHmaker():
             offset += len(self.physicalSurfaces)
         group_id = offset
 
+        gmsh.model.occ.synchronize()
+
         for _, pmcsetting in self.pmcs.items():
             volume_group = self.physicalVolumes.get(pmcsetting.volume)
             
@@ -643,16 +649,25 @@ class GMSHmaker():
                 raise ValueError(f'PMCSetting: volume {pmcsetting.volume} not found in physicalVolumes or empty')
 
             for volumeTag in volumTags:
-                _, surfaceTags = gmsh.model.getAdjacencies(3, volumeTag)  # 'down' contains all surface tags the boundary of the volume is made of, 'up' is empty
-                for surfTag in surfaceTags:
+                surface_dimTags = gmsh.model.getBoundary([(3, volumeTag)], oriented=True)
+                for _, surfTag in surface_dimTags:
                     group_id += 1
-                    surf_physicalTag = gmsh.model.addPhysicalGroup(2, [surfTag], tag=group_id, name="magnet" + str(surfTag))
-                    normal = gmsh.model.getNormal(surfTag, [0,0])
+                    surf_physicalTag = gmsh.model.addPhysicalGroup(2, [abs(surfTag)], tag=group_id, name="magnet" + str(abs(surfTag)))
+
+                    # this is not a great solution, but it works for now:
+
+                    normal = gmsh.model.getNormal(abs(surfTag), [0,0])
+
+                    com = gmsh.model.occ.getCenterOfMass(2, abs(surfTag))
+                    coord = np.asarray(com) + EPS * normal
+                    if gmsh.model.isInside(3, volumeTag, coord, parametric=False):
+                        normal = -normal
+
                     pmcsetting.normals.append((surf_physicalTag, normal))
                     pmcsetting.surface_currents.append((surf_physicalTag, np.cross(pmcsetting.magnet_axis, normal)))
 
-                gmsh.model.occ.remove([(3, volumeTag)])
-            del self.physicalVolumes[pmcsetting.volume]
+                # gmsh.model.occ.remove([(3, volumeTag)])
+            # del self.physicalVolumes[pmcsetting.volume]
 
         gmsh.model.occ.synchronize()
 
