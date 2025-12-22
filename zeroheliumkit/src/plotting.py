@@ -252,7 +252,7 @@ class ColorHandler():
 
     Args:
         colors (dict): dictionary mapping of layer names to (color, transparancy) tuples.
-        color_cycle (cycle): itercycle object that cycles through color names when no color name is provided.
+        color_cycle (list): list of colors to cycle through when no color is provided.
     """
     __slots__ = "colors", "color_cycle"
 
@@ -260,7 +260,7 @@ class ColorHandler():
         self.colors = listify_colors(colors)
         """Dictionary mapping of layer names to [color, transparancy] tuples."""
         self.color_cycle = COLORS
-        """Itercycle object that cycles through color names when no color name is provided."""
+        """List of colors to cycle through when no color is provided."""
 
 
     def __repr__(self):

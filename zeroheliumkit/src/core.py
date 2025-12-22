@@ -481,7 +481,7 @@ class Entity(Base):
             upd_anchor_labels_with_suffix (str, optional): Suffix to append to anchor labels in the copied instance.
 
         Returns:
-            Entity: A new instance of Entity with the same layers, skeletone, and anchors.
+            Entity: A new instance of Entity with the same layers, skeletone, and anchors
         """
         new_instance = copy.deepcopy(self)
         if upd_anchor_labels_with_suffix:

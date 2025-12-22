@@ -444,7 +444,7 @@ class MultiAnchor():
         Returns
         -------
         MultiAnchor
-            A new instance of MultiAnchor with the same multipoint anchors.
+            A new instance of MultiAnchor with the same multipoint anchors
         """
         new_instance = copy.deepcopy(self)
         if upd_labels_with_suffix:
@@ -575,7 +575,7 @@ class MultiAnchor():
         return self
 
 
-    def modify(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float=None) -> 'MultiAnchor':
+    def modify(self, label: str, new_name: str=None, new_xy: tuple=None, new_direction: float | int=None) -> 'MultiAnchor':
         """ 
         Modifies the properties of an anchor.
 
@@ -587,7 +587,7 @@ class MultiAnchor():
                 The new name for the anchor. Defaults to None.
             new_xy : tuple, optional
                 The new coordinates (x, y) for the anchor. Defaults to None.
-            new_direction : float, optional
+            new_direction : float or int, optional
                 The new direction for the anchor. Defaults to None.
 
         Returns
