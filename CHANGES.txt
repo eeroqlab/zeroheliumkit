@@ -9,6 +9,7 @@ Changes
           - append method: added arguments to rotates and move appending structure
 - plotting.py - reworked ColorHandler class with updated move_layer method
               - new methods: bring_to_front, send_to_back, bring_foward, send_backward
+              - removed itertools.cycle for compatibiity with python3.14
 
 0.5.3
 ----------------
