@@ -7,7 +7,7 @@ This file contains functions for plotting geometries using matplotlib.
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 import matplotlib.axes
-from itertools import cycle
+from tabulate import tabulate
 import colorsys
 
 from shapely import get_coordinates, Point
@@ -191,25 +191,27 @@ def set_limits(ax, coor: list | Point, dxdy: list) -> None:
     ax.set_aspect("equal")
 
 
-def tuplify_colors(layer_colors: dict) -> dict:
+def listify_colors(layer_colors: dict) -> dict:
     """
     Converts a dict of layer color specifications into a dict
-    where all values are (color, transparency) tuples.
+    where all values are [color, transparency] lists.
 
     Args:
         layer_colors (dict): Keys are layer names. Values are either:
             - a color value (e.g. string like 'red' or '#ff0000')
-            - or a tuple: (color_value, transparency)
+            - or a tuple or a list: (color_value, transparency)
 
     Returns:
-        dict: Same keys, with values as (color_value, transparency) tuples.
+        dict: Same keys, with values as [color_value, transparency] lists.
     """
     standardized = {}
     for layer, value in layer_colors.items():
         if isinstance(value, tuple):
-            standardized[layer] = value
+            standardized[layer] = list(value)
+        elif isinstance(value, list):
+            pass  # skip lists:
         else:
-            standardized[layer] = (value, 1.0)
+            standardized[layer] = [value, 1.0]
     return standardized
 
 
@@ -250,15 +252,15 @@ class ColorHandler():
 
     Args:
         colors (dict): dictionary mapping of layer names to (color, transparancy) tuples.
-        color_cycle (cycle): itercycle object that cycles through color names when no color name is provided.
+        color_cycle (list): list of colors to cycle through when no color is provided.
     """
     __slots__ = "colors", "color_cycle"
 
     def __init__(self, colors: dict):
-        self.colors = tuplify_colors(colors)
-        """Dictionary mapping of layer names to (color, transparancy) tuples."""
-        self.color_cycle = cycle(COLORS)
-        """Itercycle object that cycles through color names when no color name is provided."""
+        self.colors = listify_colors(colors)
+        """Dictionary mapping of layer names to [color, transparancy] tuples."""
+        self.color_cycle = COLORS
+        """List of colors to cycle through when no color is provided."""
 
 
     def __repr__(self):
@@ -268,6 +270,15 @@ class ColorHandler():
             return f"{name[: max_length - 3]}...>"
 
         return name
+    
+    def print(self):
+        col_names = ["i", "layer", "color/alpha"]
+        layers = self.colors.keys()
+        table = []
+        for i, lname in enumerate(layers):
+            table.append([i, lname, self.colors[lname]])
+        print(tabulate(table, headers=col_names))
+
 
     @property
     def is_empty(self) -> bool:
@@ -280,7 +291,7 @@ class ColorHandler():
         return not bool(self.colors)
 
 
-    def change_color(self, lname: str, new_color: str | tuple | float) -> 'ColorHandler':
+    def change_color(self, lname: str, new_color: tuple | list) -> 'ColorHandler':
         """
         Updates the color of a layer in the colors attribute.
 
@@ -297,19 +308,11 @@ class ColorHandler():
             ValueError: If the new_color parameter is not a tuple, string, or float.
             ValueError: If the given color is anot a valid color code.
         """
-        if isinstance(new_color, tuple):
-            if lname in self.colors:
-                self.colors[lname] = new_color
-        elif isinstance(new_color, float):
-            if lname in self.colors:
-                self.colors[lname][1] = new_color
-        elif isinstance(new_color, str):
-            if not bool(mc.is_color_like(new_color)):
+        if isinstance(new_color, (tuple, list)):
+            if not bool(mc.is_color_like(new_color[0])):
                 raise ValueError("Input color is not a valid color.")
-
             if lname in self.colors:
-                self.colors[lname][0] = new_color
-
+                self.colors[lname] = list(new_color)
         return self
 
 
@@ -324,10 +327,10 @@ class ColorHandler():
 -
             Updated instance (self) with the udpated colors attribute. 
         """
-        for l in layers:
+        for i, l in enumerate(layers):
             if l not in self.colors:
-                color = next(self.color_cycle)
-                self.colors[l] = (color, 1.0)
+                color = self.color_cycle[i]
+                self.colors[l] = [color, 1.0]
 
         return self
 
@@ -341,12 +344,12 @@ class ColorHandler():
             color_info (tuple(str, int)): color and transparancy to map to the layer.
         """
         if color is None:
-            color = next(self.color_cycle)
+            color = self.color_cycle[0]
 
         if alpha is None:
             alpha = 1.0
 
-        self.colors[layer] = (color, alpha)
+        self.colors[layer] = [color, alpha]
         return self
 
 
@@ -383,45 +386,34 @@ class ColorHandler():
         return self
 
 
-    def move_layer_back(self, layer: str, move_by: int=1):
+    def move_layer(self, layer: str, move_by: int=1):
         """
-        Moves a layer back by a given number of indices in the color dictionary.
+        Moves a layer by a given number of indices in the color dictionary.
 
         Args:
             layer (str): the name of the layer to move.
             move_by (int): the number of indices to move the color by.
         """
-        color_items = list(self.colors.items())
-        curr_item = self.colors[layer]
+        lst = list(self.colors.items())
+        curr_index = lst.index((layer, self.colors[layer]))
+        
+        new_index = curr_index + move_by
+        elem = lst.pop(curr_index)
 
-        curr_index = color_items.index((layer, curr_item))
+        # Clamp the index within valid list boundaries
+        new_index = max(0, min(new_index, len(lst)))
+        lst.insert(new_index, elem)
+        self.colors = dict(lst)
+    
 
-        try:
-            new_index = curr_index - move_by
-            old_item = color_items.pop(curr_index)
-            color_items.insert(new_index, old_item)
-            self.colors = dict(color_items)
-        except IndexError:
-            print("Out of bounds! Please choose a different offset.")
-
-
-    def move_layer_forward(self, layer: str, move_by: int):
-        """
-        Moves a layer back by a given number of indices in the color dictionary.
-
-        Args:
-            layer (str): the name of the layer to move.
-            move_by (int): the number of indices to move the color by.
-        """
-        color_items = list(self.colors.items())
-        curr_item = self.colors[layer]
-
-        curr_index = color_items.index((layer, curr_item))
-
-        try:
-            new_index = curr_index + move_by
-            old_item = color_items.pop(curr_index)
-            color_items.insert(new_index, old_item)
-            self.colors = dict(color_items)
-        except IndexError:
-            print("Out of bounds! Please choose a different offset.")
+    def bring_to_front(self, layer: str):
+        self.move_layer(layer, move_by=len(self.colors))
+    
+    def send_to_back(self, layer: str):
+        self.move_layer(layer, move_by=-len(self.colors))
+    
+    def bring_forward(self, layer: str):
+        self.move_layer(layer, move_by=1)
+    
+    def send_backward(self, layer: str):
+        self.move_layer(layer, move_by=-1)

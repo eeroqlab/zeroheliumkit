@@ -35,6 +35,26 @@ class PostProEnergyConfig:
     Attributes: list[int]=field(default_factory=lambda: [1])
 
 @dataclass
+class PostProProbeConfigurator:
+    xlist: list[float]
+    ylist: list[float]
+    zlist: list[float]
+    config: list[dict]=field(default_factory=list)
+    schema: tuple=field(default_factory=tuple)
+
+    def __post_init__(self):
+        index = 0
+        self.schema = (len(self.zlist), len(self.ylist), len(self.xlist))
+        for z in self.zlist:
+            for y in self.ylist:
+                for x in self.xlist:
+                    index += 1
+                    self.config.append({
+                        "Index": index,
+                        "Center": [x, y, z]
+                    })
+
+@dataclass
 class PostProProbeConfig:
     Index: int=1
     Center: list[float]=field(default_factory=lambda: [0,0,0])
@@ -69,11 +89,23 @@ class AbsorbingConfig:
     Order: int = 1
 
 @dataclass
+class SurfaceCurrentElementConfig:
+    Attributes: list[int]
+    Direction: list[float]
+    CoordinateSystem: str="Cartesian"
+
+@dataclass
+class SurfaceCurrentConfig:
+    Index: int
+    Elements: list[SurfaceCurrentElementConfig]
+
+@dataclass
 class BoundaryConfig:
     PEC: dict=None
     Absorbing: AbsorbingConfig=None
     LumpedPort: list[LumpedPortConfig]=None
     Impedance: list[ImpedanceConfig]=None
+    SurfaceCurrent: list[SurfaceCurrentConfig]=None
 
     def __post_init__(self):
         self.__dataclass_fields__ = {
@@ -102,12 +134,23 @@ class SolverConfig:
     Device: str = "CPU"
     Driven: DrivenConfig = None
     Eigenmode: EigenConfig = None
+    Magnetostatic: dict = None
+    Linear: dict = None
 
     def __post_init__(self):
+        if self.Magnetostatic is not None:
+            self.Linear = {
+                "Type": "AMS",
+                "KSPType": "CG",
+                "Tol": 1.0e-6,
+                "MaxIts": 100
+            }
+
         self.__dataclass_fields__ = {
             k: v for k, v in self.__dataclass_fields__.items()
             if getattr(self, k) is not None
         }
+        
 
 @dataclass
 class PalaceConfig:

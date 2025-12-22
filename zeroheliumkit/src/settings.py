@@ -12,6 +12,7 @@ W       = 8.0
 H       = W*GM
 SIZE    = (W, H)
 SIZE_L  = (1.5*W, 1.5*H)
+SIZE_S  = (0.5*W, 0.5*H)
 
 # plot colors
 BLUE        = '#6699cc'

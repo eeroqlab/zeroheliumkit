@@ -20,9 +20,9 @@ from shapely import (affinity, unary_union,
                      difference, set_precision, intersection,
                      set_coordinates, get_coordinates, remove_repeated_points)
 
-from .plotting import plot_geometry, interactive_widget_handler, tuplify_colors, draw_labels, ColorHandler
+from .plotting import plot_geometry, interactive_widget_handler, listify_colors, draw_labels, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
-from .settings import GRID_SIZE, SIZE_L, RED, DARKGRAY
+from .settings import GRID_SIZE, SIZE, SIZE_L, SIZE_S, RED, DARKGRAY
 from .anchors import Anchor, MultiAnchor, Skeletone
 from .utils import flatten_multipolygon, append_geometry, polygonize_text, has_interior, split_polygon
 from .errors import hard_deprecated
@@ -390,6 +390,16 @@ class Base:
         setattr(self, lname, MultiPolygon([poly for i, poly in enumerate(poly_list) if i not in polygon_id]))
 
 
+    def clear_layer(self, lname: str):
+        """
+        Clears all polygons from a layer.
+
+        Args:
+            lname (str): The name of the layer.
+        """
+        setattr(self, lname, MultiPolygon())
+
+
     def plot(self,
             ax=None,
             layer: list=None,
@@ -418,7 +428,7 @@ class Base:
         for l, c in zip(layer, color):
             if l in self.layers:
                 geometry = getattr(self, l)
-                if isinstance(c, tuple):
+                if isinstance(c, (list, tuple)):
                     (c, alpha) = c
                 plot_geometry(geometry,
                               ax=ax,
@@ -460,6 +470,23 @@ class Entity(Base):
         if len(repr_name) > max_length:
             return f"{repr_name[: max_length - 3]}..."
         return repr_name
+    
+
+    def copy(self, upd_anchor_labels_with_suffix: str = None) -> 'Entity':
+        """
+        Creates a deep copy of the Entity instance.
+        Optionally updates the labels of the anchors with a specified suffix.
+
+        Args:
+            upd_anchor_labels_with_suffix (str, optional): Suffix to append to anchor labels in the copied instance.
+
+        Returns:
+            Entity: A new instance of Entity with the same layers, skeletone, and anchors
+        """
+        new_instance = copy.deepcopy(self)
+        if upd_anchor_labels_with_suffix:
+            new_instance.anchors = self.anchors.copy(upd_labels_with_suffix=upd_anchor_labels_with_suffix)
+        return new_instance
 
 
     def clean(self):
@@ -860,7 +887,7 @@ class Entity(Base):
 
     def quickplot(self, color_config: dict=None, zoom: tuple=None,
                   ax=None, show_idx: bool=False, labels: bool=False, 
-                  draw_anchor_dir: bool=True, off: list=[], **kwargs) -> None:
+                  draw_anchor_dir: bool=True, off: list=[], size="large", **kwargs) -> None:
         """
         Plots the Entity object with predefined colors for each layer.
 
@@ -871,7 +898,7 @@ class Entity(Base):
         Returns:
             ax (matplotlib.axes.Axes): The axis with the plotted Entity object.
         """
-        plot_config = tuplify_colors(color_config) if color_config else self.colors.colors
+        plot_config = listify_colors(color_config) if color_config else self.colors.colors
         if "anchors" in plot_config:
             anchor_color = plot_config.pop("anchors")[0]
         else:
@@ -881,10 +908,20 @@ class Entity(Base):
             skeletone_color = plot_config.pop("skeletone")[0]
         else:
             skeletone_color = DARKGRAY
+        
+        match size:
+            case "small":
+                FIGSIZE = SIZE_S
+            case "medium":
+                FIGSIZE = SIZE
+            case "large":
+                FIGSIZE = SIZE_L
+            case _:
+                FIGSIZE = SIZE_L
 
         if ax is None:
             interactive_widget_handler()
-            _, ax = plt.subplots(1, 1, figsize=SIZE_L, dpi=90)
+            _, ax = plt.subplots(1, 1, figsize=FIGSIZE, dpi=90)
 
         #plot layers
         plot_config = {k:v for k,v in plot_config.items() if k not in off}
@@ -927,7 +964,9 @@ class Structure(Entity):
                anchoring: tuple=None,
                direction_snap: bool=False,
                remove_anchor: bool | str=False,
-               upd_alabels: list[tuple]=None) -> None:
+               upd_alabels: list[tuple]=None,
+               move_s: tuple=None,
+               rotate_s: float=None) -> None:
         """
         Appends an Entity or Structure to the Structure.
 
@@ -950,6 +989,10 @@ class Structure(Entity):
                 Defaults to None.
         """
         s = structure.copy()
+        if move_s:
+            s.move(xy=move_s)
+        if rotate_s:
+            s.rotate(rotate_s, origin=(0,0))
         attr_list_device = self.layers
         attr_list_structure = s.layers
         self.layers = list(set(attr_list_device + attr_list_structure))
