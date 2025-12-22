@@ -2,6 +2,7 @@ import os
 import json
 from dataclasses import dataclass, asdict, field
 import subprocess
+import platform
 
 
 @dataclass
@@ -186,9 +187,32 @@ class PalaceRunner:
         else:
             command_to_run = self.exec_path + ' ' + self.json_path
         command = command_to_cd + ' && ' + command_to_run
-        # Use osascript to tell the Terminal application to open a new window and execute the command
+
         try:
-            subprocess.run(['osascript', '-e', f'tell application "Terminal" to do script "{command}"'])
+            system = platform.system()
+            if system == "Darwin":  # macOS
+                # Use osascript to tell the Terminal application to open a new window and execute the command
+                subprocess.run([
+                    'osascript',
+                    '-e',
+                    f'tell application "Terminal" to do script "{command}"'
+                ])
+            elif system == "Linux":  # Linux
+                subprocess.run([
+                    'gnome-terminal',
+                    '--',
+                    'bash',
+                    '-c',
+                    f"{command}; exec bash"
+                ])
+            elif system == "Windows":  # Windows
+                print(" Windows system is not yet supported for automatic terminal launching.")
+                # need to test this part on Windows
+                # subprocess.run([
+                #     'cmd.exe',
+                #     '/c',
+                #     f'start cmd.exe /k "{command}"'
+                # ])
         except KeyboardInterrupt:
             message = 'Interrupted by user'
             print(message)
