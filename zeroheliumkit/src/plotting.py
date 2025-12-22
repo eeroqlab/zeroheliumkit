@@ -7,7 +7,6 @@ This file contains functions for plotting geometries using matplotlib.
 import matplotlib.pyplot as plt
 import matplotlib.colors as mc
 import matplotlib.axes
-from itertools import cycle
 from tabulate import tabulate
 import colorsys
 
@@ -259,8 +258,8 @@ class ColorHandler():
 
     def __init__(self, colors: dict):
         self.colors = listify_colors(colors)
-        """Dictionary mapping of layer names to (color, transparancy) tuples."""
-        self.color_cycle = cycle(COLORS)
+        """Dictionary mapping of layer names to [color, transparancy] tuples."""
+        self.color_cycle = COLORS
         """Itercycle object that cycles through color names when no color name is provided."""
 
 
@@ -328,9 +327,9 @@ class ColorHandler():
 -
             Updated instance (self) with the udpated colors attribute. 
         """
-        for l in layers:
+        for i, l in enumerate(layers):
             if l not in self.colors:
-                color = next(self.color_cycle)
+                color = self.color_cycle[i]
                 self.colors[l] = [color, 1.0]
 
         return self
@@ -345,7 +344,7 @@ class ColorHandler():
             color_info (tuple(str, int)): color and transparancy to map to the layer.
         """
         if color is None:
-            color = next(self.color_cycle)
+            color = self.color_cycle[0]
 
         if alpha is None:
             alpha = 1.0
