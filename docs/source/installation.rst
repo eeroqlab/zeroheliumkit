@@ -1,22 +1,26 @@
 Installation
 ============
 
+Installation using git
+------------------------
+
+You can clone the package from Github and install the package manually (recommended for development and latest features).
+
+.. code-block:: bash
+
+    git clone https://github.com/eeroqlab/zeroheliumkit.git
+    cd zeroheliumkit
+    pip install -r requirements.txt
+    pip install -e .
+
+
 Installation from PyPI
 ----------------------
 
-Installation of ZeroHeliumKit with PyPI coming soon!
+You can install the latest release of ZeroHeliumKit directly from PyPI using pip:
 
 .. code-block:: bash
 
-    pip install zeroheliumkit #coming soon...
-
-Installation using conda
-------------------------
-
-Installation of ZeroHeliumKit with conda coming soon!
-
-.. code-block:: bash
-
-    conda install zeroheliumkit #coming soon...
+    pip install zeroheliumkit
 
 Check back here for more installation updates.

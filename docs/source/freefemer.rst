@@ -12,4 +12,6 @@ This module provides functionality for creating and manipulating FreeFEM++ files
    FreeFEM
    ExtractConfig
    FFconfigurator
-
+   EDPpreparer
+   FreeFEMrunner
+   ResultGatherer
