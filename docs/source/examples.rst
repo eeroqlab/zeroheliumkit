@@ -10,5 +10,5 @@ Below are examples of how to create geometries, configure anchors, export into .
     notebooks/basics
     notebooks/geometries
     notebooks/export
-    notebooks/gmsh+fem
+    notebooks/gmshfem
     notebooks/palace
