@@ -1,6 +1,11 @@
 Changes
 =======
 
+0.5.5
+----------------
+- importing.py - replaced gdspy with gdstk package
+- updated documentations
+
 0.5.4
 ----------------
 - gmesher.py - added PMC (perfect magnetic conductor) boundary condition support

@@ -1,12 +1,12 @@
 import warnings
 import numbers
-import gdspy
+import gdstk
 import ezdxf
 import pickle
 import xml.etree.ElementTree as ET
 
 from ezdxf.colors import BYLAYER
-from shapely import Polygon, MultiPolygon, union
+from shapely import Polygon, MultiPolygon, unary_union
 from svgpathtools import parse_path, Line, CubicBezier, QuadraticBezier
 
 from .errors import *
@@ -23,14 +23,15 @@ def sample_bezier(bezier, num_points=20):
 
 
 class Exporter_GDS():
-    """ 
-    A class for exporting geometries to GDSII format.
+    """
+    A class for exporting geometries to GDSII format using gdstk.
 
     Args:
-        name (str): The name of the GDSII file.
+        name (str): The base name of the GDSII file (without extension).
         zhk_layers (dict): A dictionary containing the geometries for each layer.
-        gdsii (gdspy.GdsLibrary): The GDSII library object.
+                           Expected: zhk_layers[lname].geoms yields shapely polygons.
         layer_cfg (dict): A dictionary containing the layer configuration.
+                          Expected keys like {"layer": int, "datatype": int}.
     """
 
     __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
@@ -43,27 +44,27 @@ class Exporter_GDS():
 
     def preapre_gds(self) -> None:
         """
-        Prepare the GDSII file by creating a library and adding cells with polygons.
+        Prepare the GDSII library by creating a top-level cell and adding polygons.
 
-        This method initializes a GDSII library and creates a top-level cell. It then iterates
-        over the layer configuration and adds polygons to the cell based on the provided layer
-        properties. The polygons are created using the points extracted from the geometries.
-
-        Note:
-            The `exclude_from_current` parameter has been deprecated in gdspy and will be removed
-            in a future version.
+        Notes vs gdspy:
+        - gdstk does not have `exclude_from_current`; cells are not automatically "current".
+        - gdstk polygons use `layer` and `datatype` (same concepts).
         """
-        # The GDSII file is called a library, which contains multiple cells.
-        self.gdsii = gdspy.GdsLibrary()
-        # Geometry must be placed in cells.
-        cell = gdspy.Cell("toplevel", exclude_from_current=True)
+        self.gdsii = gdstk.Library()
+        cell = gdstk.Cell("toplevel")
         self.gdsii.add(cell)
 
         for lname, l_property in self.layer_cfg.items():
             polygons = self.zhk_layers[lname]
             for poly in polygons.geoms:
                 points = list(poly.exterior.coords)
-                gds_poly = gdspy.Polygon(points, **l_property)
+
+                # Optional: shapely exterior repeats the first point at the end.
+                # gdstk is fine either way, but removing the duplicate keeps things tidy.
+                if len(points) > 1 and points[0] == points[-1]:
+                    points = points[:-1]
+
+                gds_poly = gdstk.Polygon(points, **l_property)
                 cell.add(gds_poly)
 
     def save(self):
@@ -73,60 +74,79 @@ class Exporter_GDS():
         self.gdsii.write_gds(self.name + '.gds')
         print("Geometries saved successfully.")
 
-    def preview_gds(self):
-        """
-        Previews the GDSII file.
-        """
-        warnings.warn("IMPORTANT: preview feature is unstable, kernel might crash in jupyter notebook, use with caution")
-        gdspy.LayoutViewer(self.gdsii)
-
 
 class Reader_GDS():
     """
-    Helper class to import .gds file into zhk dictionary.
-    
-    
+    Helper class to import .gds file into zhk dictionary using gdstk.
+
     Args:
-        filename (str): The name of the GDSII file.
-        geometries (dict): A dictionary containing the extracted geometries from the GDSII file.
-        gdsii (gdspy.GdsLibrary): The GDSII library object.
-        cells (dict): A dictionary containing the cells in the GDSII file.
+        filename (str): Path to the GDSII file.
+        cellname (str): Name of the cell to import (default: "toplevel").
+
+    Attributes:
+        geometries (dict): Output dict after import2zhk(), mapping "L<layer>" -> MultiPolygon.
+        gdsii (gdstk.Library): Loaded gdstk library.
+        cells (dict): Dict mapping cellname -> {layer_number -> MultiPolygon}.
     """
 
     __slots__ = "filename", "geometries", "gdsii", "cells"
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, cellname: str = "toplevel"):
         self.filename = filename
         self.geometries = {}
         self.cells = {}
-        self.gdsii = gdspy.GdsLibrary(infile=filename)
+        self.gdsii = gdstk.read_gds(filename)
         self.extract_geometries()
+        self.prepare_dict(cellname)
 
     def extract_geometries(self) -> None:
+        cells_out = {}
 
-        cells = {}
+        # gdstk: library.cells is a list of Cell objects
+        for cell in self.gdsii.cells:
+            name = cell.name
 
-        for name, cell in self.gdsii.cells.items():
-            layer_names = cell.get_layers()
-            print(f"{self.filename} // Layers in cell '{name}': {layer_names}")
+            # Collect polygons per layer (we'll union at the end per layer)
+            by_layer = {}
 
-            cells[name] = dict.fromkeys(layer_names, MultiPolygon())
+            # gdstk polygons live in cell.polygons (list of gdstk.Polygon)
+            for p in cell.polygons:
+                layer = p.layer
 
-            for poly in cell.polygons:
-                lname = poly.layers[0]
-                cells[name][lname] = union(cells[name][lname], Polygon(poly.polygons[0]))
+                # gdstk.Polygon.points is an Nx2 numpy array-like
+                pts = p.points
+                # Ensure plain Python list of (x, y)
+                points = [(float(x), float(y)) for x, y in pts]
 
-        self.cells = cells
+                # Shapely polygon; if degenerate, Polygon(...) may be invalid/empty
+                shp = Polygon(points)
+                if shp.is_empty:
+                    continue
 
-    def import2zhk(self, cellname: str="toplevel"):
+                by_layer.setdefault(layer, []).append(shp)
+
+            layer_numbers = sorted(by_layer.keys())
+            print(f"{self.filename} // Layers in cell '{name}': {layer_numbers}")
+
+            # Build MultiPolygon per layer via unary_union
+            layer_map = {}
+            for layer in layer_numbers:
+                merged = unary_union(by_layer[layer]) if by_layer[layer] else MultiPolygon()
+                # Ensure MultiPolygon type for consistency
+                if merged.geom_type == "Polygon":
+                    merged = MultiPolygon([merged])
+                layer_map[layer] = merged
+
+            cells_out[name] = layer_map
+
+        self.cells = cells_out
+
+    def prepare_dict(self, cellname: str = "toplevel") -> None:
         geoms = self.cells[cellname]
-        self.geometries = {"L"+str(k) if isinstance(k, numbers.Number) else k: v for k, v in geoms.items()}
-
-    def plot(self):
-        # IMPORTANT
-        # unstable, kernel might crash in jupyter notebook, use with caution
-        # good only for quick looks
-        gdspy.LayoutViewer(self.gdsii)
+        self.geometries = {
+            ("L" + str(k) if isinstance(k, numbers.Number) else k): v
+            for k, v in geoms.items()
+        }
 
 
 class Exporter_DXF():

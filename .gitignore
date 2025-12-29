@@ -16,6 +16,7 @@ _autosummary/
 *.pyc
 *.sh
 *.msh2
+*.gds
 *__pycache__
   
 # AutoCAD work files

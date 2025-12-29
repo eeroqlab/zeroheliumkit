@@ -49,3 +49,4 @@ to perform electric field calculations on designed geometrical structures.
    freefemer
    heliumsurface
    fieldreader
+   palacer

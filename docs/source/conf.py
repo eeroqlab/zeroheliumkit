@@ -66,7 +66,7 @@ add_module_names = True
 # Mock imports for modules that are not available in the documentation build environment
 # This is useful for avoiding import errors when building the documentation.
 # These modules will not be imported, but their docstrings will still be included.
-autodoc_mock_imports = ["gmsh", "gdspy", "ezdxf", "svgpathtools", "ipywidgets"]
+autodoc_mock_imports = ["gmsh", "gdspy", "gdstk", "ezdxf", "svgpathtools", "ipywidgets"]
 
 
 from pathlib import Path
