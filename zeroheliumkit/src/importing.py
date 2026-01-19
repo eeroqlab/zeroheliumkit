@@ -55,7 +55,7 @@ class Exporter_GDS():
         self.gdsii.add(cell)
 
         for lname, l_property in self.layer_cfg.items():
-            polygons = self.zhk_layers[lname]
+            polygons = self.zhk_layers[lname].polygons
             for poly in polygons.geoms:
                 points = list(poly.exterior.coords)
 
@@ -164,11 +164,8 @@ class Exporter_DXF():
 
     def __init__(self, name: str, zhk_layers: dict, layer_cfg: list) -> None:
         self.name = name
-        """The name of the DXF file."""
         self.zhk_layers = zhk_layers
-        """A dictionary containing the geometries for each layer."""
         self.layer_cfg = layer_cfg
-        """A list containing the layer configuration."""
         self.preapre_dxf()
 
     def preapre_dxf(self) -> None:
@@ -181,7 +178,7 @@ class Exporter_DXF():
 
         for i, lname in enumerate(self.layer_cfg):
             self.dxf.layers.add(lname, color = i + 1)
-            polygons = self.zhk_layers[lname]
+            polygons = self.zhk_layers[lname].polygons
             for poly in polygons.geoms:
                 points = list(poly.exterior.coords)
                 msp.add_lwpolyline(points, dxfattribs={"layer": lname,

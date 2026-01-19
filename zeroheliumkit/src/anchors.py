@@ -16,16 +16,48 @@ Classes:
 
 import copy
 import numpy as np
+import matplotlib.pyplot as plt
 from tabulate import tabulate
-from shapely import Point, LineString, MultiLineString, Polygon
-from shapely import set_precision, distance, affinity, unary_union
-from shapely.plotting import plot_line
+from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
+from shapely import (affinity, unary_union,
+                     set_precision, distance,
+                     set_coordinates, get_coordinates)
+from shapely.plotting import plot_line, plot_polygon
 from shapely.ops import linemerge
 from matplotlib.axes import Axes as mpl_axes
 
-from .utils import fmodnew, append_line
+from functools import wraps
+
+from .utils import fmodnew, append_line, has_interior, flatten_multipolygon, split_polygon, polygonize_text
 from .settings import GRID_SIZE, BLACK, RED, DARKGRAY
-from .plotting import default_ax
+from .plotting import default_ax, plot_polygon_idx, plot_line_idx_in_polygon, draw_labels
+
+
+def snap_on_grid(
+    *,
+    attr: str,
+    grid_size = GRID_SIZE,
+    mode = "pointwise",
+    enabled_attr: str = "enable_grid_snap",
+    return_self: bool = True
+    ):
+    def decorator(method):
+        @wraps(method)
+        def wrapper(self, *args, **kwargs):
+            updated = method(self, *args, **kwargs)
+
+            # Allow in-place mutation methods
+            if updated is None:
+                updated = getattr(self, attr)
+
+            if getattr(self, enabled_attr):
+                updated = set_precision(updated, grid_size=grid_size, mode=mode)
+
+            setattr(self, attr, updated)
+
+            return self if return_self else getattr(self, attr)
+        return wrapper
+    return decorator
 
 
 class Anchor():
@@ -744,22 +776,22 @@ class Skeletone():
         return self
 
 
-    def move(self, xoff: float=0, yoff: float=0) -> 'Skeletone':
+    def move(self, dx: float=0, dy: float=0) -> 'Skeletone':
         """ 
         Moves the skeletone by the specified offsets.
 
         Parameters
         ----------
-        xoff : float
+        dx : float
             The horizontal offset to move the skeletone by.
-        yoff : float
+        dy : float
             The vertical offset to move the skeletone by.
 
         Returns
         -------
             Updated instance (self) of the class with the moved lines.
         """
-        self.lines = affinity.translate(self.lines, xoff=xoff, yoff=yoff)
+        self.lines = affinity.translate(self.lines, xoff=dx, yoff=dy)
         return self
 
 
@@ -944,3 +976,419 @@ class Skeletone():
             return ax
         plot_line(self.lines, ax=ax, color=color, add_points=False, ls="dashed", lw=1)
         return ax
+
+
+def get_dxdy(point1: tuple | Point | Anchor, point2: tuple | Point | Anchor) -> list:
+    """
+    Returns the difference in x and y coordinates between two points.
+    
+    Args:
+        point1 (tuple | Point | Anchor): The first point.
+        point2 (tuple | Point | Anchor): The second point.
+
+    Returns:
+        list: A list containing the differences in x and y coordinates.
+    """
+    match point1:
+        case tuple():
+            p1_coords = point1
+        case Point():
+            p1_coords = point1.xy
+        case Anchor():
+            p1_coords = point1.coords
+
+    match point2:
+        case tuple():
+            p2_coords = point2
+        case Point():
+            p2_coords = point2.xy
+        case Anchor():
+            p2_coords = point2.coords
+
+    return [p2_coords[0] - p1_coords[0], p2_coords[1] - p1_coords[1]]
+
+
+class Layer():
+    
+    __slots__ = "name", "polygons", "color", "enable_grid_snap"
+
+    def __init__(self,
+                 name: str,
+                 polygons: Polygon | MultiPolygon = MultiPolygon(),
+                 color: tuple = (RED, 1),
+                 enable_grid_snap: bool = True):
+        self.name = name
+        self.polygons = polygons
+        self.color = color
+        self.enable_grid_snap = enable_grid_snap
+
+
+    def __repr__(self):
+        if self.is_empty:
+            return f"<LAYER | {self.name} | is empty>"
+        elif isinstance(self.polygons, Polygon):
+            return f"<LAYER | {self.name} | with 1 polygon>"
+        else:
+            return f"<LAYER | {self.name} | with {len(self.polygons.geoms)} polygons>"
+
+    @property
+    def is_empty(self) -> bool:
+        """
+        Checks if the layer is empty (i.e., has no polygons).
+
+        Returns:
+            bool: True if the layer is empty, False otherwise.
+        """
+        return self.polygons.is_empty
+
+
+    def copy(self) -> 'Layer':
+        """ 
+        Creates a deep copy of the Layer instance.
+
+        Returns:
+            A new instance of Layer with the same polygons.
+        """
+        return copy.deepcopy(self)
+
+
+    @snap_on_grid(attr="polygons")
+    def rotate(self, angle: float=0, origin=(0,0)) -> 'Layer':
+        """ 
+        Rotates the layer by the given angle around the origin.
+
+        Args:
+            angle (float, optional): rotation angle. Defaults to 0.
+            origin (str, optional): rotations are made around this point. Defaults to (0,0).
+        
+        Returns:
+            Updated instance (self) of the class with all objects rotated.
+        """
+        return affinity.rotate(self.polygons, angle, origin)
+
+
+    @snap_on_grid(attr="polygons")
+    def move(self, dx: float | int, dy: float | int):
+        """
+        Move objects either by an (x, y) offset OR by snapping one anchor to another point.
+
+        Args:
+            dx (float | int): The x offset to move by.
+            dy (float | int): The y offset to move by.
+
+        Returns:
+            self: Updated instance with all polygons in layer moved.
+        """
+        return affinity.translate(self.polygons, xoff=dx, yoff=dy)
+
+
+    @snap_on_grid(attr="polygons")
+    def snap_to(self, point_from: tuple | Point, point_to: tuple | Point) -> 'Layer':
+        """
+        Snaps the layer from one point to another point by calculating the required offset.
+        Args:
+            point_from (tuple | Point): The point to snap from.
+            point_to (tuple | Point): The point to snap to.
+        Returns:
+            Updated instance (self) of the class with all polygons moved.
+        """
+        dxdy = get_dxdy(point_from, point_to)
+        return self.move(*dxdy)
+
+
+    @snap_on_grid(attr="polygons")
+    def scale(self, xfact=1.0, yfact=1.0, origin=(0,0)) -> 'Layer':
+        """
+        Scales all objects in layer by the specified factors along the x and y axes.
+
+        Args:
+            xfact (float, optional): scale along x-axis. Defaults to 1.0.
+            yfact (float, optional): scale along y-axis. Defaults to 1.0.
+            origin ((x,y), optional): scale with respect to an origin (x,y). Defaults to (0,0).
+
+        Returns:
+            Updated instance (self) of the class with all polygons scaled.
+        """
+        return affinity.scale(self.polygons, xfact, yfact, 1.0, origin)
+
+
+    @snap_on_grid(attr="polygons")
+    def mirror(
+            self,
+            aroundaxis: str,
+            keep_original: bool=True
+            ) -> 'Layer':
+        """
+        Mirror all objects in layer around a specified axis.
+
+        Args:
+            aroundaxis (str): Defines the mirror axis. Only 'x' or 'y' are supported.
+            update_labels (bool, optional): 
+                Whether to update the labels after mirroring. Defaults to False.
+            keep_original (bool, optional):
+                Whether to keep the original objects after mirroring. Defaults to False.
+
+        Raises:
+            TypeError: If the 'aroundaxis' is not 'x' or 'y'.
+
+        Returns:
+            Updated instance (self) of the class with all objects mirrored.
+        """
+        if aroundaxis == 'y':
+            sign = (-1, 1)
+        elif aroundaxis == 'x':
+            sign = (1, -1)
+        else:
+            raise TypeError("Choose 'x' or 'y' axis for mirroring")
+
+        mirrored = affinity.scale(self.polygons, *sign, 1.0, origin=(0, 0))
+        if keep_original:
+            return unary_union([mirrored, self.polygons])
+        else:
+            return mirrored
+
+
+    @snap_on_grid(attr="polygons")
+    def add(self, geom: Polygon | MultiPolygon) -> 'Layer':
+        """ 
+        Adds a polygon or multipolygon to the layer.
+
+        Args:
+            geom (Polygon | MultiPolygon): The polygon or multipolygon to add.
+
+        Returns:
+            Updated instance (self) of the class with the added polygon.
+        """
+        return unary_union([self.polygons, geom])
+
+
+    @snap_on_grid(attr="polygons")
+    def cut(self,
+            geom: Polygon | MultiPolygon,
+            loc: tuple[float, float]=None) -> 'Layer':
+        """ 
+        Cuts the layer with a polygon or multipolygon.
+
+        Args:
+            geom (Polygon | MultiPolygon): The polygon to be cut.
+            loc (tuple[float, float], optional): The location where the polygon will be cut.
+                Defaults to None.
+
+        Returns:
+            Updated instance (self) of the class with the cut geometry.
+        """
+        cut_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
+        updated = self.polygons.difference(cut_geom)
+        return updated
+
+
+    @snap_on_grid(attr="polygons")
+    def crop(self,
+             geom: Polygon | MultiPolygon,
+             loc: tuple[float, float] = None) -> 'Layer':
+        """ 
+        Crops the layer with a polygon or multipolygon.
+
+        Args:
+            geom (Polygon | MultiPolygon): The polygon to be used for cropping.
+            loc (tuple[float, float], optional): The location where the polygon will be applied.
+                Defaults to None.
+
+        Returns:
+            Updated instance (self) of the class with the cropped geometry.
+        """
+        crop_geom = affinity.translate(geom, xoff = loc[0], yoff = loc[1]) if loc else geom
+        updated = self.polygons.intersection(crop_geom)
+        if isinstance(updated, (Point, MultiPoint, LineString, MultiLineString)):
+            updated = MultiPolygon()
+        elif isinstance(updated, GeometryCollection):
+            # Select only polygons
+            polygon_list = [geom for geom in list(updated.geoms) if isinstance(geom, Polygon)]
+            updated = MultiPolygon(polygon_list)
+
+        return updated
+
+
+    @snap_on_grid(attr="polygons")
+    def simplify(self, tolerance: float=0.1) -> 'Layer':
+        """ Simplify polygons in a layer
+
+        Args:
+            tolerance (float, optional): The tolerance value for simplification. Defaults to 0.1.
+
+        Returns:
+            Updated instance (self) of the class with the specified layer simplified.
+        """
+        return self.polygons.simplify(tolerance)
+
+
+    @snap_on_grid(attr="polygons")
+    def modify_points(
+            self,
+            poly_id: int,
+            ext_points: dict,
+            int_points: dict=None,
+            int_idx: int=0):
+        """
+        Updates the point coordinates of a polygon in a layer.
+        Can optionally modify a single interior's coordinates. Moves first and last points together.
+
+        Args:
+            layer (str): layer name
+            poly_id (int): polygon index in multipolygon list
+            ext_points (dict): point indices to change in a polygon. 
+                Keys: corrresponds to the point idx in polygon exterior coord list.
+                Value: tuple of new [x,y] coordinates
+            int_points (dict, optional): point indices to change in a polygon. 
+                Keys: corrresponds to the point idx in polygon interiors coord list.
+                Value: tuple of new [x,y] coordinates
+                Defaults to None. 
+            int_idx (int, optional): interior index in the polygon's interiors list. Defaults to 0.
+        """
+        p_list = list(self.polygons.geoms)
+        p = p_list[poly_id]
+        coords = get_coordinates(p)
+
+        #updating exterior coords of the polygon
+        if ext_points:
+            points_to_be_changed = list(ext_points.keys())
+            for point in points_to_be_changed:
+                coords[point, 0] = coords[point, 0] + ext_points[point][0] 
+                coords[point, 1] = coords[point, 1] + ext_points[point][1]
+
+                if point == (len(p.exterior.coords) - 1):
+                    coords[0, 0] = coords[0, 0] + ext_points[point][0] 
+                    coords[0, 1] = coords[0, 1] + ext_points[point][1]
+                elif point == 0:
+                    last_point = (len(p.exterior.coords) - 1)
+                    coords[last_point, 0] = coords[last_point, 0] + ext_points[point][0] 
+                    coords[last_point, 1] = coords[last_point, 1] + ext_points[point][1]
+
+
+        #updating interior coordinates of the polygon
+        if int_points and has_interior(p) and int_points:
+            int_coords = p.interiors[int_idx].coords
+            int_coords_start = len(p.exterior.coords) * (int_idx + 1)
+
+            points_to_be_changed = list(int_points.keys())
+            for point in points_to_be_changed:
+                point_offset = int_coords_start + point
+                
+                coords[point_offset, 0] = coords[point_offset, 0] + int_points[point][0] 
+                coords[point_offset, 1] = coords[point_offset, 1] + int_points[point][1]
+
+                if point == len(int_coords) - 1:
+                    coords[int_coords_start, 0] = coords[int_coords_start, 0] + int_points[point][0] 
+                    coords[int_coords_start, 1] = coords[int_coords_start, 1] + int_points[point][1]
+
+        p_list[poly_id] = set_coordinates(p, coords)
+        return MultiPolygon(p_list)
+
+
+    @snap_on_grid(attr="polygons")
+    def remove_holes(self, cut_position: float=None):
+        """
+        Removes any holes from a multipolygon in a layer by vertically cutting
+        along the centroid of each hole and piecing together the remaining Polygon geometries.
+        Vertical cut is made with a default length of 1e6. 
+
+        Args:
+            cut_position (float): The x-coordinate where the vertical cut is made.
+                If None, the cut is made at the centroid of each hole.
+        """
+        return flatten_multipolygon(self.polygons, cut_position)
+
+
+    @snap_on_grid(attr="polygons")
+    def slice_layers(self, slice_line: LineString | list[LineString]):
+        """
+        Slices polygons in a layer using a given line.
+
+        Args:
+            slice_line (LineString): The line used for slicing.
+        """
+
+        updated = self.polygons
+        for slice in slice_line:
+            updated = split_polygon(updated, slice)
+        return updated
+
+
+    def remove(self, polygon_id: int | tuple | list = None):
+        """
+        Removes a polygon from a layer.
+
+        Args:
+            polygon_id (int | tuple | list): The index of the polygon to be removed.
+        """
+        if not polygon_id:
+            self.polygons = MultiPolygon()
+            return self
+
+        if isinstance(polygon_id, int):
+            polygon_id = [polygon_id]
+
+        poly_list = list(self.polygons.geoms)
+        self.polygons = MultiPolygon([poly for i, poly in enumerate(poly_list) if i not in polygon_id])
+        return self
+
+
+    def add_text(self, text: str="abcdef", size: float=1000, loc: tuple=(0,0)):
+        """
+        Converts text into polygons and adds them to a layer.
+
+        Args:
+            text (str, optional): The text to be converted into polygons. Defaults to "abcdef".
+            size (float, optional): The size of the text. Defaults to 1000.
+            loc (tuple, optional): The location where the text polygons will be placed. Defaults to (0,0).
+        """
+        ptext = polygonize_text(text, size)
+        ptext = affinity.translate(ptext, *loc)
+        self.add(ptext)
+
+
+    def plot(
+            self,
+            ax=None,
+            size: tuple=(8,8),
+            show_idx: bool=False,
+            show_line_idx: bool=False,
+            show_grid: bool=False,
+            add_points: bool=False,
+            labels: bool=False,
+            edgecolor: str=BLACK,
+            **kwargs
+            ) -> mpl_axes:
+        """
+        Plots a layer polygons on the given axes.
+
+        Args:
+            ax (plt.Axes, optional): The axes object on which to plot the layer. If None, a default axes object will be used.
+            show_idx (bool, optional): Whether to show the index of the layer object.
+            show_line_idx (bool, optional): Whether to show the line index of the layer object.
+            add_points (bool, optional): Whether to add points to the layer object.
+            edgecolor (str, optional): The edge color of the layer object.
+            **kwargs: Additional keyword arguments to be passed to the plotting functions.
+        """
+        if ax is None:
+            plt.figure(1, figsize=size, dpi=90)
+            ax = default_ax()
+
+        plot_polygon(self.polygons, 
+                     ax=ax, 
+                     color=self.color[0],
+                     alpha=self.color[1],
+                     add_points=add_points, 
+                     edgecolor=edgecolor,
+                     **kwargs)
+        if show_idx:
+            plot_polygon_idx(self.polygons, ax=ax, color=self.color[0])
+        if self.color[1] != 1:
+            plot_line(self.polygons.boundary, ax=ax, color=BLACK, add_points=False, lw=1.5)
+        if show_line_idx:
+            plot_line_idx_in_polygon(self.polygons, ax=ax, color=self.color[0])
+        if not show_grid:
+            ax.grid(False)
+        
+        if labels:
+            draw_labels(self.polygons, ax=ax)
