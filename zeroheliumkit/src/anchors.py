@@ -628,7 +628,7 @@ class MultiAnchor():
         """
         if new_xy:
             self[label].coords = new_xy
-        if isinstance(new_direction, [float, int]):
+        if isinstance(new_direction, (float, int)):
             self[label].direction = new_direction
         if new_name:
             self[label].label = new_name
@@ -1019,7 +1019,7 @@ class Layer():
                  enable_grid_snap: bool = True):
         self.name = name
         self.polygons = polygons
-        self.color = color
+        self.color = color if isinstance(color, tuple) else (color, 1)
         self.enable_grid_snap = enable_grid_snap
 
 
@@ -1042,6 +1042,17 @@ class Layer():
         return self.polygons.is_empty
 
 
+    @property
+    def area(self) -> float:
+        """
+        Calculates the total area of all polygons in the layer.
+
+        Returns:
+            float: The total area of the polygons.
+        """
+        return self.polygons.area
+
+
     def copy(self) -> 'Layer':
         """ 
         Creates a deep copy of the Layer instance.
@@ -1050,6 +1061,17 @@ class Layer():
             A new instance of Layer with the same polygons.
         """
         return copy.deepcopy(self)
+
+
+    def clear(self) -> 'Layer':
+        """ 
+        Clears all polygons from the layer.
+
+        Returns:
+            Updated instance (self) of the class with no polygons.
+        """
+        self.polygons = MultiPolygon()
+        return self
 
 
     @snap_on_grid(attr="polygons")
@@ -1300,7 +1322,7 @@ class Layer():
 
 
     @snap_on_grid(attr="polygons")
-    def slice_layers(self, slice_line: LineString | list[LineString]):
+    def slice(self, slice_line: LineString | list[LineString]):
         """
         Slices polygons in a layer using a given line.
 
@@ -1345,6 +1367,21 @@ class Layer():
         ptext = polygonize_text(text, size)
         ptext = affinity.translate(ptext, *loc)
         self.add(ptext)
+
+
+    def buffer(self, offset: float, **kwargs) -> 'Layer':
+        """
+        Creates a new layer by buffering the current layer's polygons.
+
+        Args:
+            offset (float): The distance to buffer the polygons.
+            **kwargs: Additional keyword arguments to be passed to the buffer method.
+
+        Returns:
+            Layer: A new Layer instance with the buffered polygons.
+        """
+        self.polygons = self.polygons.buffer(offset, **kwargs)
+        return self
 
 
     def plot(

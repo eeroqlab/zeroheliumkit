@@ -64,6 +64,23 @@ class Entity():
         if len(repr_name) > max_length:
             return f"{repr_name[: max_length - 3]}..."
         return repr_name
+    
+
+    def get(self, lname: str) -> Layer | None:
+        """
+        Retrieves a layer by its name.
+
+        Args:
+            lname (str): The name of the layer.
+
+        Returns:
+            Layer: The layer with the specified name, or None if not found.
+        """
+        if lname in self.layers:
+            return getattr(self, lname, None)
+        else:
+            warn(f"Layer '{lname}' not found in layers.")
+            return None
 
 
     def add(self, layer: Layer): 
@@ -433,8 +450,9 @@ class Entity():
         #plot layers
         plot_config = {k:v for k,v in plot_config.items() if k not in off}
         for lname, lcolor in plot_config.items():
-            getattr(self, lname).color = lcolor
-            getattr(self, lname).plot(ax=ax, show_idx=show_idx, labels=labels, **kwargs)
+            if self.has_layer(lname):
+                getattr(self, lname).color = lcolor
+                getattr(self, lname).plot(ax=ax, show_idx=show_idx, labels=labels, **kwargs)
 
         #plot skeletone
         self.skeletone.plot(ax=ax, color=skeletone_color)

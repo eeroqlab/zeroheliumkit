@@ -14,6 +14,7 @@ __all__ = [
     "Anchor",
     "MultiAnchor",
     "Skeletone",
+    "Layer",
     "Entity",
     "Structure",
     "SuperStructure",
