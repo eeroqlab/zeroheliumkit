@@ -246,9 +246,12 @@ class GMSHmaker():
                 self.create_PhysicalSurfaces_for_pmcs()
             self.export_config()
 
-            self.setup_mesh_fields()
+            if self.mesh is not None:
+                self.setup_mesh_fields()
+                self.create_mesh(dim=self.mesh.dim)
+            
             self.create_geo()
-            self.create_mesh(dim=self.mesh.dim)
+            
             if self.open_gmsh:
                 self.launch_gmsh_gui()
         
