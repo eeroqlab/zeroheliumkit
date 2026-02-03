@@ -18,12 +18,19 @@ Functions:
     Returns the default matplotlib axes object.
 - fmt(x):
     Formats a number as a string with one decimal place.
-- init_data_collecting(line: str, dtype: str) -> tuple:
-    Initializes data collection based on the specified data type.
-- read_ff_output(filename: str, ff_type: str) -> dict:
-    Reads the output file and extracts the data based on the specified ff_type.
+- action_on_data(data_item: dict | np.ndarray, action: Callable, **kwargs) -> dict | np.ndarray:
+    Applies a function to each item in a dictionary or to a numpy array.
+- make_masked(couplings: CouplingConstants, mask_area: Polygon) -> CouplingConstants:
+    Masks the coupling constants based on a specified polygon area.
+- make_cropped(couplings: CouplingConstants, xrange: tuple=(-1,1), yrange: tuple=(-1,1)) -> CouplingConstants:
+    Crops the coupling constants based on specified x and y ranges.
+- make_symmetric(couplings: CouplingConstants, symmetry_axis: str, symmetric_electrodes: list, mirror_electrodes: list[tuple]) -> CouplingConstants:
+    Makes the coupling constants symmetric based on a specified symmetry axis and electrode pairs.
+- make_smooth(couplings: CouplingConstants, gaussian_power: int, **kwargs) -> CouplingConstants:
+    Smooths the coupling constants using a Gaussian filter.
 
 Classes:
+- FreeFemResultParser: A class for parsing and loading results from FreeFem simulations.
 - FieldAnalyzer: A class for analyzing and plotting field data extracted from FEM simulations.
 """
 
@@ -44,7 +51,12 @@ from pathlib import Path
 from ..src.settings import GRAY
 
 
-ff_types = ['2Dmap', '2Dslices']
+@dataclass(slots=True)
+class CouplingConstants:
+    x: np.ndarray
+    y: np.ndarray
+    data: dict
+
 
 def flatten(l: list) -> list:
     return [item for sublist in l for item in sublist]
@@ -88,8 +100,8 @@ def _default_ax():
     return ax
 
 
-def crop_xlist(x: ArrayLike, xrange: tuple) -> tuple:
-    """Crops the xlist to the boundaries specified by xrange."""
+def crop_vector(x: ArrayLike, xrange: tuple) -> tuple:
+    """Crops the vector to the boundaries specified by xrange."""
     xmin_idx, xmax_idx = find_nearest(x, xrange[0]), find_nearest(x, xrange[1])
     return x[xmin_idx:xmax_idx + 1], (xmin_idx, xmax_idx)
 
@@ -109,7 +121,7 @@ def crop_matrix(U: ArrayLike, x_idxs: tuple, y_idxs: tuple) -> ArrayLike:
     (x1,x2) = x_idxs
     (y1,y2) = y_idxs
 
-    return U[x1 : x2 + 1, y1 : y2 + 1]
+    return U[y1 : y2 + 1, x1 : x2 + 1]
 
 
 def fmt(x):
@@ -123,10 +135,9 @@ def action_on_data(data_item: dict | np.ndarray, action: Callable, **kwargs) -> 
     """ Applies a function to each item in the data dictionary.
 
     Args:
-    _____
-    data_item (dict | np.ndarray): The data to apply the function to.
-    action (Callable): The function to apply.
-    **kwargs: Additional keyword arguments to pass to the function.
+        data_item (dict | np.ndarray): The data to apply the function to.
+        action (Callable): The function to apply.
+        **kwargs: Additional keyword arguments to pass to the function.
 
     Returns
     dict | np.ndarray: The data with the function applied to each item.
@@ -140,43 +151,141 @@ def action_on_data(data_item: dict | np.ndarray, action: Callable, **kwargs) -> 
         return action(data_item, **kwargs)
 
 
-def init_data_collecting(line: str, dtype: str) -> tuple:
-    if dtype == "2Dmap":
-        empty_array = []
-    elif dtype == "2Dslices":
-        empty_array = {}
-    elif dtype == "xy":
-        empty_array = []
-    else:
-        raise TypeError(f"your {dtype} is not from a list ['2Dmap', '2Dslices', 'xy']")
-    t = line.split()
-    dict_key = t[1]
-    return dict_key, empty_array, dtype
+def make_masked(couplings: CouplingConstants, mask_area: Polygon) -> CouplingConstants:
+    """
+    Masks the data based on the specified mask area.
+
+    Args:
+        couplings (CouplingConstants): The coupling constants to be masked.
+        mask_area (Polygon): The polygon representing the crop area.
+    
+    Returns:
+        CouplingConstants: The masked coupling constants.
+    """
+    X, Y = np.meshgrid(couplings.x, couplings.y)
+    mask = np.vectorize(inside_trap, excluded=["geom"])(mask_area, X, Y)
+    mask = np.invert(mask)
+
+    maskedcouplings = CouplingConstants(
+        x = couplings.x,
+        y = couplings.y,
+        data = action_on_data(couplings.data, ma.masked_array, mask=mask)
+    )
+    return maskedcouplings
 
 
-@dataclass
-class SymmetryConfig:
-    axis: str
-    mid: tuple
+def make_cropped(couplings: CouplingConstants, xrange: tuple=(-1,1), yrange: tuple=(-1,1)) -> CouplingConstants:
+    """
+    Crop the data based on the specified x and y ranges.
 
-    def __post_init__(self):
-        if self.axis not in ["x", "y"]:
-            raise ValueError("Invalid symmetry axis. Must be either 'x' or 'y'.")
+    Args:
+        couplings (CouplingConstants): The coupling constants to be cropped.
+        xrange (tuple, optional): The range of x-values to crop the data. Defaults to (-1, 1).
+        yrange (tuple, optional): The range of y-values to crop the data. Defaults to (-1, 1).
+    
+    Returns:
+        CouplingConstants: The cropped coupling constants.
+    """
+    xnew, (i1, i2) = crop_vector(couplings.x, xrange)
+    ynew, (j1, j2) = crop_vector(couplings.y, yrange)
+    croppedcouplings = CouplingConstants(
+        x = xnew,
+        y = ynew,
+        data = action_on_data(couplings.data, crop_matrix, x_idxs=(i1, i2), y_idxs=(j1, j2))
+    )
+    return croppedcouplings
 
 
-def symmetrise_symmetric(data: np.ndarray, config: SymmetryConfig) -> np.ndarray:
-    if config.axis == 'y':
-        data = data.T
-        idx = config.mid[1]
-    else:
-        idx = config.mid[0]
-    symm_array = np.zeros(data.shape)
-    # averaging over positive and negative y
-    averaged_half = (data[:,idx + 1:] + data[:,:idx][:,::-1])/2
-    symm_array[:,idx + 1:] = averaged_half
-    symm_array[:,:idx] = averaged_half[:,::-1]
-    symm_array[:,idx] = data[:,idx]
-    return symm_array if config.axis == 'x' else symm_array.T
+def make_symmetric(
+        couplings: CouplingConstants,
+        axis: str,
+        symmetric_electrodes: list=None,
+        mirror_electrodes: list[tuple]=None
+        ) -> CouplingConstants:
+    """
+    Makes the coupling constants symmetric based on the specified symmetry axis and electrode pairs.
+    
+    Args:
+        couplings (CouplingConstants): The coupling constants to be made symmetric.
+        axis (str): The axis of symmetry ('x' or 'y').
+        symmetric_electrodes (list): The list of electrodes to make symmetric.
+        mirror_electrodes (list[tuple]): The list of electrode pairs which are mirror to each other.
+
+    Returns:
+        CouplingConstants: The symmetric coupling constants.
+    """
+
+    data = couplings.data
+    nx = len(couplings.x)
+    ny = len(couplings.y)
+    mid_idx_x = int(nx/2)
+    mid_idx_y = int(ny/2)
+
+    new_dict = {}
+
+    if symmetric_electrodes:
+        for k in symmetric_electrodes:
+            if axis == 'x':
+                v = data[k]
+                idx = mid_idx_y
+            elif axis == 'y':
+                v = data[k].T
+                idx = mid_idx_x
+            else:
+                raise ValueError("axis must be either 'x' or 'y'.")
+            symm_array = np.zeros(v.shape)
+            # averaging over positive and negative y
+            averaged_half = (v[idx+1:,:] + v[:idx,:][::-1,:])/2
+            symm_array[idx+1:,:] = averaged_half
+            symm_array[:idx,:] = averaged_half[::-1,:]
+            symm_array[idx,:] = v[idx,:]
+            new_dict[k] = symm_array if axis == 'x' else symm_array.T
+
+    if mirror_electrodes:
+        for k1, k2 in mirror_electrodes:
+            if axis == 'x':
+                v1 = data[k1]
+                v2 = data[k2]
+            elif axis == 'y':
+                v1 = data[k1].T
+                v2 = data[k2].T
+            else:
+                raise ValueError("axis must be either 'x' or 'y.")
+            v1 = data[k1]
+            v2 = data[k2]
+            mirror_array = (v1 + v2[::-1,:])/2
+            new_dict[k1] = mirror_array if axis == 'x' else mirror_array.T
+            new_dict[k2] = mirror_array[::-1,:] if axis == 'x' else mirror_array[::-1,:].T
+
+    symmetriccouplings = CouplingConstants(
+        x = couplings.x,
+        y = couplings.y,
+        data = new_dict
+    )
+    return symmetriccouplings
+
+
+def make_smooth(couplings: CouplingConstants, sigma: int, **kwargs) -> CouplingConstants:
+    """
+    Smooths the coupling constants of the fieldreader object using a Gaussian filter.
+    
+    Args:
+        couplings (CouplingConstants): The coupling constants to be smoothed.
+        gaussian_power (int): The power of the Gaussian filter.
+        **kwargs: Additional keyword arguments to pass to the Gaussian filter.
+            See documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.gaussian_filter.html>`_.        
+        
+    Returns:
+        CouplingConstants: The smoothed coupling constants.
+    """
+    smoothedcouplings = CouplingConstants(
+        x = couplings.x,
+        y = couplings.y,
+        data = action_on_data(couplings.data, gaussian_filter, sigma=sigma, **kwargs)
+    )
+
+    return smoothedcouplings
+
 
 
 class FreeFemResultParser():
@@ -186,6 +295,8 @@ class FreeFemResultParser():
     Args:
         metadata_file (str): Path to the YAML metadata file containing simulation information.
     """
+
+    __slots__ = ['metadata', 'data']
 
     def __init__(self, metadata_file: str, show: bool=True):
         with open(metadata_file, 'r') as file:
@@ -220,18 +331,14 @@ class FreeFemResultParser():
         Args:
             savedir (str): Directory path where the Parquet file is stored.
             fname (str): Base filename (without extension) of the Parquet file to load.
-
-        Returns:
-            dict: A dictionary containing electrode data arrays indexed by slice values, 
-            as well as 'xlist' and 'ylist' arrays representing spatial coordinates.
         """
         fullpath = Path(savedir) / Path(fname + ".parquet")
         df = pl.read_parquet(str(fullpath))
 
-        data = {}
+        self.data = {}
 
         for electrode in df.columns:
-            data[electrode] = {}
+            self.data[electrode] = {}
             electrode_res = df[electrode].to_numpy()
 
             schema = self.metadata[fname]["Schema"]
@@ -241,12 +348,20 @@ class FreeFemResultParser():
             array = np.reshape(electrode_res, shape)
             for i, slice in enumerate(array):
                 slice_value = self.metadata[fname]["Slice Values"][i]
-                data[electrode][slice_value] = slice
+                self.data[electrode][slice_value] = slice
 
-        data['xlist'] = np.linspace(self.metadata[fname]["X Min"], self.metadata[fname]["X Max"], self.metadata[fname]["X Num"], endpoint=True)
-        data['ylist'] = np.linspace(self.metadata[fname]["Y Min"], self.metadata[fname]["Y Max"], self.metadata[fname]["Y Num"], endpoint=True)
+        self.data['xlist'] = np.linspace(self.metadata[fname]["X Min"], self.metadata[fname]["X Max"], self.metadata[fname]["X Num"], endpoint=True)
+        self.data['ylist'] = np.linspace(self.metadata[fname]["Y Min"], self.metadata[fname]["Y Max"], self.metadata[fname]["Y Num"], endpoint=True)
 
-        return data
+
+    def get_coupling_constants(self, slice_value: float, round_with_decimals: int=6) -> CouplingConstants:
+        """ Returns the coupling constants at a specific slice value and rounds the data to the specified number of decimal places."""
+        cc = CouplingConstants(
+            x=self.data['xlist'],
+            y=self.data['ylist'],
+            data={k: np.round(v[slice_value], decimals=round_with_decimals) for k, v in self.data.items() if k not in ['xlist', 'ylist']}
+        )
+        return cc
 
 
     def get_capacitance_matrix(self):
@@ -254,9 +369,6 @@ class FreeFemResultParser():
         return self.metadata["Capacitance Matrix"]
 
 
-###########################
-#### Main Reader Class ####
-###########################
 class FieldAnalyzer():
     """
     A class for analyzing and plotting field data extracted from FEM simulations.
@@ -264,340 +376,228 @@ class FieldAnalyzer():
     - Load and store field data as attributes.
     - Calculate potential distributions from coupling constants and voltages.
     - Plot 2D and 1D potential and electric field distributions.
-    - Mask and crop field data based on geometric regions or coordinate ranges.
-    - Apply symmetry and smoothing operations to field data.
 
     Args:
-        *filename_args (tuple[str, dict]): Variable number of tuples, each containing:
-            - attrname (str): The name of the attribute to store the data.
-            - data (dict): The data to be stored in the attribute.
+        coupling_constants (CouplingConstants): The coupling constants used for field analysis.
 
     """
 
+    __slots__ = ['couplings', 'names', 'voltages', 'potential']
 
-    def __init__(self, *filename_args: tuple[str, dict]):
-        for attrname, data in filename_args:
-            setattr(self, attrname, data)
+    def __init__(self, coupling_constants: CouplingConstants):
+        # shorter attribute name; keep original as alias for backward compatibility
+        self.couplings = coupling_constants
+        self.names = list(coupling_constants.data.keys())
 
-    def potential(self, couplingConst: dict, voltages: dict, zlevel_key=None) -> tuple:
+
+    def set_voltages(self, voltages: dict) -> None:
+        """
+        Sets the voltages for the electrodes.
+
+        Args:
+            voltages (dict): A dictionary containing the voltages.
+        """
+        self.voltages = {k: voltages[k] if k in voltages else 0 for k in self.names}
+        self.update()
+
+
+    def update(self) -> None:
+        """
+        Updates the potential distribution based on the current voltages.
+        """
+        self.accumulate_arrays()
+
+
+    def accumulate_arrays(self) -> None:
         """
         Calculates the potential distribution based on the coupling constants and voltages.
+        """
+        nx, ny = len(self.couplings.x), len(self.couplings.y)
+        self.potential = np.zeros((ny, nx), dtype=np.float64)
+        for (k, v) in self.couplings.data.items():
+            self.potential = self.potential + self.voltages.get(k) * v
+
+
+    def get_data(self, slice: tuple=None) -> np.ndarray:
+        """
+        Returns the potential distribution. If a slice is provided, returns the potential along that slice.
 
         Args:
-            couplingConst (dict): A dictionary containing the coupling constants.
-            voltages (dict): A dictionary containing the voltages.
-            zlevel_key (optional): The key for the z-level. Defaults to None.
+            slice (tuple, optional): A tuple specifying the slice of data to use. Defaults to None -> In this case, the full 2D array is returned.
+        """
+        if slice is None:
+            return self.potential
+        else:
+            assert len(slice) == 2, "slice must be a tuple of length 2"
+            assert slice[0] in ["x", "y"], "slice[0] must be either 'x' or 'y'"
+            assert isinstance(slice[1], (int, float)), "slice[1] must be a number"
+            if slice[0] == "x":
+                idx = find_nearest(self.couplings.y, slice[1])
+                return self.potential[idx, :]
+            elif slice[0] == "y":
+                idx = find_nearest(self.couplings.x, slice[1])
+                return self.potential[:, idx]
+            else:
+                raise ValueError("Invalid slice[0]. Must be either 'x' or 'y'.")
+
+
+    def get_gradient(self, grad_axis: str, slice: tuple=None) -> np.ndarray:
+        """Returns the gradient of the potential data.
+
+        Args:
+            grad_axis (str): The axis along which to compute the gradient. Must be either 'x' or 'y'.
+            slice (tuple, optional): A tuple specifying the slice of data to use. Defaults to None -> In this case, the full 2D array is used.
+
+        Raises:
+            ValueError: If grad_axis is not 'x' or 'y'.
 
         Returns:
-            tuple: A tuple containing the x-coordinates, y-coordinates, and the potential data.
+            np.ndarray: The gradient of the potential data.
         """
-        nx, ny = len(couplingConst['xlist']), len(couplingConst['ylist'])
-        data = np.zeros((ny, nx), dtype=np.float64)
-        for (k, v) in couplingConst.items():
-            if k in ('xlist', 'ylist'):
-                pass
+        assert grad_axis in ["x", "y"], "grad_axis must be either 'x' or 'y'"
+        if slice is None:
+            if grad_axis == "x":
+                return np.gradient(self.potential, self.couplings.x, axis=1)
+            elif grad_axis == "y":
+                return np.gradient(self.potential, self.couplings.y, axis=0)
+        else:
+            data = self.get_data(slice)
+            if grad_axis == "x":
+                return np.gradient(data, self.couplings.x)
+            elif grad_axis == "y":
+                return np.gradient(data, self.couplings.y)
             else:
-                if not zlevel_key:
-                    data = data + voltages.get(k) * v
-                else:
-                    data = data + voltages.get(k) * v.get(zlevel_key)
-
-        return couplingConst['xlist'], couplingConst['ylist'], data
+                raise ValueError("Invalid grad_axis. Must be either 'x' or 'y'.")
 
 
-    def plot_coupling_const(self, couplingConst: list, gate: str, ax=None) -> None:
-        """
-        Plots the coupling constants for a specific gate.
-
-        Args:
-            couplingConst (list): The coupling constants.
-            gate (str): The gate for which the coupling constants are plotted.
-            ax (optional): The matplotlib axes object to plot on.
-                If not provided, a new figure and axes will be created.
-        """
-        if ax is None:
-            ax = _default_ax()
-        ax.contourf(couplingConst['xlist'], couplingConst['ylist'], couplingConst[gate], 17,
-                    cmap='RdYlBu_r', vmin=-0.03)
-        set_limits(ax, (couplingConst['xlist'][0], couplingConst['xlist'][-1]),
-                   (couplingConst['ylist'][0], couplingConst['ylist'][-1]))
-
-
-    def plot_potential_2D(self,
-                         couplingConst: list,
-                         voltage_list: list,
-                         ax=None,
-                         zero_line=None,
-                         zlevel_key=None,
-                         **kwargs):
+    def plot2D_data(self, ax=None, num_levels: int=17, zero_line :float | int=None, **kwargs):
         """
         Plots the 2D potential distribution based on the coupling constants and voltages.
 
         Args:
-            couplingConst (list): The coupling constants.
-            voltage_list (list): The voltages.
             ax (optional): The matplotlib axes object to plot on.
                 If not provided, a new figure and axes will be created.
+            num_levels (int, optional): The number of contour levels to use. Defaults to 17.
             zero_line (optional): The value at which to draw a dashed line.
                 If True, the zero line will be drawn at 0.
                 If None, no zero line will be drawn.
             **kwargs: Additional keyword arguments to pass to the `contourf` function.
+                See documentation <https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.contourf.html>`_.
         """
         if ax is None:
             ax = _default_ax()
-        data = self.potential(couplingConst, voltage_list, zlevel_key)
-        im = ax.contourf(data[0], data[1], data[2], 17, **kwargs)
+        ax.contourf(self.couplings.x, self.couplings.y, self.potential, num_levels, **kwargs)
         if zero_line:
-            if isinstance(zero_line,bool):
+            if isinstance(zero_line, bool):
                 zero_line = 0
-            ax.contour(data[0], data[1], data[2], [zero_line],
+            ax.contour(self.couplings.x, self.couplings.y, self.potential, [zero_line],
                        linestyles='dashed', colors=GRAY)
 
 
-    def get_potential_1D(self,
-                         couplingConst: dict,
-                         voltages: dict,
-                         xy_cut: str,
-                         loc: float,
-                         zlevel_key=None) -> np.ndarray:
-        """
-        Returns (tuple(xlist, data)) the 1D potential distribution
-        along a specified cut in the XY plane.
+    def plot2D_gradient(self, grad_axis: str, ax=None, num_levels: int=17, **kwargs):
+        """Plots the 2D gradient distribution based on the coupling constants and voltages.
 
         Args:
-            couplingConst (dict): A dictionary containing the coupling constants.
-            voltages (dict): A dictionary containing the voltages.
-            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-            loc (float): The location along the cut.
-            zlevel_key (optional): The key for the z-level. Defaults to None.
+            grad_axis (str): The axis along which to compute the gradient. Must be either 'x' or 'y'.
+            ax (optional): The matplotlib axes object to plot on. Defaults to None.
+            num_levels (int, optional): The number of contour levels to use. Defaults to 17.
+            **kwargs: Additional keyword arguments to pass to the `contourf` function.
+                See documentation <https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.contourf.html>`_.
+
+        Raises:
+            ValueError: If grad_axis is not 'x' or 'y'.
         """
-        X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
-        if xy_cut == 'x':
-            idx = find_nearest(Y, loc)
-            return X, Phi[idx, :]
-        elif xy_cut == 'y':
-            idy = find_nearest(X, loc)
-            return Y, Phi[:, idy]
+        if ax is None:
+            ax = _default_ax()
+        if grad_axis == "x":
+            gradient = self.get_gradient("x")
+        elif grad_axis == "y":
+            gradient = self.get_gradient("y")
         else:
-            raise ValueError("xy_cut must be either 'x' or 'y'.")
+            raise ValueError("Invalid grad_axis. Must be either 'x' or 'y'.")
+        ax.contourf(self.couplings.x, self.couplings.y, gradient, num_levels, **kwargs)
 
 
-    def get_field_1D(self,
-                     couplingConst: dict,
-                     voltages: dict,
-                     xy_cut: str,
-                     loc: float,
-                     zlevel_key=None) -> np.ndarray:
+    def plot2D_vectorfield(self, ax=None, step: int=5, **kwargs):
         """
-        Returns (tuple(xlist, data)) the 1D electric field distribution
-        along a specified cut in the XY plane.
+        Plots the 2D electric field distribution as a vector field.
 
         Args:
-            couplingConst (dict): A dictionary containing the coupling constants.
-            voltages (dict): A dictionary containing the voltages.
-            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-            loc (float): The location along the cut.
-            zlevel_key (optional): The key for the z-level. Defaults to None.
+            ax (optional): The matplotlib axes object to plot on. Defaults to None.
+                If not provided, a new figure and axes will be created.
+            **kwargs: Additional keyword arguments to pass to the matplotlib `quiver` function.
+                See documentation <https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.quiver.html>`_.
         """
-        X, Y, Phi = self.potential(couplingConst, voltages, zlevel_key)
-        if xy_cut == 'x':
-            idx = find_nearest(Y, loc)
-            return X, np.gradient(Phi[:, idx], X)
-        if xy_cut == 'y':
-            idy = find_nearest(X, loc)
-            return Y, np.gradient(Phi[idy, :], Y)
-        else:
-            raise ValueError("xy_cut must be either 'x' or 'y'.")
+        if ax is None:
+            ax = _default_ax()
+        Ex = -self.get_gradient("x")[::step, ::step]
+        Ey = -self.get_gradient("y")[::step, ::step]
+        mag = np.sqrt(Ex**2 + Ey**2)
+        X, Y = np.meshgrid(self.couplings.x[::step], self.couplings.y[::step])
+        ax.quiver(
+            X,
+            Y,
+            Ex,
+            Ey,
+            mag,
+            **kwargs
+            )
+        ax.set_xlabel(r'$x$ (um)')
+        ax.set_ylabel(r'$y$ (um)')
 
 
-    def plot_potential_1D(self,
-                          couplingConst: dict,
-                          voltages: dict,
-                          xy_cut: str,
-                          loc: float,
-                          ax=None,
-                          zlevel_key=None,
-                          scale=1e3,
-                          add_offset=0,
-                          **kwargs):
+    def plot1D_data(self, slice: tuple, ax=None, scale=1, add_offset=0, **kwargs):
         """
-        Plots the 1D potential distribution along a specified cut in the XY plane.
-        Returns ax: The matplotlib axes object.
+        Plots the 1D potential distribution along a specified slice in the XY plane.
 
         Args:
-            couplingConst (dict): A dictionary containing the coupling constants.
-            voltages (dict): A dictionary containing the voltages.
-            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-            loc (float): The location along the cut.
+            slice (tuple): A tuple specifying the slice of data to use. Must be of the form ('x' or 'y', value).
+            scale (float, optional): A scaling factor to apply to the potential data. Defaults to 1e3.
+            add_offset (float, optional): An offset to add to the potential data after scaling. Defaults to 0.
             ax (optional): The matplotlib axes object to plot on. If not provided,
                 a new figure and axes will be created.
-            zlevel_key (optional): The key for the z-level. Defaults to None.
             **kwargs: Additional keyword arguments to pass to the `plot` function.
         """
         if ax is None:
             ax = _default_ax()
-
-        x, y = self.get_potential_1D(couplingConst, voltages, xy_cut, loc, zlevel_key)
+        if slice[0] == "x":
+            x = self.couplings.x
+            xlabel = r'$x$ (um)'
+        elif slice[0] == "y":
+            x = self.couplings.y
+            xlabel = r'$y$ (um)'
+        else:
+            raise ValueError("Invalid slice[0]. Must be either 'x' or 'y'.")
+        y = self.get_data(slice)
+        
         ax.plot(x, y * scale + add_offset, **kwargs)
-        ax.set_xlabel(r'$x$ or $y$ (um)')
-        ax.set_ylabel(r'potential $-\phi$ (V*scale)')
-        return ax
+        ax.set_xlabel(xlabel)
 
 
-    def plot_field_1D(self,
-                      couplingConst: dict,
-                      voltages: dict,
-                      xy_cut: str,
-                      loc: float,
-                      ax=None,
-                      zlevel_key=None,
-                      **kwargs):
+    def plot1D_gradient(self, grad_axis: str, slice: tuple, ax=None, scale=1, add_offset=0, **kwargs):
         """
-        Plots the 1D electric field distribution along a specified cut in the XY plane.
-        Returns ax: The matplotlib axes object.
+        Plots the 1D gradient of the potential distribution along a specified slice in the XY plane.
 
         Args:
-            couplingConst (dict): A dictionary containing the coupling constants.
-            voltages (dict): A dictionary containing the voltages.
-            xy_cut (str): The cut direction. Can be either 'x' or 'y'.
-            loc (float): The location along the cut.
+            grad_axis (str): The axis along which to compute the gradient. Must be either 'x' or 'y'.
+            slice (tuple): A tuple specifying the slice of data to use. Must be of the form ('x' or 'y', value).
+            scale (float, optional): A scaling factor to apply to the gradient data. Defaults to 1e3.
+            add_offset (float, optional): An offset to add to the gradient data after scaling. Defaults to 0.
             ax (optional): The matplotlib axes object to plot on. If not provided,
                 a new figure and axes will be created.
-            zlevel_key (optional): The key for the z-level. Defaults to None.
             **kwargs: Additional keyword arguments to pass to the `plot` function.
         """
         if ax is None:
             ax = _default_ax()
-
-        x, y = self.get_field_1D(couplingConst, voltages, xy_cut, loc, zlevel_key)
-        ax.plot(x, y, **kwargs)
-        ax.set_xlabel(r'$x$ or $y$ (um)')
-        ax.set_ylabel(r'field $E(x)$ (V/um)')
-        return ax
-
-
-    def mask_data(self, new_attr_name: str, attr_name: str, mask_area: Polygon) -> None:
-        """
-        Masks the data based on the specified mask area and stores it as a new attribute.
-
-        Args:
-            new_attr_name (str): The name of the new attribute to store the cropped data.
-            attr_name (str): The name of the attribute containing the original data.
-            mask_area (Polygon): The polygon representing the crop area.
-        """
-        data = getattr(self, attr_name)
-        y, x = np.meshgrid(data.get('xlist'), data.get('ylist'))
-        mask = np.vectorize(inside_trap, excluded=["geom"])(mask_area, y, x)
-        mask = np.invert(mask)
-        mask = np.transpose(mask)
-
-        cropped_data ={}
-        for (k, v) in data.items():
-            if k in ('xlist', 'ylist'):
-                cropped_data[k] = v
-            else:
-                cropped_data[k] = ma.masked_array(v, mask=mask)
-
-        setattr(self, new_attr_name, cropped_data)
-
-
-    def crop_data(self, new_attr_name: str, attr_name: str, xrange: tuple=(-1,1), yrange: tuple=(-1,1)) -> None:
-        """
-        Crop the data stored in the attribute specified by `attr_name`
-        and store the cropped data in a new attribute specified by `new_attr_name`.
-
-        Args:
-            new_attr_name (str): The name of the new attribute to store the cropped data.
-            attr_name (str): The name of the attribute containing the data to be cropped.
-            xrange (tuple, optional): The range of x-values to crop the data. Defaults to (-1, 1).
-            yrange (tuple, optional): The range of y-values to crop the data. Defaults to (-1, 1).
-        """
+        if slice[0] == "x":
+            x = self.couplings.x
+            xlabel = r'$x$ (um)'
+        elif slice[0] == "y":
+            x = self.couplings.y
+            xlabel = r'$y$ (um)'
+        else:
+            raise ValueError("Invalid slice[0]. Must be either 'x' or 'y'.")
+        y = self.get_gradient(grad_axis, slice)
         
-        data = getattr(self, attr_name)
-        crd_x, (i1, i2) = crop_xlist(data['xlist'], xrange)
-        crd_y, (j1, j2) = crop_xlist(data['ylist'], yrange)
-        cropped = {}
-        for (k, v) in data.items():
-            if k not in ('xlist', 'ylist'):
-                cropped[k] = action_on_data(v, crop_matrix, x_idxs=(i1, i2), y_idxs=(j1, j2))
-        cropped['xlist'] = crd_x
-        cropped['ylist'] = crd_y
-        setattr(self, new_attr_name, cropped)
-
-
-    def make_symmetric(self, attr_name: str, symmetric_electrodes: list, mirror_electrodes: list[tuple], symmetry_axis: str, newname: str) -> None:
-        """
-        Make the data in 'attr_name' symmetric based on the given symmetry axis and store it in a new attribute with the name 'newname'.
-        
-        Args:
-            attr_name (str): The name of the data to make symmetric.
-            symmetric_electrodes (list): The list of electrodes to make symmetric.
-            mirror_electrodes (list[tuple]): The list of electrode pairs which are mirror to each other.
-            symmetry_axis (str): The axis of symmetry ('x' or 'y').
-            newname (str): The name of the new attribute where symmetric data will be stored.
-        """
-
-        data = getattr(self, attr_name)
-        nx = len(data['xlist'])
-        ny = len(data['ylist'])
-        mid_idx_x = int(nx/2)
-        mid_idx_y = int(ny/2)
-
-        new_dict = {}
-        for k in symmetric_electrodes:
-            if symmetry_axis == 'x':
-                v = data[k]
-                idx = mid_idx_y
-            elif symmetry_axis == 'y':
-                v = data[k].T
-                idx = mid_idx_x
-            else:
-                raise ValueError("symmetry_axis must be either 'x' or 'y'.")
-            symm_array = np.zeros(v.shape)
-            # averaging over positive and negative y
-            averaged_half = (v[:,idx+1:] + v[:,:idx][:,::-1])/2
-            symm_array[:,idx+1:] = averaged_half
-            symm_array[:,:idx] = averaged_half[:,::-1]
-            symm_array[:,idx] = v[:,idx]
-            new_dict[k] = symm_array if symmetry_axis == 'x' else symm_array.T
-
-        for k1, k2 in mirror_electrodes:
-            if symmetry_axis == 'x':
-                v1 = data[k1]
-                v2 = data[k2]
-            elif symmetry_axis == 'y':
-                v1 = data[k1].T
-                v2 = data[k2].T
-            else:
-                raise ValueError("symmetry_axis must be either 'x' or 'y.")
-            v1 = data[k1]
-            v2 = data[k2]
-            mirror_array = (v1 + v2[:,::-1])/2
-            new_dict[k1] = mirror_array if symmetry_axis == 'x' else mirror_array.T
-            new_dict[k2] = mirror_array[:,::-1] if symmetry_axis == 'x' else mirror_array[:,::-1].T
-
-        new_dict['xlist'] = data['xlist']
-        new_dict['ylist'] = data['ylist']
-
-        setattr(self, newname, new_dict)
-
-
-    def make_smooth(self, attr_name: str, gaussian_power: int, newname: str, **kwargs) -> None:
-        """
-        Smooths the coupling constants of the fieldreader object using a Gaussian filter.
-        
-        Args:
-            attr_name (str): The name of the attribute containing the coupling constants.
-            gaussian_power (int): The power of the Gaussian filter.
-            newname (str): The name of the new attribute to store the smoothed coupling constants.
-        """
-
-        smoothed = {}
-        coupling_constants = getattr(self, attr_name)
-        for (k, v) in coupling_constants.items():
-            if k == 'xlist' or k == 'ylist':
-                smoothed[k] = v
-            else:
-                smoothed[k] = gaussian_filter(v, gaussian_power, **kwargs)
-
-        setattr(self, newname, smoothed)
+        ax.plot(x, y * scale + add_offset, **kwargs)
+        ax.set_xlabel(xlabel)
