@@ -87,6 +87,11 @@ def inside_trap(geom: Polygon, x: float, y: float) -> bool:
     """ checks if (x,y) is inside polygon """
     return Point(x, y).within(geom)
 
+def generate_mask(xlist: list | np.ndarray, ylist: list | np.ndarray, mask_area: Polygon) -> np.ndarray:
+    X, Y = np.meshgrid(xlist, ylist)
+    mask = np.vectorize(inside_trap, excluded=["geom"])(mask_area, X, Y)
+    mask = np.invert(mask)
+    return mask
 
 def set_limits(ax, xminmax, yminmax, aspect='equal'):
     ax.set_xlim(*xminmax)
@@ -162,9 +167,7 @@ def make_masked(couplings: CouplingConstants, mask_area: Polygon) -> CouplingCon
     Returns:
         CouplingConstants: The masked coupling constants.
     """
-    X, Y = np.meshgrid(couplings.x, couplings.y)
-    mask = np.vectorize(inside_trap, excluded=["geom"])(mask_area, X, Y)
-    mask = np.invert(mask)
+    mask = generate_mask(couplings.x, couplings.y, mask_area)
 
     maskedcouplings = CouplingConstants(
         x = couplings.x,
