@@ -34,7 +34,6 @@ Classes:
 - FieldAnalyzer: A class for analyzing and plotting field data extracted from FEM simulations.
 """
 
-from zipfile import Path
 import yaml
 import polars as pl
 import numpy as np
@@ -604,3 +603,7 @@ class FieldAnalyzer():
         
         ax.plot(x, y * scale + add_offset, **kwargs)
         ax.set_xlabel(xlabel)
+
+
+    def print_voltages(self) -> None:
+        print(tabulate(prepare_to_tabulate(self.voltages), tablefmt='fancy_grid', floatfmt=".2f"))
