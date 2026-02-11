@@ -9,19 +9,16 @@ Classes
     `ContinuousLineBuilder`: Builds continuous lines and structures by defining a sequence of operations.
 """
 
-import warnings
 import numpy as np
 
 from dataclasses import dataclass
-from shapely import (line_locate_point, line_interpolate_point, intersection_all,
-                     distance, difference, intersection, unary_union)
-from shapely import LineString, Polygon, Point
+from shapely import (line_locate_point, line_interpolate_point, intersection_all, distance)
+from shapely import LineString, Point
 
 from .anchors import Anchor, MultiAnchor, Skeletone, Layer
 from .core import Structure, Entity
 from .geometries import ArcLine
-from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner,
-                    round_polygon, buffer_line_with_variable_width)
+from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner, buffer_line_with_variable_width)
 from .functions import get_normals_along_line
 from .routing import create_route
 from .errors import WrongSizeError

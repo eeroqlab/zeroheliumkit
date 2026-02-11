@@ -654,7 +654,7 @@ class Fillet(Structure):
 
         # snap to first anchor if relevant and add anchors to structure
         if isinstance(anchor, tuple):
-            self.rotate(anchor[0].direction).move(anchor[0].coords)
+            self.rotate(anchor[0].direction).move(*anchor[0].coords)
             if alabel:
                 self.anchors.add([anchor[0], anchor[1]])
         else:

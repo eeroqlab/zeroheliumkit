@@ -378,7 +378,7 @@ class Entity():
             layer_cfg (dict): A dictionary containing the layer configuration.
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
-        zhkdict = self.export_dict(flatten_polygon=True)
+        zhkdict = self.export_dict(remove_holes=True)
         exp = Exporter_GDS(filename, zhkdict, layer_cfg)
         exp.save()
 
@@ -391,7 +391,7 @@ class Entity():
             filename (str): The name of the dxf file to be exported.
             layer_cfg (dict): A list of layer to be exported.
         """
-        zhkdict = self.export_dict(flatten_polygon=True)
+        zhkdict = self.export_dict(remove_holes=True)
         exp = Exporter_DXF(filename, zhkdict, layer_cfg)
         exp.save()
 

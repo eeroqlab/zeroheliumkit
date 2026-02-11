@@ -8,7 +8,6 @@ The following classes exist in the Core module for geometry handling:
 .. autosummary::
    :toctree: reference/
 
-   Base
    Entity
    Structure
    GeomCollection

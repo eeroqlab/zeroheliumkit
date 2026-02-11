@@ -11,3 +11,4 @@ The following classes exist in the Anchors module for anchor and skeletone handl
    Anchor
    MultiAnchor
    Skeletone
+   Layer
