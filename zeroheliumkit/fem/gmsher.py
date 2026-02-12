@@ -214,6 +214,8 @@ class GMSHmaker():
         self.pmcs = pmcs
         self.mesh = mesh
 
+        self.settings_initialize()
+
         os.makedirs(Path(save["dir"]) / Path("geo"), exist_ok=True)
         self.save =  Path(save["dir"]) / Path("geo") / Path(save["filename"])
         
@@ -221,6 +223,24 @@ class GMSHmaker():
         self.debug_mode = debug_mode
 
         self.make_mesh()
+
+
+    def settings_initialize(self):
+        """
+        Initializes the settings for PECs, surfaces, and PMCs by clearing any existing tags and prepared polygons.
+        """
+        if self.pecs:
+            for pec in self.pecs.values():
+                pec.tags = []
+
+        if self.surfaces:
+            for surf in self.surfaces.values():
+                surf.index = []
+
+        if self.pmcs:
+            for pmc in self.pmcs.values():
+                pmc.normals = []
+                pmc.surface_currents = []
 
 
     def make_mesh(self):
