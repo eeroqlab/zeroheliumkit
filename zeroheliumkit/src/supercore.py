@@ -9,19 +9,16 @@ Classes
     `ContinuousLineBuilder`: Builds continuous lines and structures by defining a sequence of operations.
 """
 
-import warnings
 import numpy as np
 
 from dataclasses import dataclass
-from shapely import (line_locate_point, line_interpolate_point, intersection_all,
-                     distance, difference, intersection, unary_union)
-from shapely import LineString, Polygon, Point
+from shapely import (line_locate_point, line_interpolate_point, intersection_all, distance)
+from shapely import LineString, Point
 
-from .anchors import Anchor, MultiAnchor, Skeletone
+from .anchors import Anchor, MultiAnchor, Skeletone, Layer
 from .core import Structure, Entity
 from .geometries import ArcLine
-from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner,
-                    round_polygon, buffer_line_with_variable_width)
+from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner, buffer_line_with_variable_width)
 from .functions import get_normals_along_line
 from .routing import create_route
 from .errors import WrongSizeError
@@ -198,7 +195,7 @@ class SuperStructure(Structure):
 
                 ab = airbridge.copy()
                 ab.rotate(angle=ab_angle)
-                ab.move(xy=ab_coords)
+                ab.move(*ab_coords)
 
                 # correcting the orientation of the airbridge if 'in' and 'out' are swapped
                 distance2in  = distance(ab.anchors["in"].point,  self.anchors[route_anchors[-1]].point)
@@ -304,7 +301,7 @@ class SuperStructure(Structure):
         for point, angle in zip(pts, normal_angles):
             s = structure.copy()
             s.rotate(angle + additional_rotation)
-            s.move(xy=(point.x, point.y))
+            s.move(point.x, point.y)
             s.anchors.remove()
             self.append(s)
 
@@ -353,52 +350,22 @@ class SuperStructure(Structure):
                     poly = buffer_line_with_variable_width(line, distances, widths, normalized=norm, join_style='flat')
                 else:
                     raise TypeError("Provide a valid 'layers' dictionary.")
-                s.add_layer(k, poly)
+                s.add(Layer(k, poly))
             self.append(s)
 
 
-    def round_sharp_corners(self, area: Polygon, layer: str | list[str], radius: float | int, **kwargs) -> None:
-        """ 
-        Rounds the sharp corners within the specified area for the given layer(s) by applying a radius.
-
-        Args:
-            area (Polygon):
-                The area within which the corners should be rounded.
-            layer (str | list[str]):
-                The layer(s) on which the operation should be performed.
-                If a single layer is provided as a string, the operation will be applied to that layer only.
-            If multiple layers are provided as a list of strings, the operation will be applied to each layer individually.
-            radius (float | int):
-                The radius to be applied for rounding the corners.
-            **kwargs: 
-                Additional keyword arguments to be passed to the rounding function.
-
-
-        Example:
-            >>> s = ...  # your SuperStructure(route_config={...})
-            >>> area = Polygon([(0, 0), (0, 5), (5, 5), (5, 0)])
-            >>> s.round_sharp_corners(area, "layer1", 2.5)
-            >>> # Round the sharp corners for multiple layers
-            >>> s.round_sharp_corners(area, ["layer2", "layer3"], 3)
-        """
-        warnings.warn("round_sharp_corners is deprecated, use round_corner instead", DeprecationWarning, stacklevel=2)
-        if isinstance(layer, str):
-            layer = [layer]
-        for l in layer:
-            original = getattr(self, l)
-            base = difference(original, area)
-            rounded = intersection(original, area.buffer(2*radius, join_style="mitre"))
-            rounded = round_polygon(rounded, radius, **kwargs)
-            rounded = intersection(rounded, area)
-            setattr(self, l, unary_union([base, rounded]))
-
-
-    def round_corner(self, layers: str | list[str], around_point: tuple | Point, radius: float, **kwargs) -> "SuperStructure":
+    def round_corner(
+            self,
+            layers: str | list[str],
+            around_point: tuple | Point,
+            radius: float,
+            **kwargs
+            ) -> "SuperStructure":
         """ 
         Rounds the corner of the polygon closest to a given Point in a specific layer.
 
         Args:
-            layer (str | list[str]): The layer(s) on which the operation should be performed.
+            layers (str | list[str]): The layer(s) on which the operation should be performed.
             around_point (tuple | Point): The point around which the corner should be rounded.
             radius (float | int): The radius to be applied for rounding the corners.
             **kwargs: Additional keyword arguments to be passed to the rounding function.
@@ -412,10 +379,9 @@ class SuperStructure(Structure):
         if isinstance(layers, str):
             layers = [layers]
         for layer in layers:
-            original = getattr(self, layer)
+            original = getattr(self, layer).polygons
             rounded = round_corner(original, around_point, radius, **kwargs)
-            setattr(self, layer, rounded)
-
+            getattr(self, layer).polygons = rounded
         return self
 
 
@@ -653,9 +619,9 @@ class ContinuousLineBuilder():
         for lname, buffer_width in layers.items():
             poly = self.skeletone.buffer(buffer_width/2, join_style="mitre", cap_style=cap_style, **kwargs)
             if self.structure.has_layer(lname):
-                self.structure.add_polygon(lname, poly)
+                getattr(self.structure, lname).add(poly)
             else:
-                self.structure.add_layer(lname, poly)
+                self.structure.add(Layer(lname, poly))
 
         return self
 
@@ -700,7 +666,7 @@ class ContinuousLineBuilder():
         for point, angle in zip(pts, normal_angles):
             s = self.objs_along.structure.copy()
             s.rotate(angle + self.objs_along.additional_rotation + 90)
-            s.move(xy=(point.x, point.y))
+            s.move(point.x, point.y)
             self.structure.append(s)
 
         return self
@@ -738,7 +704,7 @@ class ContinuousLineBuilder():
             s.rotate(self.absolute_angle)
 
         _, end_p = self.skeletone.boundary
-        s.move((end_p.x, end_p.y))
+        s.move(end_p.x, end_p.y)
 
         self.structure.append(s)
 

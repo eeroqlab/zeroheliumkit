@@ -106,7 +106,7 @@ class GMSHmaker2D():
             list: A list of the IDs of the created Gmsh surfaces.
         """
         surfaces = {}
-        layers = self.layout.get_geoms()
+        layers = {self.layout.name: self.layout.polygons}
         for i, (k, v) in enumerate(layers.items()):
             if isinstance(v, MultiPolygon):
                 surf_list = []
@@ -186,7 +186,8 @@ class GMSHmaker2D():
         for group_id, (k, v) in enumerate(electrode_config.items()):
             v["gmsh_id"] = []
             surfaces = self.physsurfaces[v["layer"][0]]['entities']
-            sh_multipolygon = getattr(self.layout, v["layer"][0])
+            assert self.layout.name == v["layer"][0], f"Layer name in electrode config {v['layer'][0]} does not match layout name {self.layout.name}"
+            sh_multipolygon = self.layout.polygons
             if hasattr(sh_multipolygon, "geoms"):
                 sh_polygons = list(sh_multipolygon.geoms)
             else:

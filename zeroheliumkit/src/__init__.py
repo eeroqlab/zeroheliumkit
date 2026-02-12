@@ -1,4 +1,4 @@
-from .anchors import Anchor, MultiAnchor, Skeletone
+from .anchors import Anchor, MultiAnchor, Skeletone, Layer
 from .core import Entity, Structure, GeomCollection
 from .supercore import SuperStructure, ContinuousLineBuilder, RoutingConfig, ObjsAlongConfig
 
@@ -12,6 +12,7 @@ __all__ = [
     "Anchor",
     "MultiAnchor",
     "Skeletone",
+    "Layer",
     "Entity",
     "Structure",
     "GeomCollection",

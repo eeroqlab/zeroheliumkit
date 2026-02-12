@@ -7,7 +7,7 @@ from shapely import Point, LineString, Polygon
 from shapely import affinity, unary_union, box
 
 from .core import Entity, Structure
-from .anchors import Anchor, Skeletone
+from .anchors import Anchor, Skeletone, Layer
 from .utils import azimuth, buffer_along_path, round_polygon
 from .functions import extract_coords_from_point
 from .routing import get_fillet_params, make_fillet_line, normalize_anchors
@@ -502,7 +502,8 @@ class StraightLine(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='square', **kwargs))
+                polygon = self.skeletone.buffer(offset=width/2, cap_style='square', **kwargs)
+                self.add(Layer(name=k, polygons=polygon))
 
         # create anchors
         if alabel:
@@ -541,7 +542,7 @@ class ArbitraryLine(Structure):
         if layers:
             for k, width in layers.items():
                 polygon = buffer_along_path(points, width)
-                self.add_layer(k, polygon)
+                self.add(Layer(name=k, polygons=polygon))
 
         # create anchors
         if alabel:
@@ -648,11 +649,12 @@ class Fillet(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='square'))
+                polygon = self.skeletone.buffer(offset=width/2, cap_style='square')
+                self.add(Layer(name=k, polygons=polygon))
 
         # snap to first anchor if relevant and add anchors to structure
         if isinstance(anchor, tuple):
-            self.rotate(anchor[0].direction).move(anchor[0].coords)
+            self.rotate(anchor[0].direction).move(*anchor[0].coords)
             if alabel:
                 self.anchors.add([anchor[0], anchor[1]])
         else:
@@ -701,7 +703,8 @@ class MicroChannels(Structure):
 
         # create polygon
         for k, width in layers.items():
-            self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='flat', join_style='round', quad_segs=3))
+            polygon = self.skeletone.buffer(offset=width/2, cap_style='flat', join_style='round', quad_segs=3)
+            self.add(Layer(name=k, polygons=polygon))
 
         # create anchors
         if alabel:
@@ -750,17 +753,16 @@ class SpiralInductor(Entity):
                       (size/2 + width + gap, -size/2 - width/2)]
         self.skeletone.lines = LineString(coord_init)
 
+        central_pad = box(-size/2, -size/2, size/2, size/2).buffer(self._width+eps, join_style=1)
+        central_pad.simplify(0.2, preserve_topology=True)
+
         # create polygons
         self.__construct_spiral(size, radius, num_turns, smallest_section_length)
         for k, w in layers.items():
-            self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=w/2, cap_style='round', join_style='mitre', quad_segs=2))
-
-        central_pad = box(-size/2, -size/2, size/2, size/2).buffer(self._width+eps, join_style=1)
-        central_pad.simplify(0.2, preserve_topology=True)
-        for k in layers.keys():
-            united = unary_union([getattr(self, k), central_pad])
-            self.layers.append(k)
-            setattr(self, k, united)
+            polygon = self.skeletone.buffer(offset=w/2, cap_style='round', join_style='mitre', quad_segs=2)
+            layer = Layer(name=k, polygons=polygon)
+            layer.add(central_pad)
+            self.add(layer)
 
         # create anchors
         if alabel:
@@ -824,7 +826,8 @@ class IDC(Entity):
             self.skeletone.add(LineString(pts))
 
         for k, width in layers.items():
-            self.add_layer(lname=k, geometry=self.skeletone.buffer(offset=width/2, cap_style='square', join_style='round', quad_segs=2))
+            polygon = self.skeletone.buffer(offset=width/2, cap_style='square', join_style='round', quad_segs=2)
+            self.add(Layer(name=k, polygons=polygon))
 
         # create anchors
         if alabel:
