@@ -11,6 +11,7 @@ Changes
 - removed Base class, reworked Entity and Structure classes
 - all the geometries have been updated accordingly
 - reworked FieldAnalyzer class, now it has a clean structure
+- small bug fixes here and there :)
 
 0.5.5
 ----------------
