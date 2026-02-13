@@ -517,6 +517,10 @@ class EDPpreparer():
         return code
     
 
+    def script_include_charge(self, coordinate: list | tuple):
+        pass
+
+
     def script_save_data(self, config: dict) -> str:
         """
         Generates a code block for extracting 2D slice data based on the provided configuration.
