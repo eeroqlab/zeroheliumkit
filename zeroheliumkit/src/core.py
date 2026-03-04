@@ -13,8 +13,7 @@ import copy
 import matplotlib.pyplot as plt
 from warnings import warn
 
-from shapely import (Point, MultiPoint, LineString, MultiLineString,
-                     Polygon, MultiPolygon, GeometryCollection)
+from shapely import Point, LineString, Polygon, MultiPolygon
 
 from .plotting import interactive_widget_handler, listify_colors, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
@@ -53,7 +52,7 @@ class Entity():
         self.layers = []
         self.skeletone = Skeletone()
         self.anchors = MultiAnchor()
-        self.colors = ColorHandler({})
+        # self.colors = ColorHandler({})
         self.errors = None
 
 
@@ -94,7 +93,7 @@ class Entity():
             Updated instance (self) of the class with the new layer added.
         """
         self.layers.append(layer.name)
-        self.colors.add_color(layer.name, layer.color[0], layer.color[1])
+        # self.colors.add_color(layer.name, layer.color[0], layer.color[1])
         setattr(self, layer.name, layer)
         return self
 
@@ -112,7 +111,7 @@ class Entity():
         if lname in self.layers:
             self.layers.remove(lname)
             delattr(self, lname)
-            self.colors.remove_color(lname)
+            # self.colors.remove_color(lname)
         else:
             print(f"Layer '{lname}' not found in layers.")
 
@@ -134,7 +133,7 @@ class Entity():
             self.__dict__[new] = self.__dict__.pop(old)
             self.layers[self.layers.index(old)] = new
             self.__dict__[new].name = new
-            self.colors.rename_color(old, new)
+            # self.colors.rename_color(old, new)
         else:
             print(f"Layer '{old}' not found in layers.")
 
@@ -514,15 +513,15 @@ class Structure(Entity):
                 Defaults to None.
         """
         s = structure.copy()
-        if move_s:
-            s.move(*move_s)
         if rotate_s:
             s.rotate(rotate_s, origin=(0,0))
+        if move_s:
+            s.move(*move_s)
         attr_list_device = self.layers
         attr_list_structure = s.layers
         self.layers = list(set(attr_list_device + attr_list_structure))
 
-        self.colors.colors = self.colors.colors | s.colors.colors
+        # self.colors.colors = self.colors.colors | s.colors.colors
 
         # snapping direction
         if direction_snap:
@@ -581,47 +580,3 @@ class Structure(Entity):
         """
         cc = self.copy()
         return cc.mirror(aroundaxis, **kwargs)
-
-
-class GeomCollection(Structure):
-    """
-    Represents a collection of geometries.
-    Class attributes are created by layers dictionary.
-
-    Args:
-        layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors/colors.
-    """
-    def __init__(self, layers: dict=None):
-        super().__init__()
-        if layers:
-            for items in layers.items():
-                match items:
-                    case ("skeletone", LineString()) | ("skeletone", MultiLineString()):
-                        self.skeletone.lines = items[1]
-                    case ("skeletone", Skeletone()):
-                        self.skeletone = items[1]
-                    case ("skeletone", GeometryCollection()):
-                        warn(message="imported skeletone contains GeometryCollection object. It will be ignored.")
-                    case ("anchors", MultiAnchor()):
-                        self.anchors = items[1]
-                    case ("anchors", MultiPoint()):
-                        for i, pt in enumerate(items[1].geoms):
-                            self.anchors.add(Anchor(pt, 0, "anchor" + str(i)))
-                    case ("colors", ColorHandler()):
-                        self.colors = items[1]
-                    case (str(), Polygon()) | (str(), MultiPolygon()):
-                        layer = Layer(name=items[0], polygons=items[1])
-                        self.layers.append(items[0])
-                        setattr(self, items[0], layer)
-                    case _:
-                        self.layers.append(items[0])
-                        setattr(self, *items)
-
-        if not hasattr(self, "anchors"):
-            self.anchors = MultiAnchor()
-
-        if not hasattr(self, "skeletone"):
-            self.skeletone = Skeletone()
-
-        if self.colors.is_empty:
-            self.colors.update_colors(self.layers)

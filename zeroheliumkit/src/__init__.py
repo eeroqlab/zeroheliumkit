@@ -1,6 +1,6 @@
 from .anchors import Anchor, MultiAnchor, Skeletone, Layer
-from .core import Entity, Structure, GeomCollection
-from .supercore import SuperStructure, ContinuousLineBuilder, RoutingConfig, ObjsAlongConfig
+from .core import Entity, Structure
+from .supercore import SuperStructure, ContinuousLineBuilder, RoutingConfig, ObjsAlongConfig, GeomCollection
 
 from .geometries import (StraightLine, ArbitraryLine, Taper, Fillet,
                         MicroChannels, SpiralInductor, IDC,

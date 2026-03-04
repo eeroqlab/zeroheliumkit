@@ -11,13 +11,15 @@ Classes
 
 import numpy as np
 
+from warnings import warn
 from dataclasses import dataclass
 from shapely import (line_locate_point, line_interpolate_point, intersection_all, distance)
-from shapely import LineString, Point
+from shapely import LineString, Point, Polygon, MultiLineString, MultiPolygon, GeometryCollection, MultiPoint
 
 from .anchors import Anchor, MultiAnchor, Skeletone, Layer
 from .core import Structure, Entity
 from .geometries import ArcLine
+from .plotting import ColorHandler
 from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner, buffer_line_with_variable_width)
 from .functions import get_normals_along_line
 from .routing import create_route
@@ -231,7 +233,7 @@ class SuperStructure(Structure):
 
         # remove or not to remove anchors used for routing
         if rm_anchor==True:
-            self.anchors.remove(anchors)
+            self.anchors.remove(*anchors)
         elif isinstance(rm_anchor, (str, tuple)):
             self.anchors.remove(rm_anchor)
 
@@ -385,6 +387,49 @@ class SuperStructure(Structure):
         return self
 
 
+class GeomCollection(SuperStructure):
+    """
+    Represents a collection of geometries.
+    Class attributes are created by layers dictionary.
+
+    Args:
+        layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors/colors.
+    """
+    def __init__(self, layers: dict=None):
+        super().__init__(route_config={"radius": 50, "num_segments": 13})
+        if layers:
+            for items in layers.items():
+                match items:
+                    case ("skeletone", LineString()) | ("skeletone", MultiLineString()):
+                        self.skeletone.lines = items[1]
+                    case ("skeletone", Skeletone()):
+                        self.skeletone = items[1]
+                    case ("skeletone", GeometryCollection()):
+                        warn(message="imported skeletone contains GeometryCollection object. It will be ignored.")
+                    case ("anchors", MultiAnchor()):
+                        self.anchors = items[1]
+                    case ("anchors", MultiPoint()):
+                        for i, pt in enumerate(items[1].geoms):
+                            self.anchors.add(Anchor(pt, 0, "anchor" + str(i)))
+                    case ("colors", ColorHandler()):
+                        pass
+                        # self.colors = items[1]
+                    case (str(), Polygon()) | (str(), MultiPolygon()):
+                        layer = Layer(name=items[0], polygons=items[1])
+                        self.layers.append(items[0])
+                        setattr(self, items[0], layer)
+                    case _:
+                        self.layers.append(items[0])
+                        setattr(self, *items)
+
+        if not hasattr(self, "anchors"):
+            self.anchors = MultiAnchor()
+
+        if not hasattr(self, "skeletone"):
+            self.skeletone = Skeletone()
+
+        # if self.colors.is_empty:
+        #     self.colors.update_colors(self.layers)
 
 
 class ContinuousLineBuilder():
