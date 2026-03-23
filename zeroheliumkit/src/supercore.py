@@ -704,6 +704,9 @@ class ContinuousLineBuilder():
         else:
             locs = np.linspace(start_point, end_point, num=num, endpoint=True)[1:-1]
 
+        if locs.size == 0:
+            warn(message="No locations to add objects along the skeleton line. Check the spacing and endpoints settings.")
+            return self
 
         pts = line_interpolate_point(self.skeletone.lines, locs, normalized=True).tolist()
         normal_angles = get_normals_along_line(self.skeletone.lines, locs)   # figure out why extra_rotation is added
