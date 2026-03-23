@@ -1,6 +1,6 @@
 import numpy as np
 
-from math import pi, sinh
+from math import pi, sinh, tanh
 from scipy.special import ellipk
 
 from tabulate import tabulate
@@ -193,7 +193,7 @@ class CPW_conductorbacked():
                         "width, um": round(self.width/um, 2),
                         "gap, um": round(self.gap/um, 2),
                         "eps ": round(self.eps_substrate),
-                        "eps_eff": round(self.eps_eff, 2),
+                        "eps_eff": round(self.eps_eff2, 2),
                         "impedance, Ohm": round(self.Z, 2),
                         "L, nH/m": round(self.L * 1e9, 3),
                         "C, pF/m":round(self.C* 1e12, 3)
@@ -218,7 +218,7 @@ class CPW_conductorbacked():
                         "width, um": round(self.width/um, 2),
                         "gap, um": round(self.gap/um, 2),
                         "eps ": round(self.eps_substrate),
-                        "eps_eff": round(self.eps_eff, 2),
+                        "eps_eff": round(self.eps_eff2, 2),
                         "impedance, Ohm": round(self.Z, 2),
                         "L, nH/m": round(self.L * 1e9, 3),
                         "C, pF/m":round(self.C* 1e12, 3)

@@ -449,7 +449,7 @@ class Entity():
         #plot layers
         plot_config = {k:v for k,v in plot_config.items() if k not in off}
         for lname, lcolor in plot_config.items():
-            if self.has_layer(lname):
+            if self.has_layer(lname) and (not getattr(self, lname).is_empty):
                 getattr(self, lname).color = lcolor
                 getattr(self, lname).plot(ax=ax, show_idx=show_idx, labels=labels, **kwargs)
 
