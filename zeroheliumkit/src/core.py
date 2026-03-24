@@ -152,7 +152,7 @@ class Entity():
         return name in self.layers
     
 
-    def cut(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None):
+    def cut(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None, ignore: list[str]=[]):
         """
         Cuts the specified polygon from polygons in all layers.
 
@@ -163,11 +163,12 @@ class Entity():
             Updated instance (self) of the class with the specified polygon cut from all layers.
         """
         for lname in self.layers:
-            getattr(self, lname).cut(geom, loc)
+            if lname not in ignore:
+                getattr(self, lname).cut(geom, loc)
         return self
 
 
-    def crop(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None):
+    def crop(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None, ignore: list[str]=[]):
         """
         Crops polygons in all layers.
 
@@ -178,11 +179,12 @@ class Entity():
             Updated instance (self) of the class with polygons in all layers cropped by the specified polygon.
         """
         for lname in self.layers:
-            getattr(self, lname).crop(geom, loc)
+            if lname not in ignore:
+                getattr(self, lname).crop(geom, loc)
         return self
 
 
-    def slice(self, slice_line: LineString | list[LineString]):
+    def slice(self, slice_line: LineString | list[LineString], ignore: list[str]=[]):
         """
         Slices polygons in a layer using a given line.
 
@@ -191,7 +193,8 @@ class Entity():
             slice_line (LineString): The line used for slicing.
         """
         for lname in self.layers:
-            getattr(self, lname).slice(slice_line)
+            if lname not in ignore:
+                getattr(self, lname).slice(slice_line)
         return self
 
 
