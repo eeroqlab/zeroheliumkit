@@ -1,3 +1,5 @@
+[![DOI](https://zenodo.org/badge/659459084.svg)](https://doi.org/10.5281/zenodo.19985197)
+
 # ZeroHeliumKit
 
 <p align="center">
