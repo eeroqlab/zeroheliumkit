@@ -37,13 +37,13 @@ class Exporter_GDS():
 
     __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
 
-    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict) -> None:
+    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict, cellname: str="toplevel") -> None:
         self.name = name
         self.zhk_layers = zhk_layers
         self.layer_cfg = layer_cfg
-        self.preapre_gds()
+        self.preapre_gds(cellname)
 
-    def preapre_gds(self) -> None:
+    def preapre_gds(self, cellname: str="toplevel") -> None:
         """
         Prepare the GDSII library by creating a top-level cell and adding polygons.
 
@@ -52,7 +52,7 @@ class Exporter_GDS():
         - gdstk polygons use `layer` and `datatype` (same concepts).
         """
         self.gdsii = gdstk.Library()
-        cell = gdstk.Cell("toplevel")
+        cell = gdstk.Cell(cellname)
         self.gdsii.add(cell)
 
         for lname, l_property in self.layer_cfg.items():

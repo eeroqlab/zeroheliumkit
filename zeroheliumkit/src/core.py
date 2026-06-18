@@ -371,7 +371,7 @@ class Entity():
         exp.save()
 
 
-    def export_gds(self, filename: str, layer_cfg: dict) -> None:
+    def export_gds(self, filename: str, layer_cfg: dict, cellname: str="toplevel") -> None:
         """
         Exports all layers as a GDS file.
 
@@ -381,7 +381,7 @@ class Entity():
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.export_dict(remove_holes=True)
-        exp = Exporter_GDS(filename, zhkdict, layer_cfg)
+        exp = Exporter_GDS(filename, zhkdict, layer_cfg, cellname)
         exp.save()
 
 

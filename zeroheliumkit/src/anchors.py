@@ -18,6 +18,8 @@ Classes:
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
+from __future__ import annotations
+from typing import Self
 from tabulate import tabulate
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
 from shapely import (affinity, unary_union,
@@ -1051,8 +1053,8 @@ class Layer():
 
     @snap_on_grid(attr="polygons")
     def cut(self,
-            geom: Polygon | MultiPolygon,
-            loc: tuple[float, float]=None) -> 'Layer':
+            geom: Polygon | MultiPolygon | Layer,
+            loc: tuple[float, float]=None) -> Self:
         """ 
         Cuts the layer with a polygon or multipolygon.
 
@@ -1064,6 +1066,8 @@ class Layer():
         Returns:
             Updated instance (self) of the class with the cut geometry.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         cut_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
         updated = self.polygons.difference(cut_geom)
         return updated
