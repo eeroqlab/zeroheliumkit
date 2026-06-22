@@ -34,12 +34,14 @@ class Exporter_GDS():
                           Expected keys like {"layer": int, "datatype": int}.
     """
 
-    __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
+    __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg","cellname","references"
 
-    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict) -> None:
+    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict,cellname:str,references:dict) -> None:
         self.name = name
         self.zhk_layers = zhk_layers
         self.layer_cfg = layer_cfg
+        self.cellname = cellname
+        self.references = references
         self.preapre_gds()
 
     def preapre_gds(self) -> None:
@@ -51,7 +53,7 @@ class Exporter_GDS():
         - gdstk polygons use `layer` and `datatype` (same concepts).
         """
         self.gdsii = gdstk.Library()
-        cell = gdstk.Cell("toplevel")
+        cell = gdstk.Cell(self.cellname)
         self.gdsii.add(cell)
 
         for lname, l_property in self.layer_cfg.items():
@@ -89,15 +91,16 @@ class Reader_GDS():
         cells (dict): Dict mapping cellname -> {layer_number -> MultiPolygon}.
     """
 
-    __slots__ = "filename", "geometries", "gdsii", "cells"
+    __slots__ = "filename", "geometries", "gdsii", "cells","references"
 
-    def __init__(self, filename: str, cellname: str = "toplevel"):
+    def __init__(self, filename: str):
         self.filename = filename
         self.geometries = {}
         self.cells = {}
+        self.references = {}
         self.gdsii = gdstk.read_gds(filename)
         self.extract_geometries()
-        self.prepare_dict(cellname)
+        self.prepare_dict()
 
     def extract_geometries(self) -> None:
         cells_out = {}
@@ -139,9 +142,15 @@ class Reader_GDS():
 
             cells_out[name] = layer_map
 
+            # collect the references
+            self.references[name] = cell.references
+                
+
+
         self.cells = cells_out
 
-    def prepare_dict(self, cellname: str = "toplevel") -> None:
+    def prepare_dict(self) -> None:
+        cellname = list(self.cells.keys())[0]
         geoms = self.cells[cellname]
         self.geometries = {
             ("L" + str(k) if isinstance(k, numbers.Number) else k): v

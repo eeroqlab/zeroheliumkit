@@ -38,11 +38,13 @@ class Entity():
         skeletone (Skeletone): Represents a collection of lines linked to the Entity,
             which is an instance of the Skeletone class.
         anchors (MultiAnchor): Represents the anchor points of the Entity, which are instances of MultiAnchor.
+        cells: dictionary of gdstk.References which will get added into the exported gds
 
     """
     layers = []
     skeletone = Skeletone()
     anchors = MultiAnchor()
+    cells  = {}
     colors = ColorHandler({})
     errors = None
 
@@ -53,6 +55,7 @@ class Entity():
         self.layers = []
         self.skeletone = Skeletone()
         self.anchors = MultiAnchor()
+        self.cells = {}
         self.colors = ColorHandler({})
         self.errors = None
 
@@ -369,7 +372,7 @@ class Entity():
         exp.save()
 
 
-    def export_gds(self, filename: str, layer_cfg: dict) -> None:
+    def export_gds(self, filename: str, layer_cfg: dict,cellname:str='toplevel',references:dict={}) -> None:
         """
         Exports all layers as a GDS file.
 
@@ -379,7 +382,7 @@ class Entity():
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.export_dict(remove_holes=True)
-        exp = Exporter_GDS(filename, zhkdict, layer_cfg)
+        exp = Exporter_GDS(filename, zhkdict, layer_cfg,cellname,references)
         exp.save()
 
 
