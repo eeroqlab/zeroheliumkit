@@ -34,38 +34,48 @@ class Exporter_GDS():
                           Expected keys like {"layer": int, "datatype": int}.
     """
 
-    __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
+    __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg","cellname","library"
 
-    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict) -> None:
+    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict,cellname:str,library) -> None:
         self.name = name
         self.zhk_layers = zhk_layers
         self.layer_cfg = layer_cfg
+        self.cellname = cellname
+        self.library = library
         self.preapre_gds()
 
     def preapre_gds(self) -> None:
-        """
-        Prepare the GDSII library by creating a top-level cell and adding polygons.
+        if self.library is None:
+            self.gdsii = gdstk.Library()
+            topcell = gdstk.Cell(self.cellname)
+            self.gdsii.add(topcell)
+        else:
+            self.gdsii = self.library
+            # Check if cell already exists in the library
+            existing_names = {c.name: c for c in self.gdsii.cells}
+            if self.cellname in existing_names:
+                # Reuse existing cell, just append geometry to it
+                topcell = existing_names[self.cellname]
+            else:
+                # Cell not found, create a new one and add it
+                topcell = gdstk.Cell(self.cellname)
+                self.gdsii.add(topcell)
 
-        Notes vs gdspy:
-        - gdstk does not have `exclude_from_current`; cells are not automatically "current".
-        - gdstk polygons use `layer` and `datatype` (same concepts).
-        """
-        self.gdsii = gdstk.Library()
-        cell = gdstk.Cell("toplevel")
-        self.gdsii.add(cell)
-
-        for lname, l_property in self.layer_cfg.items():
+        # Add structure geometry to topcell (existing or new)
+        for lname in self.zhk_layers.keys():
+            if lname in ['skeletone', 'anchors']:
+                continue
+            l_property = self.layer_cfg[lname]
             polygons = self.zhk_layers[lname].polygons
             for poly in polygons.geoms:
                 points = list(poly.exterior.coords)
-
-                # Optional: shapely exterior repeats the first point at the end.
-                # gdstk is fine either way, but removing the duplicate keeps things tidy.
                 if len(points) > 1 and points[0] == points[-1]:
                     points = points[:-1]
-
                 gds_poly = gdstk.Polygon(points, **l_property)
-                cell.add(gds_poly)
+                topcell.add(gds_poly)
+
+
+        
 
     def save(self):
         """
@@ -89,15 +99,16 @@ class Reader_GDS():
         cells (dict): Dict mapping cellname -> {layer_number -> MultiPolygon}.
     """
 
-    __slots__ = "filename", "geometries", "gdsii", "cells"
+    __slots__ = "filename", "geometries", "gdsii", "cells","references"
 
-    def __init__(self, filename: str, cellname: str = "toplevel"):
+    def __init__(self, filename: str):
         self.filename = filename
         self.geometries = {}
         self.cells = {}
+        self.references = {}
         self.gdsii = gdstk.read_gds(filename)
         self.extract_geometries()
-        self.prepare_dict(cellname)
+        self.prepare_dict()
 
     def extract_geometries(self) -> None:
         cells_out = {}
@@ -139,15 +150,20 @@ class Reader_GDS():
 
             cells_out[name] = layer_map
 
+            # collect the references
+            self.references[name] = cell.references
+                
+
+
         self.cells = cells_out
 
-    def prepare_dict(self, cellname: str = "toplevel") -> None:
+    def prepare_dict(self) -> None:
+        cellname = list(self.cells.keys())[0]
         geoms = self.cells[cellname]
         self.geometries = {
             ("L" + str(k) if isinstance(k, numbers.Number) else k): v
             for k, v in geoms.items()
         }
-
 
 class Exporter_DXF():
     """
