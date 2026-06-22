@@ -15,9 +15,10 @@ from warnings import warn
 
 from shapely import (Point, MultiPoint, LineString, MultiLineString,
                      Polygon, MultiPolygon, GeometryCollection)
+import gdstk
 
 from .plotting import interactive_widget_handler, listify_colors, ColorHandler
-from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
+from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle,Reader_GDS
 from .settings import SIZE, SIZE_L, SIZE_S, RED, DARKGRAY
 from .anchors import Anchor, MultiAnchor, Skeletone, Layer, get_dxdy
 from .errors import hard_deprecated
@@ -38,13 +39,12 @@ class Entity():
         skeletone (Skeletone): Represents a collection of lines linked to the Entity,
             which is an instance of the Skeletone class.
         anchors (MultiAnchor): Represents the anchor points of the Entity, which are instances of MultiAnchor.
-        cells: dictionary of gdstk.References which will get added into the exported gds
+        library: gdstk library containing information about nested cells
 
     """
     layers = []
     skeletone = Skeletone()
     anchors = MultiAnchor()
-    cells  = {}
     colors = ColorHandler({})
     errors = None
 
@@ -55,7 +55,6 @@ class Entity():
         self.layers = []
         self.skeletone = Skeletone()
         self.anchors = MultiAnchor()
-        self.cells = {}
         self.colors = ColorHandler({})
         self.errors = None
 
@@ -372,7 +371,7 @@ class Entity():
         exp.save()
 
 
-    def export_gds(self, filename: str, layer_cfg: dict,cellname:str='toplevel',references:dict={}) -> None:
+    def export_gds(self, filename: str, layer_cfg: dict,cellname:str='toplevel') -> None:
         """
         Exports all layers as a GDS file.
 
@@ -382,7 +381,7 @@ class Entity():
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.export_dict(remove_holes=True)
-        exp = Exporter_GDS(filename, zhkdict, layer_cfg,cellname,references)
+        exp = Exporter_GDS(filename, zhkdict, layer_cfg,cellname,library=None)
         exp.save()
 
 
@@ -397,7 +396,6 @@ class Entity():
         zhkdict = self.export_dict(remove_holes=True)
         exp = Exporter_DXF(filename, zhkdict, layer_cfg)
         exp.save()
-
 
     #############################
     #### Plotting operations ####
@@ -628,3 +626,101 @@ class GeomCollection(Structure):
 
         if self.colors.is_empty:
             self.colors.update_colors(self.layers)
+
+
+class ReferenceStructure(Structure):
+    """
+    Represents a structure that contains layers with a collection of geometries (Points, LineStrings, Polygons, etc.).
+    The ReferenceStructure class provides methods to work with nested gdstk libraries,cells, and references. 
+    Inherits from the Entity class.
+    """
+
+    library = gdstk.Library()
+
+    def __init__(self,cellname='toplevel'):
+        super().__init__()
+        self.topCellName = cellname
+        self.library = gdstk.Library()
+        self.topcell = self.library.new_cell(cellname)
+        self.cellNames = [cell.name for cell in self.library.cells]
+
+        
+
+    ##############################
+    #### reference operations ####
+    ##############################
+
+    def add_reference(self,referenceCell,Coord:tuple,rotation:float=0):
+        '''
+        Adds a 2d array of references to the structures library (visibile upon export)
+        
+        Args:
+            referenceCell (gdstk.cell): the cell to be referenced and arrayed
+            initCoord (tuple): (x,y) pair for the center of the first instance of the array
+            columns (int): number of columns of the array
+            rows (int): number of rows of the array
+            spacing (tuple): (dx,dx) spacing vector bewteen the columns and rows centerpoints
+        '''
+        if referenceCell.name not in self.cellNames:
+            self.library.add(referenceCell)
+            self.cellNames.append(referenceCell.name)
+        self.topcell.add(gdstk.Reference(referenceCell,Coord,rotation=rotation*3.1415926535/180))
+
+
+    def add_reference_array(self,referenceCell,initCoord:tuple=(0,0),columns:int=1,rows:int=1,spacing:tuple=(0,0),rotation:float=0):
+        '''
+        Adds a 2d array of references to the structures library (visibile upon export)
+        
+        Args:
+            referenceCell (gdstk.cell): the cell to be referenced and arrayed
+            initCoord (tuple): (x,y) pair for the center of the first instance of the array
+            columns (int): number of columns of the array
+            rows (int): number of rows of the array
+            spacing (tuple): (dx,dx) spacing vector bewteen the columns and rows centerpoints
+        '''
+        if referenceCell.name not in self.cellNames:
+            self.library.add(referenceCell)
+            self.cellNames.append(referenceCell.name)
+        self.topcell.add(gdstk.Reference(referenceCell,initCoord,columns=columns,rows=rows,spacing=spacing,rotation=rotation*3.1415926535/180))
+
+    ##############################
+    #### Exporting operations ####
+    ##############################
+
+    def export_gds(self, filename: str, layer_cfg: dict,cellname:str='toplevel') -> None:
+        """
+        Exports all layers as a GDS file.
+
+        Args:
+            filename (str): The name of the gds file to be exported.
+            layer_cfg (dict): A dictionary containing the layer configuration.
+                See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
+        """
+        zhkdict = self.export_dict(remove_holes=True)
+        exp = Exporter_GDS(filename, zhkdict, layer_cfg,cellname,self.library)
+        exp.save()
+
+    ##############################
+    #### Importing operations ####
+    ##############################
+
+    def import_gds(self,componentFolder,componentName,export_config,plot_config=None):
+        # open the GDS file
+        A = Reader_GDS(f'{componentFolder}/{componentName}.gds')
+
+        # Add the lib to the struct
+        self.library = A.gdsii
+
+        # Update class attributes
+        self.cellNames = [cell.name for cell in self.library.cells]
+        self.topCellName = A.gdsii.top_level()[0].name
+        self.topcell = self.library[self.topCellName]
+        
+        # import the geometry from the top cell
+        cell = A.cells[self.topCellName]
+        for layerNumber,geom in cell.items():
+            layerName = [k for k,v in export_config.items() if v['layer']==layerNumber][0]
+            if plot_config is None:
+                self.add(Layer(layerName,geom))
+            else:
+                self.add(Layer(layerName,geom,plot_config[layerName]))

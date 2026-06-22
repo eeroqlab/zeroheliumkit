@@ -1,5 +1,5 @@
 from .anchors import Anchor, MultiAnchor, Skeletone, Layer
-from .core import Entity, Structure, GeomCollection
+from .core import Entity, Structure, GeomCollection,ReferenceStructure
 from .supercore import SuperStructure, ContinuousLineBuilder, RoutingConfig, ObjsAlongConfig
 
 from .geometries import (StraightLine, ArbitraryLine, Taper, Fillet,
@@ -17,6 +17,7 @@ __all__ = [
     "Structure",
     "GeomCollection",
     "SuperStructure",
+    "ReferenceStructure",
     "ContinuousLineBuilder",
     "Rectangle", "Square", "Circle", "RegularPolygon", "ArcLine",
     "Meander", "MeanderHalf", "PinchGate",
