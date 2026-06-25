@@ -167,12 +167,19 @@ class FFconfigurator():
         extract_opt (list[ExtractConfig] | dict): List of ExtractConfig objects or a dictionary containing extraction options.
         msh_refinements (int): The number of iterations over which to refine the GMSH meshfile using TetGen.
             If no number is provided, will default to None and not iterate at all.
+        mesh_adaptation (bool): Whether to use mesh adaptation. If True, the generated FreeFEM scripts
+            will include an adaptive mesh refinement loop based on the solution Hessian. Default is False.
+        anisotropic_adaptation (bool): Whether to use anisotropic mesh adaptation. Only has effect when
+            mesh_adaptation is True. If True, mshmet will compute a full tensor metric per vertex,
+            allowing elements to be stretched directionally. Default is False.
     """
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
     msh_refinements: int = None
+    mesh_adaptation: bool = False
+    anisotropic_adaptation: bool = False
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
@@ -368,8 +375,12 @@ class EDPpreparer():
         code += self.script_load_packages_and_mesh()
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix()
-        code += self.script_problem_definition(electrode_name)
-        if self.config.get('msh_refinements'):
+        mesh_adaptation = self.config.get('mesh_adaptation', False)
+        aniso = self.config.get('anisotropic_adaptation', False)
+        code += self.script_problem_definition(electrode_name, mesh_adaptation=mesh_adaptation)
+        if mesh_adaptation:
+            code += self.script_mesh_adaptation(electrode_name, aniso=aniso)
+        elif self.config.get('msh_refinements'):
             code += self.script_refine_mesh(self.config.get('msh_refinements'))
         code += self.script_save_cmatrix(electrode_name)
 
@@ -463,18 +474,43 @@ class EDPpreparer():
         return code
 
 
-    def script_problem_definition(self, electrode_name: str) -> str:
+    def _script_dielectric(self, var_name: str, space_name: str = "FunctionRegion") -> str:
+        """
+        DOCSTRING HERE!
+        """
+        epsilon = self.config["dielectric_constants"]
+        code = f"{space_name} {var_name} =\n"
+        for k, v in self.physicalVols.items():
+            code += add_spaces(26) + f"+ {epsilon[k]} * (region == {v})\n"
+        code += add_spaces(26) + ";\n"
+        return code
+
+
+    def _script_electrode_bcs(self, electrode_name: str, var_name: str) -> str:
+        """
+        DOCSTRING HERE!
+        """
+        main_electrode = self.physicalSurfs.get(electrode_name)
+        ground_electrodes = [v for v in self.physicalSurfs.values() if v != main_electrode]
+        code = add_spaces(16) + f"+ on({main_electrode}, {var_name} = 1.0)\n"
+        for v in ground_electrodes:
+            code += add_spaces(16) + f"+ on({v}, {var_name} = 0.0)\n"
+        return code
+
+
+    def script_problem_definition(self, electrode_name: str, mesh_adaptation: bool = False) -> str:
         """
         Defines the problem for the electrostatic potential in FreeFEM, including the finite element space and the dielectric constants.
 
         Args:
             electrode_name (str): Name of the electrode for which the problem is being defined.
+            mesh_adaptation (bool): If True, skips the final Electro; call so that
+                script_mesh_adaptation() can call it on the adapted mesh instead. Default is False.
 
         Returns:
             code (str): code containing the problem definition.
         """
         polynomial = self.config["ff_polynomial"]
-        epsilon = self.config["dielectric_constants"]
 
         code = "\n"
 
@@ -496,23 +532,15 @@ class EDPpreparer():
         code += "macro Grad(u) [dx(u),dy(u),dz(u)] //\n"
         code += "macro field(u,x,y,z) [dx(u)(x,y,z),dy(u)(x,y,z),dz(u)(x,y,z)] //\n \n"
         code += "Vh u,v;\n"
-        code += "FunctionRegion dielectric =\n"
-
-        for k, v in self.physicalVols.items():
-            code += add_spaces(26) + f"""+ {epsilon[k]} * (region == {v})\n"""
-        code += add_spaces(26) + ";\n"
+        code += self._script_dielectric("dielectric")
 
         code += "problem Electro(u,v,solver=CG) =\n"
         code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
-
-        main_electrode = self.physicalSurfs.get(electrode_name)
-        ground_electrodes = [item for item in self.physicalSurfs.values() if item != main_electrode]
-        code += add_spaces(16) + f"+ on({main_electrode},u = 1.0)\n"
-        for v in ground_electrodes:
-            code += add_spaces(16) + f"+ on({v},u = 0.0)\n"
+        code += self._script_electrode_bcs(electrode_name, "u")
         code += add_spaces(16) + ";\n"
 
-        code += "Electro;\n"
+        if not mesh_adaptation:
+            code += "Electro;\n"
 
         return code
     
@@ -632,6 +660,100 @@ class EDPpreparer():
         code += """Th=tetgreconstruction(Th,switch="raAQ",sizeofvolume=vol);\n"""
         code += "\n"
         code += """}\n"""
+
+        return code
+
+
+    def script_mesh_adaptation(self, electrode_name: str, n_adapt: int = 3, err_target: float = 0.01, aniso: bool = False) -> str:
+        """
+        DOCSTRING HERE!
+
+        Generates mesh adaptation loop code using mshmet and tetgen.
+        Based on the adaptation logic provided as reference in ff_a.edp.
+        Solves iteratively on progressively refined meshes, concentrating
+        elements in regions of high field gradient, then performs a final
+        solve on the adapted mesh.
+
+        Args:
+            electrode_name (str): Name of the active electrode.
+            n_adapt (int): Number of adaptation iterations. Default is 3.
+            err_target (float): Interpolation error target for mshmet. Default is 0.01.
+            aniso (bool): Whether to use anisotropic adaptation. If True, mshmet computes
+                a full tensor metric per vertex allowing elements to stretch directionally.
+                Default is False (isotropic).
+
+        Returns:
+            code (str): FreeFEM code containing the mesh adaptation loop.
+        """
+        if aniso:
+            aniso_val = 1
+        else:
+            aniso_val = 0
+
+        code = headerFrame("MESH ADAPTATION")
+
+        # Parameters
+        code += f"int nAdapt = {n_adapt};\n"
+        code += f"real errTarget = {err_target};\n\n"
+
+        # hmin and hmax
+        code += "real bbxmin = Th(0).x, bbxmax = Th(0).x;\n"
+        code += "real bbymin = Th(0).y, bbymax = Th(0).y;\n"
+        code += "real bbzmin = Th(0).z, bbzmax = Th(0).z;\n"
+        code += "for (int i = 1; i < Th.nv; i++) {\n"
+        code += add_spaces(4) + "bbxmin = min(bbxmin, Th(i).x); bbxmax = max(bbxmax, Th(i).x);\n"
+        code += add_spaces(4) + "bbymin = min(bbymin, Th(i).y); bbymax = max(bbymax, Th(i).y);\n"
+        code += add_spaces(4) + "bbzmin = min(bbzmin, Th(i).z); bbzmax = max(bbzmax, Th(i).z);\n"
+        code += "}\n"
+        code += "real domainSize = max(bbxmax-bbxmin, max(bbymax-bbymin, bbzmax-bbzmin));\n"
+        code += "real hmin = domainSize / 500.0;\n"
+        code += "real hmax = domainSize / 5.0;\n\n"
+
+        # Energy
+        code += f"real[int] energyHistory(nAdapt);\n"
+        code += "real energyPrev = 0.0;\n\n"
+
+        # Adaptation loop
+        code += "for (int iter = 0; iter < nAdapt - 1; iter++) {\n"
+        code += add_spaces(4) + 'cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;\n'
+        code += add_spaces(4) + 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n\n'
+
+        code += add_spaces(4) + "fespace VhLoop(Th, P23d);\n"
+        code += add_spaces(4) + "fespace FRLoop(Th, P03d);\n"
+        code += add_spaces(4) + "VhLoop uLoop, vLoop;\n"
+        code += add_spaces(4) + self._script_dielectric("dielectricLoop", "FRLoop")
+
+        code += add_spaces(4) + "problem ElectroLoop(uLoop, vLoop, solver=CG) =\n"
+        code += add_spaces(8) + "int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(vLoop))\n"
+        code += self._script_electrode_bcs(electrode_name, "uLoop")
+        code += add_spaces(8) + ";\n"
+        code += add_spaces(4) + "ElectroLoop;\n\n"
+
+        # Energy tracking
+        code += add_spaces(4) + "real energy = int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(uLoop));\n"
+        code += add_spaces(4) + "energyHistory[iter] = energy;\n"
+        code += add_spaces(4) + "real relChange = (iter > 0) ? abs(energy - energyPrev) / abs(energyPrev) * 100.0 : 100.0;\n"
+        code += add_spaces(4) + 'cout << "  Energy = " << energy << "  (change = " << relChange << "%)" << endl;\n'
+        code += add_spaces(4) + "energyPrev = energy;\n\n"
+
+        # Metrics
+        code += add_spaces(4) + "fespace Vh1(Th, P13d);\n"
+        code += add_spaces(4) + "Vh1 h;\n"
+        code += add_spaces(4) + "h[] = mshmet(Th, uLoop,\n"
+        code += add_spaces(8) + "normalization=1,\n"
+        code += add_spaces(8) + f"aniso={aniso_val},\n"
+        code += add_spaces(8) + "nbregul=1,\n"
+        code += add_spaces(8) + "hmin=hmin, hmax=hmax, err=errTarget);\n\n"
+
+        # Remesh
+        code += add_spaces(4) + 'Th = tetgreconstruction(Th, switch="raAQ",\n'
+        code += add_spaces(8) + "sizeofvolume = h*h*h/6.0);\n"
+        code += "}\n\n"
+
+        # Final solve on adapted mesh
+        code += "// Final solve on adapted mesh\n"
+        code += 'cout << "=== Final solve ===" << endl;\n'
+        code += "Electro;\n"
 
         return code
 
