@@ -114,6 +114,46 @@ def format_freefem_path(*parts: str) -> str:
 class FreeFemError(Exception):
     pass
 
+@dataclass
+class MeshAdaptationConfig():
+    """
+    Dataclass for storing mesh adaptation configuration parameters.
+
+    Args:
+        mesh_adaptation (bool): Whether to use mesh adaptation. Default is False.
+        anisotropic_adaptation (bool): Whether to use anisotropic adaptation. Default is False.
+        n_adapt (int): Number of adaptation iterations. Default is 3.
+        err_target (float): Interpolation error target for mshmet. Default is 0.01.
+        hmin_scale (float): Divisor for computing hmin from domain size. Default is 500.0.
+        hmax_scale (float): Divisor for computing hmax from domain size. Default is 5.0.
+        save_adapted_mesh (bool): Whether to save the adapted mesh to disk. Default is False.
+    """
+    mesh_adaptation: bool = False
+    anisotropic_adaptation: bool = False
+    n_adapt: int = 3
+    err_target: float = 0.01
+    hmin_scale: float = 500.0 # fine near features scaling
+    hmax_scale: float = 5.0 #// coarse features scaling
+    save_adapted_mesh: bool = False
+
+    def __post_init__(self):
+        if not isinstance(self.mesh_adaptation, bool):
+            raise TypeError("'mesh_adaptation' must be a boolean")
+        if not isinstance(self.anisotropic_adaptation, bool):
+            raise TypeError("'anisotropic_adaptation' must be a boolean")
+        if not isinstance(self.n_adapt, int) or self.n_adapt < 1:
+            raise ValueError("'n_adapt' must be a positive integer")
+        if not isinstance(self.err_target, float) or self.err_target <= 0:
+            raise ValueError("'err_target' must be a positive float")
+        if not isinstance(self.hmin_scale, float) or self.hmin_scale <= 0:
+            raise ValueError("'hmin_scale' must be a positive float")
+        if not isinstance(self.hmax_scale, float) or self.hmax_scale <= 0:
+            raise ValueError("'hmax_scale' must be a positive float")
+        if not isinstance(self.save_adapted_mesh, bool):
+            raise TypeError("'save_adapted_mesh' must be a boolean")
+        if self.anisotropic_adaptation and not self.mesh_adaptation:
+            raise ValueError("'anisotropic_adaptation' can only be True if 'mesh_adaptation' is also True")
+
 
 @dataclass
 class ExtractConfig():
@@ -167,19 +207,15 @@ class FFconfigurator():
         extract_opt (list[ExtractConfig] | dict): List of ExtractConfig objects or a dictionary containing extraction options.
         msh_refinements (int): The number of iterations over which to refine the GMSH meshfile using TetGen.
             If no number is provided, will default to None and not iterate at all.
-        mesh_adaptation (bool): Whether to use mesh adaptation. If True, the generated FreeFEM scripts
-            will include an adaptive mesh refinement loop based on the solution Hessian. Default is False.
-        anisotropic_adaptation (bool): Whether to use anisotropic mesh adaptation. Only has effect when
-            mesh_adaptation is True. If True, mshmet will compute a full tensor metric per vertex,
-            allowing elements to be stretched directionally. Default is False.
+        adaptation_config (MeshAdaptationConfig): Configuration object for mesh adaptation settings.
+            If None, no mesh adaptation is used. Default is None.
     """
     config_file: str
     dielectric_constants: dict
     ff_polynomial: int
     extract_opt: list[ExtractConfig, dict] | dict | ExtractConfig
     msh_refinements: int = None
-    mesh_adaptation: bool = False
-    anisotropic_adaptation: bool = False
+    adaptation_config: MeshAdaptationConfig = None
 
     def __post_init__(self):
         with open(self.config_file, 'r') as file:
@@ -195,6 +231,8 @@ class FFconfigurator():
 
             del mergeddict["config_file"]
 
+            if isinstance(self.adaptation_config, MeshAdaptationConfig):
+                mergeddict['adaptation_config'] = asdict(self.adaptation_config)
             yaml.safe_dump(mergeddict, file, sort_keys=False, indent=3)
 
 
@@ -373,13 +411,21 @@ class EDPpreparer():
                 break
         code += self.script_create_savefiles(electrode_name)
         code += self.script_load_packages_and_mesh()
+        adapt_cfg = self.config.get('adaptation_config') or {}
+        mesh_adaptation = adapt_cfg.get('mesh_adaptation', False)
+        if mesh_adaptation:
+            code += 'cout << "=== Initial mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra ===" << endl;\n'
         code += self.script_declare_variables()
         code += self.script_create_coupling_const_matrix()
-        mesh_adaptation = self.config.get('mesh_adaptation', False)
-        aniso = self.config.get('anisotropic_adaptation', False)
+        aniso = adapt_cfg.get('anisotropic_adaptation', False)
+        n_adapt = adapt_cfg.get('n_adapt', 3)
+        err_target = adapt_cfg.get('err_target', 0.01)
+        hmin_scale = adapt_cfg.get('hmin_scale', 500.0)
+        hmax_scale = adapt_cfg.get('hmax_scale', 5.0)
+        save_adapted_mesh = adapt_cfg.get('save_adapted_mesh', False)
         code += self.script_problem_definition(electrode_name, mesh_adaptation=mesh_adaptation)
         if mesh_adaptation:
-            code += self.script_mesh_adaptation(electrode_name, aniso=aniso)
+            code += self.script_mesh_adaptation(electrode_name, aniso=aniso, n_adapt=n_adapt, err_target=err_target, hmin_scale=hmin_scale, hmax_scale=hmax_scale, save_adapted_mesh=save_adapted_mesh)
         elif self.config.get('msh_refinements'):
             code += self.script_refine_mesh(self.config.get('msh_refinements'))
         code += self.script_save_cmatrix(electrode_name)
@@ -520,26 +566,26 @@ class EDPpreparer():
             femSpace = 'P23d'
         else:
             raise Exception("Wrong polynomial order! Choose between 1 or 2")
-        
-        if 'periodic_BC' in self.config:
-            code += f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
-        else:
-            code += f"""fespace Vh(Th,{femSpace});\n"""
 
-        code += "fespace FunctionRegion(Th,P03d);\n"
         code += "real eps = 1e-6;\n"
         code += "macro norm [N.x,N.y,N.z] //\n"
         code += "macro Grad(u) [dx(u),dy(u),dz(u)] //\n"
         code += "macro field(u,x,y,z) [dx(u)(x,y,z),dy(u)(x,y,z),dz(u)(x,y,z)] //\n \n"
-        code += "Vh u,v;\n"
-        code += self._script_dielectric("dielectric")
-
-        code += "problem Electro(u,v,solver=CG) =\n"
-        code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
-        code += self._script_electrode_bcs(electrode_name, "u")
-        code += add_spaces(16) + ";\n"
 
         if not mesh_adaptation:
+            if 'periodic_BC' in self.config:
+                code += f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
+            else:
+                code += f"""fespace Vh(Th,{femSpace});\n"""
+
+            code += "fespace FunctionRegion(Th,P03d);\n"
+            code += "Vh u,v;\n"
+            code += self._script_dielectric("dielectric")
+
+            code += "problem Electro(u,v,solver=CG) =\n"
+            code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
+            code += self._script_electrode_bcs(electrode_name, "u")
+            code += add_spaces(16) + ";\n"
             code += "Electro;\n"
 
         return code
@@ -664,7 +710,7 @@ class EDPpreparer():
         return code
 
 
-    def script_mesh_adaptation(self, electrode_name: str, n_adapt: int = 3, err_target: float = 0.01, aniso: bool = False) -> str:
+    def script_mesh_adaptation(self, electrode_name: str, n_adapt: int = 3, err_target: float = 0.01, aniso: bool = False, hmin_scale: float = 500.0, hmax_scale: float = 5.0, save_adapted_mesh: bool = False) -> str:
         """
         DOCSTRING HERE!
 
@@ -681,6 +727,9 @@ class EDPpreparer():
             aniso (bool): Whether to use anisotropic adaptation. If True, mshmet computes
                 a full tensor metric per vertex allowing elements to stretch directionally.
                 Default is False (isotropic).
+            hmin_scale (float): Divisor for computing hmin from domain size. Default is 500.0.
+            hmax_scale (float): Divisor for computing hmax from domain size. Default is 5.0.
+            save_adapted_mesh (bool): Whether to save the adapted mesh to disk. Default is False.
 
         Returns:
             code (str): FreeFEM code containing the mesh adaptation loop.
@@ -690,13 +739,17 @@ class EDPpreparer():
         else:
             aniso_val = 0
 
-        code = headerFrame("MESH ADAPTATION")
+        polynomial = self.config["ff_polynomial"]
+        femSpace = 'P23d' if polynomial == 2 else 'P13d'
+
+        code = headerFrame("MESH ADAPTATION PARAMETERS")
 
         # Parameters
-        code += f"int nAdapt = {n_adapt};\n"
-        code += f"real errTarget = {err_target};\n\n"
+        code += f"int nAdapt = {n_adapt};        // number of adaptation iterations\n"
+        code += f"real errTarget = {err_target}; // interpolation error target\n\n"
 
-        # hmin and hmax
+        # Estimate hmin/hmax from mesh bounding box
+        code += "// Estimate hmin/hmax from mesh bounding box\n"
         code += "real bbxmin = Th(0).x, bbxmax = Th(0).x;\n"
         code += "real bbymin = Th(0).y, bbymax = Th(0).y;\n"
         code += "real bbzmin = Th(0).z, bbzmax = Th(0).z;\n"
@@ -705,21 +758,31 @@ class EDPpreparer():
         code += add_spaces(4) + "bbymin = min(bbymin, Th(i).y); bbymax = max(bbymax, Th(i).y);\n"
         code += add_spaces(4) + "bbzmin = min(bbzmin, Th(i).z); bbzmax = max(bbzmax, Th(i).z);\n"
         code += "}\n"
-        code += "real domainSize = max(bbxmax-bbxmin, max(bbymax-bbymin, bbzmax-bbzmin));\n"
-        code += "real hmin = domainSize / 500.0;\n"
-        code += "real hmax = domainSize / 5.0;\n\n"
+        code += "real domainSize = max(bbxmax - bbxmin, max(bbymax - bbymin, bbzmax - bbzmin));\n"
+        code += f"real hmin = domainSize / {hmin_scale};  // fine near features\n"
+        code += f"real hmax = domainSize / {hmax_scale};    // coarse far from features\n\n"
 
-        # Energy
+        code += 'cout << "Domain bounding box: ["\n'
+        code += '     << bbxmin << ", " << bbxmax << "] x ["\n'
+        code += '     << bbymin << ", " << bbymax << "] x ["\n'
+        code += '     << bbzmin << ", " << bbzmax << "]" << endl;\n'
+        code += 'cout << "hmin = " << hmin << ", hmax = " << hmax << endl;\n\n'
+
+        code += headerFrame("MESH ADAPTATION LOOP")
+
+        # Track energy convergence
+        code += "// Track energy convergence\n"
         code += f"real[int] energyHistory(nAdapt);\n"
         code += "real energyPrev = 0.0;\n\n"
 
-        # Adaptation loop
+        # Adaptation iterations: solve, compute metric, remesh
+        code += "// Adaptation iterations: solve, compute metric, remesh\n"
         code += "for (int iter = 0; iter < nAdapt - 1; iter++) {\n"
         code += add_spaces(4) + 'cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;\n'
         code += add_spaces(4) + 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n\n'
 
         code += add_spaces(4) + "fespace VhLoop(Th, P23d);\n"
-        code += add_spaces(4) + "fespace FRLoop(Th, P03d);\n"
+        code += add_spaces(4) + "fespace FRLoop(Th, P03d);\n\n"
         code += add_spaces(4) + "VhLoop uLoop, vLoop;\n"
         code += add_spaces(4) + self._script_dielectric("dielectricLoop", "FRLoop")
 
@@ -729,31 +792,79 @@ class EDPpreparer():
         code += add_spaces(8) + ";\n"
         code += add_spaces(4) + "ElectroLoop;\n\n"
 
-        # Energy tracking
+        # Track electrostatic energy
+        code += add_spaces(4) + "// Track electrostatic energy\n"
         code += add_spaces(4) + "real energy = int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(uLoop));\n"
         code += add_spaces(4) + "energyHistory[iter] = energy;\n"
         code += add_spaces(4) + "real relChange = (iter > 0) ? abs(energy - energyPrev) / abs(energyPrev) * 100.0 : 100.0;\n"
         code += add_spaces(4) + 'cout << "  Energy = " << energy << "  (change = " << relChange << "%)" << endl;\n'
         code += add_spaces(4) + "energyPrev = energy;\n\n"
 
-        # Metrics
+        # Compute metric (edge-length field) based on solution Hessian
+        code += add_spaces(4) + "// Compute metric (edge-length field) based on solution Hessian\n"
         code += add_spaces(4) + "fespace Vh1(Th, P13d);\n"
         code += add_spaces(4) + "Vh1 h;\n"
         code += add_spaces(4) + "h[] = mshmet(Th, uLoop,\n"
-        code += add_spaces(8) + "normalization=1,\n"
-        code += add_spaces(8) + f"aniso={aniso_val},\n"
-        code += add_spaces(8) + "nbregul=1,\n"
-        code += add_spaces(8) + "hmin=hmin, hmax=hmax, err=errTarget);\n\n"
+        code += add_spaces(8) + "normalization = 1,\n"
+        code += add_spaces(8) + f"aniso = {aniso_val},\n"
+        code += add_spaces(8) + "nbregul = 1,\n"
+        code += add_spaces(8) + "hmin = hmin,\n"
+        code += add_spaces(8) + "hmax = hmax,\n"
+        code += add_spaces(8) + "err = errTarget\n"
+        code += add_spaces(4) + ");\n\n"
 
-        # Remesh
+        # Convert edge-length metric to volume constraint and remesh
+        code += add_spaces(4) + "// Convert edge-length metric to volume constraint and remesh\n"
         code += add_spaces(4) + 'Th = tetgreconstruction(Th, switch="raAQ",\n'
-        code += add_spaces(8) + "sizeofvolume = h*h*h/6.0);\n"
+        code += add_spaces(8) + "sizeofvolume = h * h * h / 6.0);\n"
         code += "}\n\n"
 
         # Final solve on adapted mesh
-        code += "// Final solve on adapted mesh\n"
-        code += 'cout << "=== Final solve ===" << endl;\n'
-        code += "Electro;\n"
+        code += "// Final solve on adapted mesh (u stays in scope for data extraction)\n"
+        code += 'cout << "=== Final solve (iteration " << nAdapt << " / " << nAdapt << ") ===" << endl;\n'
+        code += 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n'
+        if 'periodic_BC' in self.config:
+            code += f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
+        else:
+            code += f"fespace Vh(Th,{femSpace});\n"
+
+        code += "fespace FunctionRegion(Th,P03d);\n\n"
+        code += "Vh u, v;\n"
+        code += self._script_dielectric("dielectric")
+
+        code += "problem Electro(u, v, solver=CG) =\n"
+        code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
+        code += self._script_electrode_bcs(electrode_name, "u")
+        code += add_spaces(16) + ";\n"
+        code += "Electro;\n\n"
+
+        # Final energy
+        code += "// Final energy\n"
+        code += "real energyFinal = int3d(Th)(dielectric * Grad(u)' * Grad(u));\n"
+        code += "energyHistory[nAdapt - 1] = energyFinal;\n"
+        code += "real relChangeFinal = abs(energyFinal - energyPrev) / abs(energyPrev) * 100.0;\n\n"
+        code += 'cout << "=== Final mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra ===" << endl;\n'
+        code += 'cout << "  Energy = " << energyFinal << "  (change = " << relChangeFinal << "%)" << endl;\n\n'
+
+        # Print convergence summary
+        code += "// Print convergence summary\n"
+        code += 'cout << endl << "=== ENERGY CONVERGENCE SUMMARY ===" << endl;\n'
+        code += "for (int i = 0; i < nAdapt; i++) {\n"
+        code += add_spaces(4) + "real relCh = (i > 0) ? abs(energyHistory[i] - energyHistory[i-1]) / abs(energyHistory[i-1]) * 100.0 : 0.0;\n"
+        code += add_spaces(4) + 'cout << "  Iteration " << i + 1 << ": energy = " << energyHistory[i]\n'
+        code += add_spaces(9) + '<< "  change = " << relCh << "%" << endl;\n'
+        code += "}\n"
+        code += "if (relChangeFinal < 1.0)\n"
+        code += add_spaces(4) + 'cout << "  >> Mesh adaptation CONVERGED (final change < 1%)" << endl;\n'
+        code += "else\n"
+        code += add_spaces(4) + 'cout << "  >> Mesh adaptation NOT converged - consider increasing nAdapt" << endl;\n'
+        code += 'cout << "===================================" << endl;\n\n'
+
+        if save_adapted_mesh:
+            savedir = self.config.get('savedir', 'dump')
+            mesh_path = format_freefem_path(savedir, 'geo', f'{electrode_name}_adapted.mesh')
+            code += f'savemesh(Th, "{mesh_path}");\n'
+            code += f'cout << "Saved adapted mesh to {mesh_path}" << endl;\n'
 
         return code
 
