@@ -6,7 +6,7 @@ Functions:
     Flattens a nested list into a single list.
 - find_max_index(arr: list) -> int:
     Finds the index of the maximum value in a 2D array.
-- find_nearest(array: list, value: float | int) -> int: 
+- find_nearest(array: list, value: float | int) -> int:
     Finds the index of the element in an array that is closest to a given value.
 - center_within_area(x0: float, y0: float, xlist: list, ylist: list, tol=0.25) -> bool:
     Checks if a point (x0, y0) is within the specified area defined by xlist and ylist.
@@ -111,7 +111,7 @@ def crop_vector(x: ArrayLike, xrange: tuple) -> tuple:
 
 
 def crop_matrix(U: ArrayLike, x_idxs: tuple, y_idxs: tuple) -> ArrayLike:
-    """Crops the matrix to the boundaries specified by xrange and yrange. 
+    """Crops the matrix to the boundaries specified by xrange and yrange.
 
     Args:
     ----
@@ -162,7 +162,7 @@ def make_masked(couplings: CouplingConstants, mask_area: Polygon) -> CouplingCon
     Args:
         couplings (CouplingConstants): The coupling constants to be masked.
         mask_area (Polygon): The polygon representing the crop area.
-    
+
     Returns:
         CouplingConstants: The masked coupling constants.
     """
@@ -184,7 +184,7 @@ def make_cropped(couplings: CouplingConstants, xrange: tuple=(-1,1), yrange: tup
         couplings (CouplingConstants): The coupling constants to be cropped.
         xrange (tuple, optional): The range of x-values to crop the data. Defaults to (-1, 1).
         yrange (tuple, optional): The range of y-values to crop the data. Defaults to (-1, 1).
-    
+
     Returns:
         CouplingConstants: The cropped coupling constants.
     """
@@ -206,7 +206,7 @@ def make_symmetric(
         ) -> CouplingConstants:
     """
     Makes the coupling constants symmetric based on the specified symmetry axis and electrode pairs.
-    
+
     Args:
         couplings (CouplingConstants): The coupling constants to be made symmetric.
         axis (str): The axis of symmetry ('x' or 'y').
@@ -270,13 +270,13 @@ def make_symmetric(
 def make_smooth(couplings: CouplingConstants, sigma: int, **kwargs) -> CouplingConstants:
     """
     Smooths the coupling constants of the fieldreader object using a Gaussian filter.
-    
+
     Args:
         couplings (CouplingConstants): The coupling constants to be smoothed.
         gaussian_power (int): The power of the Gaussian filter.
         **kwargs: Additional keyword arguments to pass to the Gaussian filter.
-            See documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.gaussian_filter.html>`_.        
-        
+            See documentation <https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.gaussian_filter.html>`_.
+
     Returns:
         CouplingConstants: The smoothed coupling constants.
     """
@@ -325,7 +325,7 @@ class FreeFemResultParser():
             table.append(row)
         print(tabulate(table, headers=col_names))
 
-    
+
     def load_data(self, savedir: str, fname: str):
         """
         Loads electrode field data from a Parquet file and organizes it into a structured dictionary.
@@ -367,7 +367,7 @@ class FreeFemResultParser():
 
 
     def get_capacitance_matrix(self):
-        """ Returns the capacitance matrix from the metadata. """
+        """ Returns the capacitance matrix from the metadata. Rows and columns order follows electrodes order in metadata. Units are multiples of 8.854 aF (eps0 * um= 8.8..x 10^-18 F) """
         return self.metadata["Capacitance Matrix"]
 
 
@@ -571,7 +571,7 @@ class FieldAnalyzer():
         else:
             raise ValueError("Invalid slice[0]. Must be either 'x' or 'y'.")
         y = self.get_data(slice)
-        
+
         ax.plot(x, y * scale + add_offset, **kwargs)
         ax.set_xlabel(xlabel)
 
@@ -600,7 +600,7 @@ class FieldAnalyzer():
         else:
             raise ValueError("Invalid slice[0]. Must be either 'x' or 'y'.")
         y = self.get_gradient(grad_axis, slice)
-        
+
         ax.plot(x, y * scale + add_offset, **kwargs)
         ax.set_xlabel(xlabel)
 
