@@ -14,10 +14,13 @@ Classes:
         Provides methods for creating and manipulating these paths.
     `Layer`: Represents a layer containing polygons with attributes such as name, color, and grid snapping.
 """
+from __future__ import annotations
 
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
+
+from typing import Self
 from tabulate import tabulate
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
 from shapely import (affinity, unary_union,
@@ -1036,34 +1039,38 @@ class Layer():
 
 
     @snap_on_grid(attr="polygons")
-    def add(self, geom: Polygon | MultiPolygon) -> 'Layer':
+    def add(self, geom: Polygon | MultiPolygon | Layer) -> Self:
         """ 
         Adds a polygon or multipolygon to the layer.
 
         Args:
-            geom (Polygon | MultiPolygon): The polygon or multipolygon to add.
+            geom (Polygon | MultiPolygon | Layer): The polygon or multipolygon to add.
 
         Returns:
             Updated instance (self) of the class with the added polygon.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         return unary_union([self.polygons, geom])
 
 
     @snap_on_grid(attr="polygons")
     def cut(self,
-            geom: Polygon | MultiPolygon,
-            loc: tuple[float, float]=None) -> 'Layer':
+            geom: Polygon | MultiPolygon | Layer,
+            loc: tuple[float, float]=None) -> Self:
         """ 
         Cuts the layer with a polygon or multipolygon.
 
         Args:
-            geom (Polygon | MultiPolygon): The polygon to be cut.
+            geom (Polygon | MultiPolygon | Layer): The polygon to be cut.
             loc (tuple[float, float], optional): The location where the polygon will be cut.
                 Defaults to None.
 
         Returns:
             Updated instance (self) of the class with the cut geometry.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         cut_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
         updated = self.polygons.difference(cut_geom)
         return updated
@@ -1071,19 +1078,21 @@ class Layer():
 
     @snap_on_grid(attr="polygons")
     def crop(self,
-             geom: Polygon | MultiPolygon,
-             loc: tuple[float, float] = None) -> 'Layer':
+             geom: Polygon | MultiPolygon | Layer,
+             loc: tuple[float, float] = None) -> Self:
         """ 
         Crops the layer with a polygon or multipolygon.
 
         Args:
-            geom (Polygon | MultiPolygon): The polygon to be used for cropping.
+            geom (Polygon | MultiPolygon | Layer): The polygon to be used for cropping.
             loc (tuple[float, float], optional): The location where the polygon will be applied.
                 Defaults to None.
 
         Returns:
             Updated instance (self) of the class with the cropped geometry.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         crop_geom = affinity.translate(geom, xoff = loc[0], yoff = loc[1]) if loc else geom
         updated = self.polygons.intersection(crop_geom)
         if isinstance(updated, (Point, MultiPoint, LineString, MultiLineString)):

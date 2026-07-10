@@ -10,6 +10,7 @@ from shapely import Polygon, MultiPolygon, unary_union
 from svgpathtools import parse_path, Line, CubicBezier, QuadraticBezier
 
 from .errors import *
+from .utils import to_geometry_list
 
 
 def sample_bezier(bezier, num_points=20):
@@ -36,13 +37,13 @@ class Exporter_GDS():
 
     __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
 
-    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict) -> None:
+    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict, cellname: str="toplevel") -> None:
         self.name = name
         self.zhk_layers = zhk_layers
         self.layer_cfg = layer_cfg
-        self.preapre_gds()
+        self.preapre_gds(cellname)
 
-    def preapre_gds(self) -> None:
+    def preapre_gds(self, cellname: str="toplevel") -> None:
         """
         Prepare the GDSII library by creating a top-level cell and adding polygons.
 
@@ -51,12 +52,12 @@ class Exporter_GDS():
         - gdstk polygons use `layer` and `datatype` (same concepts).
         """
         self.gdsii = gdstk.Library()
-        cell = gdstk.Cell("toplevel")
+        cell = gdstk.Cell(cellname)
         self.gdsii.add(cell)
 
         for lname, l_property in self.layer_cfg.items():
             polygons = self.zhk_layers[lname].polygons
-            for poly in polygons.geoms:
+            for poly in to_geometry_list(polygons):
                 points = list(poly.exterior.coords)
 
                 # Optional: shapely exterior repeats the first point at the end.
@@ -179,7 +180,7 @@ class Exporter_DXF():
         for i, lname in enumerate(self.layer_cfg):
             self.dxf.layers.add(lname, color = i + 1)
             polygons = self.zhk_layers[lname].polygons
-            for poly in polygons.geoms:
+            for poly in to_geometry_list(polygons):
                 points = list(poly.exterior.coords)
                 msp.add_lwpolyline(points, dxfattribs={"layer": lname,
                                                        "color": BYLAYER})

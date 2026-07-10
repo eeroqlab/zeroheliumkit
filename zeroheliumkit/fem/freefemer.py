@@ -338,6 +338,7 @@ class EDPpreparer():
     
 
     def write_edpScript(self):
+        # TODO: split the logic for caseA (coupling constants only) and caseB (Greens function extraction) into separate functions for better readability and maintainability
         """
         Creates the main FreeFEM script based on the configuration and physical surfaces.
         """
@@ -516,6 +517,10 @@ class EDPpreparer():
 
         return code
     
+
+    def script_include_charge(self, coordinate: list | tuple):
+        pass
+
 
     def script_save_data(self, config: dict) -> str:
         """

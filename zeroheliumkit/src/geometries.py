@@ -502,7 +502,7 @@ class StraightLine(Structure):
         # create polygons
         if layers:
             for k, width in layers.items():
-                polygon = self.skeletone.buffer(offset=width/2, cap_style='square', **kwargs)
+                polygon = self.skeletone.buffer(offset=width/2, cap_style=cap_style, **kwargs)
                 self.add(Layer(name=k, polygons=polygon))
 
         # create anchors
