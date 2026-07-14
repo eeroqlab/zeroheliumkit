@@ -1,0 +1,85 @@
+adaptation_config:
+   mesh_adaptation: true
+   anisotropic_adaptation: false
+   n_adapt: 1
+   err_target: 0.01
+   hmin_scale: 500.0
+   hmax_scale: 5.0
+   save_adapted_mesh: false
+dielectric_constants:
+   DIELECTRIC: 11.0
+   METAL: 1.0
+   HELIUM: 1.057
+   VACUUM: 1.0
+extract_opt:
+-  name: result1
+   quantity: phi
+   plane: xy
+   coordinate1:
+   - -2.5
+   - 1.5
+   - 201
+   coordinate2:
+   - -1
+   - 1
+   - 101
+   coordinate3:
+   - 0.26
+   curvature_config: null
+extrude:
+   Nb:
+      cut: null
+      forConstruction: false
+      height: 0.04
+      physical_name: METAL
+      z_base: 0
+   TaWSi:
+      cut: null
+      forConstruction: false
+      height: 0.2
+      physical_name: METAL
+      z_base: 0.06
+   dielectric:
+      cut:
+      - Nb
+      forConstruction: false
+      height: 0.06
+      physical_name: DIELECTRIC
+      z_base: 0
+   helium:
+      cut:
+      - Nb
+      - dielectric
+      - TaWSi
+      forConstruction: false
+      height: 0.26
+      physical_name: HELIUM
+      z_base: 0
+   vacuum:
+      cut: null
+      forConstruction: false
+      height: 5
+      physical_name: VACUUM
+      z_base: 0.26
+   wafer:
+      cut: null
+      forConstruction: false
+      height: 5
+      physical_name: DIELECTRIC
+      z_base: -5
+ff_polynomial: 2
+meshfile: test_adapt_n1/geo/dot.msh
+msh_refinements: null
+physicalSurfaces:
+   a: 6
+   b: 7
+   c: 8
+   ch: 5
+   res: 9
+   top: 10
+physicalVolumes:
+   DIELECTRIC: 3
+   HELIUM: 4
+   METAL: 1
+   VACUUM: 2
+savedir: test_adapt_n1/

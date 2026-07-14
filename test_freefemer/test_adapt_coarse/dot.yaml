@@ -1,0 +1,107 @@
+savedir: test_adapt_coarse
+meshfile: test_adapt_coarse/geo/dot.msh
+extrude:
+   wafer:
+      z_base: -5
+      height: 5
+      physical_name: DIELECTRIC
+      cut: null
+      forConstruction: false
+   Nb:
+      z_base: 0
+      height: 0.04
+      physical_name: METAL
+      cut: null
+      forConstruction: false
+   dielectric:
+      z_base: 0
+      height: 0.06
+      physical_name: DIELECTRIC
+      cut:
+      - Nb
+      forConstruction: false
+   TaWSi:
+      z_base: 0.06
+      height: 0.2
+      physical_name: METAL
+      cut: null
+      forConstruction: false
+   helium:
+      z_base: 0
+      height: 0.26
+      physical_name: HELIUM
+      cut:
+      - Nb
+      - dielectric
+      - TaWSi
+      forConstruction: false
+   vacuum:
+      z_base: 0.26
+      height: 5
+      physical_name: VACUUM
+      cut: null
+      forConstruction: false
+physicalSurfaces:
+   ch: 5
+   a: 6
+   b: 7
+   c: 8
+   res: 9
+   top: 10
+physicalVolumes:
+   METAL: 1
+   VACUUM: 2
+   DIELECTRIC: 3
+   HELIUM: 4
+dielectric_constants:
+   DIELECTRIC: 11.0
+   METAL: 1.0
+   HELIUM: 1.057
+   VACUUM: 1.0
+ff_polynomial: 2
+extract_opt:
+-  name: result1
+   quantity: phi
+   plane: xy
+   coordinate1:
+   - -2.5
+   - 1.5
+   - 201
+   coordinate2:
+   - -1
+   - 1
+   - 101
+   coordinate3:
+   - 0.26
+   curvature_config: null
+-  name: result2
+   quantity: phi
+   plane: xy
+   coordinate1:
+   - -1.5
+   - 1
+   - 251
+   coordinate2:
+   - -0.6
+   - 0.6
+   - 151
+   coordinate3:
+   - 0.26
+   - 0.29
+   curvature_config: null
+-  name: result3
+   quantity: Ez
+   plane: xy
+   coordinate1:
+   - -1.5
+   - 1
+   - 251
+   coordinate2:
+   - -0.6
+   - 0.6
+   - 151
+   coordinate3:
+   - 0.26
+   curvature_config: null
+msh_refinements: null
+adaptation_config: null

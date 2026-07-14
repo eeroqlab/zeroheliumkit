@@ -1,0 +1,162 @@
+2026-07-09 13:12:42,453 | INFO | Starting EDP: test_adapt/edp/ff_ch.edp
+2026-07-09 13:13:46,493 | DEBUG | Full output captured
+2026-07-09 13:13:46,494 | INFO | -- FreeFem++ v4.15 (Fri May  2 13:38:38 CEST 2025 - git v4.15-testActions-205-g231a620cf)
+2026-07-09 13:13:46,494 | INFO |    file : test_adapt/edp/ff_ch.edp
+2026-07-09 13:13:46,494 | INFO |  Load: lg_fem lg_mesh lg_mesh3 eigenvalue 
+2026-07-09 13:13:46,494 | INFO |  (already loaded: msh3) load: mshmet  
+2026-07-09 13:13:46,494 | INFO |  load: tetgen  
+2026-07-09 13:13:46,494 | INFO |  sizestack + 1024 =5096  ( 4072 )
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO | 2505 tetrahedrons
+2026-07-09 13:13:46,494 | INFO | 340 triangles
+2026-07-09 13:13:46,494 | INFO | 2845 numElements
+2026-07-09 13:13:46,494 | INFO | === Initial mesh: 622 vertices, 2505 tetrahedra ===
+2026-07-09 13:13:46,494 | INFO | Domain bounding box: [-2.5, 2.5] x [-2.5, 2.5] x [-5, 5.26]
+2026-07-09 13:13:46,494 | INFO | hmin = 0.02052, hmax = 2.052
+2026-07-09 13:13:46,494 | INFO | === Adaptation iteration 1 / 3 ===
+2026-07-09 13:13:46,494 | INFO |   Mesh: 622 vertices, 2505 tetrahedra
+2026-07-09 13:13:46,494 | INFO |   -- Build Nodes/DF on mesh :   n.v. 622, n. elmt. 2505, n b. elmt. 340
+2026-07-09 13:13:46,494 | INFO |      nb of Nodes 4122    nb of DoF   4122  DFon=1100
+2026-07-09 13:13:46,494 | INFO |   -- FESpace: Nb of Nodes 4122 Nb of DoF 4122
+2026-07-09 13:13:46,494 | INFO |   -- Build Nodes/DF on mesh :   n.v. 622, n. elmt. 2505, n b. elmt. 340
+2026-07-09 13:13:46,494 | INFO |      nb of Nodes 2505    nb of DoF   2505  DFon=0001
+2026-07-09 13:13:46,494 | INFO |   -- FESpace: Nb of Nodes 2505 Nb of DoF 2505
+2026-07-09 13:13:46,494 | INFO |  GC:  converge after 98 g=6.06118e-09 rho= 1.39554 gamma= 0.745046
+2026-07-09 13:13:46,494 | INFO |   -- Solve : 
+2026-07-09 13:13:46,494 | INFO |           min -0.0966158  max 1.08387
+2026-07-09 13:13:46,494 | INFO |   Energy = 3290.92  (change = 100%)
+2026-07-09 13:13:46,494 | INFO |   -- FESpace: Nb of Nodes 622 Nb of DoF 622
+2026-07-09 13:13:46,494 | INFO |   -- MSHMET, Release 3.0a (Feb. 15, 2010) 
+2026-07-09 13:13:46,494 | INFO |      Copyright (c) LJLL, 2007-10
+2026-07-09 13:13:46,494 | INFO |      Wed Feb 26 14:32:15 CET 2025 
+2026-07-09 13:13:46,494 | INFO |      NUMBER OF GIVEN VERTICES        622
+2026-07-09 13:13:46,494 | INFO |      NUMBER OF GIVEN TETRAHEDRA     2505
+2026-07-09 13:13:46,494 | INFO |      NUMBER OF GIVEN DATA            622
+2026-07-09 13:13:46,494 | INFO |   -- DATA READING COMPLETED.     0.18 sec.
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,494 | INFO |    MODULE MSHMET-LJLL : 3.0a (Feb. 15, 2010)
+2026-07-09 13:13:46,494 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |   -- PHASE 1 : ANALYSIS
+2026-07-09 13:13:46,494 | INFO |   -- PHASE 1 COMPLETED.     0.18 sec.
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |   -- PHASE 2 : METRIC
+2026-07-09 13:13:46,494 | INFO |   -- PHASE 2 COMPLETED.     0.19 sec.
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,494 | INFO |    END OF MODULE MSHMET 
+2026-07-09 13:13:46,494 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |   -- CPU REQUIREMENTS
+2026-07-09 13:13:46,494 | INFO |   in/out       33.20 %      1. calls,      0.18 sec/call
+2026-07-09 13:13:46,494 | INFO |   analysis     33.22 %      1. calls,      0.18 sec/call
+2026-07-09 13:13:46,494 | INFO |   metric       33.59 %      1. calls,      0.19 sec/call
+2026-07-09 13:13:46,494 | INFO |   total       100.00 %      1. calls,      0.55 sec/call
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |    ELAPSED TIME  0.55 SEC.  (0.55)
+2026-07-09 13:13:46,494 | INFO | 
+2026-07-09 13:13:46,494 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,494 | INFO |    END OF MODULE MSHMET 
+2026-07-09 13:13:46,494 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,494 | INFO | refine tetgen: Vertex Triangle Border 622  2505 340
+2026-07-09 13:13:46,494 | INFO | Before reconstruction: nbhole=0 nbregion=0
+2026-07-09 13:13:46,494 | INFO | 3D RemplissageSurf3D:: Vertex  triangle2  border 622 2505 340
+2026-07-09 13:13:46,494 | INFO |  tetgenio: vertex 
+2026-07-09 13:13:46,494 | INFO | tetrahedrons
+2026-07-09 13:13:46,494 | INFO | lecture des facettes
+2026-07-09 13:13:46,494 | INFO | tetgen: before tetrahedralize( , &in, &out);
+2026-07-09 13:13:46,494 | INFO | numberof regions 0
+2026-07-09 13:13:46,494 | INFO | numberof hole 0
+2026-07-09 13:13:46,494 | INFO | tetgen: after tetrahedralize( , &in, &out);
+2026-07-09 13:13:46,494 | INFO | Th3 :: Vertex Element Border :: 16774 99115 28177
+2026-07-09 13:13:46,494 | INFO |  Finish Mesh3 tetgen :: Vertex, Element, Border16774 99115 28177
+2026-07-09 13:13:46,494 | INFO | FreeFEM: End check mesh given by tetgen
+2026-07-09 13:13:46,494 | INFO | finish reconstruction 
+2026-07-09 13:13:46,494 | INFO | FreeFEM: End check mesh given by tetgen
+2026-07-09 13:13:46,494 | INFO | === Adaptation iteration 2 / 3 ===
+2026-07-09 13:13:46,494 | INFO |   Mesh: 16774 vertices, 99115 tetrahedra
+2026-07-09 13:13:46,494 | INFO |   -- Build Nodes/DF on mesh :   n.v. 16774, n. elmt. 99115, n b. elmt. 28177
+2026-07-09 13:13:46,494 | INFO |      nb of Nodes 133714    nb of DoF   133714  DFon=1100
+2026-07-09 13:13:46,494 | INFO |   -- FESpace: Nb of Nodes 133714 Nb of DoF 133714
+2026-07-09 13:13:46,494 | INFO |   -- Build Nodes/DF on mesh :   n.v. 16774, n. elmt. 99115, n b. elmt. 28177
+2026-07-09 13:13:46,494 | INFO |      nb of Nodes 99115    nb of DoF   99115  DFon=0001
+2026-07-09 13:13:46,494 | INFO |   -- FESpace: Nb of Nodes 99115 Nb of DoF 99115
+2026-07-09 13:13:46,494 | INFO |  GC:  converge after 135 g=4.05893e-09 rho= 1.34788 gamma= 0.73191
+2026-07-09 13:13:46,494 | INFO |   -- Solve : 
+2026-07-09 13:13:46,494 | INFO |           min -0.00054567  max 1
+2026-07-09 13:13:46,494 | INFO |   Energy = 2855.75  (change = 13.2235%)
+2026-07-09 13:13:46,494 | INFO |   -- FESpace: Nb of Nodes 16774 Nb of DoF 16774
+2026-07-09 13:13:46,494 | INFO |   -- MSHMET, Release 3.0a (Feb. 15, 2010) 
+2026-07-09 13:13:46,494 | INFO |      Copyright (c) LJLL, 2007-10
+2026-07-09 13:13:46,494 | INFO |      Wed Feb 26 14:32:15 CET 2025 
+2026-07-09 13:13:46,495 | INFO |      NUMBER OF GIVEN VERTICES      16774
+2026-07-09 13:13:46,495 | INFO |      NUMBER OF GIVEN TETRAHEDRA    99115
+2026-07-09 13:13:46,495 | INFO |      NUMBER OF GIVEN DATA          16774
+2026-07-09 13:13:46,495 | INFO |   -- DATA READING COMPLETED.     7.28 sec.
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,495 | INFO |    MODULE MSHMET-LJLL : 3.0a (Feb. 15, 2010)
+2026-07-09 13:13:46,495 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |   -- PHASE 1 : ANALYSIS
+2026-07-09 13:13:46,495 | INFO |   -- PHASE 1 COMPLETED.     7.28 sec.
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |   -- PHASE 2 : METRIC
+2026-07-09 13:13:46,495 | INFO |   -- PHASE 2 COMPLETED.     7.35 sec.
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,495 | INFO |    END OF MODULE MSHMET 
+2026-07-09 13:13:46,495 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |   -- CPU REQUIREMENTS
+2026-07-09 13:13:46,495 | INFO |   in/out       33.21 %      1. calls,      7.28 sec/call
+2026-07-09 13:13:46,495 | INFO |   analysis     33.23 %      1. calls,      7.28 sec/call
+2026-07-09 13:13:46,495 | INFO |   metric       33.56 %      1. calls,      7.35 sec/call
+2026-07-09 13:13:46,495 | INFO |   total       100.00 %      1. calls,     21.91 sec/call
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |    ELAPSED TIME  21.91 SEC.  (21.91)
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,495 | INFO |    END OF MODULE MSHMET 
+2026-07-09 13:13:46,495 | INFO |   &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&
+2026-07-09 13:13:46,495 | INFO | refine tetgen: Vertex Triangle Border 16774  99115 28177
+2026-07-09 13:13:46,495 | INFO | Before reconstruction: nbhole=0 nbregion=0
+2026-07-09 13:13:46,495 | INFO | 3D RemplissageSurf3D:: Vertex  triangle2  border 16774 99115 28177
+2026-07-09 13:13:46,495 | INFO |  tetgenio: vertex 
+2026-07-09 13:13:46,495 | INFO | tetrahedrons
+2026-07-09 13:13:46,495 | INFO | lecture des facettes
+2026-07-09 13:13:46,495 | INFO | tetgen: before tetrahedralize( , &in, &out);
+2026-07-09 13:13:46,495 | INFO | numberof regions 0
+2026-07-09 13:13:46,495 | INFO | numberof hole 0
+2026-07-09 13:13:46,495 | INFO | tetgen: after tetrahedralize( , &in, &out);
+2026-07-09 13:13:46,495 | INFO | Th3 :: Vertex Element Border :: 90887 550268 127483
+2026-07-09 13:13:46,495 | INFO |  Finish Mesh3 tetgen :: Vertex, Element, Border90887 550268 127483
+2026-07-09 13:13:46,495 | INFO | FreeFEM: End check mesh given by tetgen
+2026-07-09 13:13:46,495 | INFO | finish reconstruction 
+2026-07-09 13:13:46,495 | INFO | FreeFEM: End check mesh given by tetgen
+2026-07-09 13:13:46,495 | INFO | === Final solve (iteration 3 / 3) ===
+2026-07-09 13:13:46,495 | INFO |   Mesh: 90887 vertices, 550268 tetrahedra
+2026-07-09 13:13:46,495 | INFO |   -- Build Nodes/DF on mesh :   n.v. 90887, n. elmt. 550268, n b. elmt. 127483
+2026-07-09 13:13:46,495 | INFO |      nb of Nodes 733738    nb of DoF   733738  DFon=1100
+2026-07-09 13:13:46,495 | INFO |   -- FESpace: Nb of Nodes 733738 Nb of DoF 733738
+2026-07-09 13:13:46,495 | INFO |   -- Build Nodes/DF on mesh :   n.v. 90887, n. elmt. 550268, n b. elmt. 127483
+2026-07-09 13:13:46,495 | INFO |      nb of Nodes 550268    nb of DoF   550268  DFon=0001
+2026-07-09 13:13:46,495 | INFO |   -- FESpace: Nb of Nodes 550268 Nb of DoF 550268
+2026-07-09 13:13:46,495 | INFO |  GC:  converge after 160 g=4.2728e-09 rho= 1.16346 gamma= 0.824228
+2026-07-09 13:13:46,495 | INFO |   -- Solve : 
+2026-07-09 13:13:46,495 | INFO |           min -0.000631934  max 1.00001
+2026-07-09 13:13:46,495 | INFO | === Final mesh: 90887 vertices, 550268 tetrahedra ===
+2026-07-09 13:13:46,495 | INFO |   Energy = 2843.31  (change = 0.435543%)
+2026-07-09 13:13:46,495 | INFO | 
+2026-07-09 13:13:46,495 | INFO | === ENERGY CONVERGENCE SUMMARY ===
+2026-07-09 13:13:46,495 | INFO |   Iteration 1: energy = 3290.92  change = 0%
+2026-07-09 13:13:46,495 | INFO |   Iteration 2: energy = 2855.75  change = 13.2235%
+2026-07-09 13:13:46,495 | INFO |   Iteration 3: energy = 2843.31  change = 0.435543%
+2026-07-09 13:13:46,495 | INFO |   >> Mesh adaptation CONVERGED (final change < 1%)
+2026-07-09 13:13:46,495 | INFO | ===================================
+2026-07-09 13:13:46,495 | INFO | times: compile 0.015688s, execution 62.1608s,  mpirank:0
+2026-07-09 13:13:46,495 | INFO |  ######## unfreed pointers   0 Nb pointer,   0Bytes  ,  mpirank 0, memory leak =19274400
+2026-07-09 13:13:46,495 | INFO |  CodeAlloc : nb ptr  5076,  size :542816 mpirank: 0
+2026-07-09 13:13:46,495 | INFO | Ok: Normal End
+2026-07-09 13:13:46,495 | INFO | Completed EDP: test_adapt/edp/ff_ch.edp

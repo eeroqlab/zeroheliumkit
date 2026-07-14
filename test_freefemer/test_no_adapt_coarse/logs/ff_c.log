@@ -1,0 +1,26 @@
+2026-07-09 14:13:35,665 | INFO | Starting EDP: test_no_adapt_coarse/edp/ff_c.edp
+2026-07-09 14:13:36,175 | DEBUG | Full output captured
+2026-07-09 14:13:36,175 | INFO | -- FreeFem++ v4.15 (Fri May  2 13:38:38 CEST 2025 - git v4.15-testActions-205-g231a620cf)
+2026-07-09 14:13:36,175 | INFO |    file : test_no_adapt_coarse/edp/ff_c.edp
+2026-07-09 14:13:36,175 | INFO |  Load: lg_fem lg_mesh lg_mesh3 eigenvalue 
+2026-07-09 14:13:36,175 | INFO |  (already loaded: msh3) load: mshmet  
+2026-07-09 14:13:36,175 | INFO |  load: tetgen  
+2026-07-09 14:13:36,175 | INFO |  sizestack + 1024 =3784  ( 2760 )
+2026-07-09 14:13:36,175 | INFO | 
+2026-07-09 14:13:36,175 | INFO | 2505 tetrahedrons
+2026-07-09 14:13:36,175 | INFO | 340 triangles
+2026-07-09 14:13:36,175 | INFO | 2845 numElements
+2026-07-09 14:13:36,175 | INFO |   -- Build Nodes/DF on mesh :   n.v. 622, n. elmt. 2505, n b. elmt. 340
+2026-07-09 14:13:36,175 | INFO |      nb of Nodes 4122    nb of DoF   4122  DFon=1100
+2026-07-09 14:13:36,175 | INFO |   -- FESpace: Nb of Nodes 4122 Nb of DoF 4122
+2026-07-09 14:13:36,175 | INFO |   -- Build Nodes/DF on mesh :   n.v. 622, n. elmt. 2505, n b. elmt. 340
+2026-07-09 14:13:36,175 | INFO |      nb of Nodes 2505    nb of DoF   2505  DFon=0001
+2026-07-09 14:13:36,175 | INFO |   -- FESpace: Nb of Nodes 2505 Nb of DoF 2505
+2026-07-09 14:13:36,175 | INFO |  GC:  converge after 94 g=1.04423e-09 rho= 1.552 gamma= 0.747978
+2026-07-09 14:13:36,175 | INFO |   -- Solve : 
+2026-07-09 14:13:36,175 | INFO |           min -0.0688716  max 1
+2026-07-09 14:13:36,175 | INFO | times: compile 0.01645s, execution 0.374947s,  mpirank:0
+2026-07-09 14:13:36,175 | INFO |  ######## unfreed pointers   0 Nb pointer,   0Bytes  ,  mpirank 0, memory leak =2434672
+2026-07-09 14:13:36,175 | INFO |  CodeAlloc : nb ptr  4637,  size :524512 mpirank: 0
+2026-07-09 14:13:36,175 | INFO | Ok: Normal End
+2026-07-09 14:13:36,176 | INFO | Completed EDP: test_no_adapt_coarse/edp/ff_c.edp

@@ -1,0 +1,34 @@
+2026-07-10 10:50:57,660 | INFO | Starting EDP: test_adapt_coarse/edp/ff_res.edp
+2026-07-10 10:50:57,887 | DEBUG | Full output captured
+2026-07-10 10:50:57,887 | INFO | -- FreeFem++ v4.15 (Fri May  2 13:38:38 CEST 2025 - git v4.15-testActions-205-g231a620cf)
+2026-07-10 10:50:57,887 | INFO |    file : test_adapt_coarse/edp/ff_res.edp
+2026-07-10 10:50:57,888 | INFO |  Load: lg_fem lg_mesh lg_mesh3 eigenvalue 
+2026-07-10 10:50:57,888 | INFO |  (already loaded: msh3) load: mshmet  
+2026-07-10 10:50:57,888 | INFO |  load: tetgen  
+2026-07-10 10:50:57,888 | INFO |  sizestack + 1024 =5096  ( 4072 )
+2026-07-10 10:50:57,888 | INFO | 
+2026-07-10 10:50:57,888 | INFO | 2505 tetrahedrons
+2026-07-10 10:50:57,888 | INFO | 340 triangles
+2026-07-10 10:50:57,888 | INFO | 2845 numElements
+2026-07-10 10:50:57,888 | INFO | === Initial mesh: 622 vertices, 2505 tetrahedra ===
+2026-07-10 10:50:57,888 | INFO | Domain bounding box: [-2.5, 2.5] x [-2.5, 2.5] x [-5, 5.26]
+2026-07-10 10:50:57,888 | INFO | hmin = 0.02052, hmax = 2.052
+2026-07-10 10:50:57,888 | INFO | === Final solve (iteration 1 / 1) ===
+2026-07-10 10:50:57,888 | INFO |   Mesh: 622 vertices, 2505 tetrahedra
+2026-07-10 10:50:57,888 | INFO |   -- Build Nodes/DF on mesh :   n.v. 622, n. elmt. 2505, n b. elmt. 340
+2026-07-10 10:50:57,888 | INFO |      nb of Nodes 4122    nb of DoF   4122  DFon=1100
+2026-07-10 10:50:57,888 | INFO |   -- FESpace: Nb of Nodes 4122 Nb of DoF 4122
+2026-07-10 10:50:57,888 | INFO |   -- Build Nodes/DF on mesh :   n.v. 622, n. elmt. 2505, n b. elmt. 340
+2026-07-10 10:50:57,888 | INFO |      nb of Nodes 2505    nb of DoF   2505  DFon=0001
+2026-07-10 10:50:57,888 | INFO |   -- FESpace: Nb of Nodes 2505 Nb of DoF 2505
+2026-07-10 10:50:57,888 | INFO |  GC:  converge after 99 g=6.20349e-10 rho= 1.33065 gamma= 0.638089
+2026-07-10 10:50:57,888 | INFO |   -- Solve : 
+2026-07-10 10:50:57,888 | INFO |           min -0.0260074  max 1
+2026-07-10 10:50:57,888 | INFO | 370.613/0 : d d d
+2026-07-10 10:50:57,888 | INFO |   current line = 141
+2026-07-10 10:50:57,888 | INFO | Exec error :  Div by 0
+2026-07-10 10:50:57,888 | INFO |    -- number :1
+2026-07-10 10:50:57,888 | INFO | Exec error :  Div by 0
+2026-07-10 10:50:57,888 | INFO |    -- number :1
+2026-07-10 10:50:57,888 | INFO |  err code 8 ,  mpirank 0
+2026-07-10 10:50:57,888 | ERROR | FreeFEM error

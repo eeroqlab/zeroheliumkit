@@ -1,0 +1,213 @@
+
+ofstream result1("test_adapt_n1/edp/result1_b.npy", binary);
+load "msh3"
+load "gmsh"
+load "medit"
+load "mshmet"
+load "tetgen"
+
+mesh3 Th = gmshload3("test_adapt_n1/geo/dot.msh");
+cout << "=== Initial mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra ===" << endl;
+
+int n1, n2, n3;
+real xmin, xmax, ymin, ymax, ax3;
+
+int numV = 6;
+
+real[int] electrodeid = [6, 7, 8, 5, 9, 10];
+
+real eps = 1e-6;
+macro norm [N.x,N.y,N.z] //
+macro Grad(u) [dx(u),dy(u),dz(u)] //
+macro field(u,x,y,z) [dx(u)(x,y,z),dy(u)(x,y,z),dz(u)(x,y,z)] //
+ 
+
+//////////////////////////////////////////////////////////
+//
+//    MESH ADAPTATION PARAMETERS
+//
+//////////////////////////////////////////////////////////
+
+int nAdapt = 1;        // number of adaptation iterations
+real errTarget = 0.01; // interpolation error target
+
+// Estimate hmin/hmax from mesh bounding box
+real bbxmin = Th(0).x, bbxmax = Th(0).x;
+real bbymin = Th(0).y, bbymax = Th(0).y;
+real bbzmin = Th(0).z, bbzmax = Th(0).z;
+for (int i = 1; i < Th.nv; i++) {
+    bbxmin = min(bbxmin, Th(i).x); bbxmax = max(bbxmax, Th(i).x);
+    bbymin = min(bbymin, Th(i).y); bbymax = max(bbymax, Th(i).y);
+    bbzmin = min(bbzmin, Th(i).z); bbzmax = max(bbzmax, Th(i).z);
+}
+real domainSize = max(bbxmax - bbxmin, max(bbymax - bbymin, bbzmax - bbzmin));
+real hmin = domainSize / 500.0;  // fine near features
+real hmax = domainSize / 5.0;    // coarse far from features
+
+cout << "Domain bounding box: ["
+     << bbxmin << ", " << bbxmax << "] x ["
+     << bbymin << ", " << bbymax << "] x ["
+     << bbzmin << ", " << bbzmax << "]" << endl;
+cout << "hmin = " << hmin << ", hmax = " << hmax << endl;
+
+
+//////////////////////////////////////////////////////////
+//
+//    MESH ADAPTATION LOOP
+//
+//////////////////////////////////////////////////////////
+
+// Track energy convergence
+real[int] energyHistory(nAdapt);
+real energyPrev = 0.0;
+
+// Adaptation iterations: solve, compute metric, remesh
+for (int iter = 0; iter < nAdapt - 1; iter++) {
+    cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;
+    cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;
+
+    fespace VhLoop(Th, P23d);
+    fespace FRLoop(Th, P03d);
+
+    VhLoop uLoop, vLoop;
+    FRLoop dielectricLoop =
+                          + 11.0 * (region == 3)
+                          + 1.057 * (region == 4)
+                          + 1.0 * (region == 1)
+                          + 1.0 * (region == 2)
+                          ;
+    problem ElectroLoop(uLoop, vLoop, solver=CG) =
+        int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(vLoop))
+                + on(7, uLoop = 1.0)
+                + on(6, uLoop = 0.0)
+                + on(8, uLoop = 0.0)
+                + on(5, uLoop = 0.0)
+                + on(9, uLoop = 0.0)
+                + on(10, uLoop = 0.0)
+        ;
+    ElectroLoop;
+
+    // Track electrostatic energy
+    real energy = int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(uLoop));
+    energyHistory[iter] = energy;
+    real relChange = (iter > 0) ? abs(energy - energyPrev) / abs(energyPrev) * 100.0 : 100.0;
+    cout << "  Energy = " << energy << "  (change = " << relChange << "%)" << endl;
+    energyPrev = energy;
+
+    // Compute metric (edge-length field) based on solution Hessian
+    fespace Vh1(Th, P13d);
+    Vh1 h;
+    h[] = mshmet(Th, uLoop,
+        normalization = 1,
+        aniso = 0,
+        nbregul = 1,
+        hmin = hmin,
+        hmax = hmax,
+        err = errTarget
+    );
+
+    // Convert edge-length metric to volume constraint and remesh
+    Th = tetgreconstruction(Th, switch="raAQ",
+        sizeofvolume = h * h * h / 6.0);
+}
+
+// Final solve on adapted mesh (u stays in scope for data extraction)
+cout << "=== Final solve (iteration " << nAdapt << " / " << nAdapt << ") ===" << endl;
+cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;
+
+fespace Vh(Th,P23d);
+fespace FunctionRegion(Th,P03d);
+Vh u,v;
+FunctionRegion dielectric =
+                          + 11.0 * (region == 3)
+                          + 1.057 * (region == 4)
+                          + 1.0 * (region == 1)
+                          + 1.0 * (region == 2)
+                          ;
+problem Electro(u,v,solver=CG) =
+                int3d(Th)(dielectric * Grad(u)' * Grad(v))
+                + on(7, u = 1.0)
+                + on(6, u = 0.0)
+                + on(8, u = 0.0)
+                + on(5, u = 0.0)
+                + on(9, u = 0.0)
+                + on(10, u = 0.0)
+                ;
+Electro;
+
+// Final energy
+real energyFinal = int3d(Th)(dielectric * Grad(u)' * Grad(u));
+energyHistory[nAdapt - 1] = energyFinal;
+real relChangeFinal = abs(energyFinal - energyPrev) / abs(energyPrev) * 100.0;
+
+cout << "=== Final mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra ===" << endl;
+cout << "  Energy = " << energyFinal << "  (change = " << relChangeFinal << "%)" << endl;
+
+// Print convergence summary
+cout << endl << "=== ENERGY CONVERGENCE SUMMARY ===" << endl;
+for (int i = 0; i < nAdapt; i++) {
+    real relCh = (i > 0) ? abs(energyHistory[i] - energyHistory[i-1]) / abs(energyHistory[i-1]) * 100.0 : 0.0;
+    cout << "  Iteration " << i + 1 << ": energy = " << energyHistory[i]
+         << "  change = " << relCh << "%" << endl;
+}
+if (relChangeFinal < 1.0)
+    cout << "  >> Mesh adaptation CONVERGED (final change < 1%)" << endl;
+else
+    cout << "  >> Mesh adaptation NOT converged - consider increasing nAdapt" << endl;
+cout << "===================================" << endl;
+
+
+//////////////////////////////////////////////////////////
+//
+//    START / Calculate Capacitance Matrix
+//
+//////////////////////////////////////////////////////////
+
+ofstream cmextract("test_adapt_n1/edp/cm_b.txt");
+
+for(int i = 0; i < numV; i++){
+    real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm
+                                          - dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));
+    cmextract << charge << endl;
+}
+
+//////////////////////////////////////////////////////////
+//
+//    END / Calculate Capacitance Matrix
+//
+//////////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////////
+//
+//    2D SLICES DATA EXTRACTION BLOCK START
+//
+//////////////////////////////////////////////////////////
+
+{
+n1 = 201;
+n2 = 101;
+xmin = -2.5;
+xmax = 1.5;
+ymin = -1;
+ymax = 1;
+n3 = 1;
+real[int] zcoords = [0.26];
+for(int m = 0; m < n3; m++){
+    real ax3 = zcoords[m];
+    for(int j = 0; j < n2; j++){
+        real ax2 = ymin + j*(ymax-ymin)/(n2-1);
+        for(int i = 0; i < n1; i++){
+            real ax1 = xmin + i*(xmax-xmin)/(n1-1);
+            result1 << u(ax1,ax2,ax3) << endl;
+            }
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////
+//
+//    2D SLICES DATA EXTRACTION BLOCK END
+//
+//////////////////////////////////////////////////////////
+

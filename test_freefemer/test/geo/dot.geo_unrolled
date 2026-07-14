@@ -1,0 +1,14 @@
+Merge "test/geo/dot.geo_unrolled.xao";
+Field[1] = Box;
+Field[1].Thickness = 2;
+Field[1].VIn = 0.03;
+Field[1].VOut = 2;
+Field[1].XMax = 1.2;
+Field[1].XMin = -1.2;
+Field[1].YMax = 1;
+Field[1].YMin = -1;
+Field[1].ZMax = 0.5;
+Field[1].ZMin = -0.2;
+Field[2] = Min;
+Field[2].FieldsList = {1};
+Background Field = 2;
