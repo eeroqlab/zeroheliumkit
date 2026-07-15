@@ -1,4 +1,0 @@
-Merge "test_adapt/geo/dot.geo_unrolled.xao";
-Field[1] = Min;
-Field[1].FieldsList = {};
-Background Field = 1;
