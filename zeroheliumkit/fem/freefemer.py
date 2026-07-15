@@ -1193,7 +1193,6 @@ class FreeFEM():
                 for line in f:
                     if "Energy =" in line:
                         iteration += 1
-                        # line looks like: Energy = 758.732  (change = 100%)
                         parts = line.strip().split("Energy =")[1]
                         energy_part = parts.split("(change =")[0].strip()
                         change_part = parts.split("(change =")[1].replace("%)", "").strip()
