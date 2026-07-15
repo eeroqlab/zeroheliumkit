@@ -111,6 +111,7 @@ def format_freefem_path(*parts: str) -> str:
     return path
 
 
+
 class FreeFemError(Exception):
     pass
 
@@ -523,6 +524,10 @@ class EDPpreparer():
     def _script_dielectric(self, var_name: str, space_name: str = "FunctionRegion") -> str:
         """
         DOCSTRING HERE!
+        Helper function
+
+        Returns:
+            code(str): code containing the dielectric constant
         """
         epsilon = self.config["dielectric_constants"]
         code = f"{space_name} {var_name} =\n"
@@ -535,6 +540,11 @@ class EDPpreparer():
     def _script_electrode_bcs(self, electrode_name: str, var_name: str) -> str:
         """
         DOCSTRING HERE!
+
+        Helper function
+
+        Returns:
+            code(str): code contsining the electrode names, and grounded ones
         """
         main_electrode = self.physicalSurfs.get(electrode_name)
         ground_electrodes = [v for v in self.physicalSurfs.values() if v != main_electrode]
@@ -542,9 +552,21 @@ class EDPpreparer():
         for v in ground_electrodes:
             code += add_spaces(16) + f"+ on({v}, {var_name} = 0.0)\n"
         return code
+    
+    def _script_macros(self) -> str:
+        """
+        Defines the FreeFEM macros used in the problem formulation.
+
+        Returns:
+            code (str): code containing the norm, Grad, and field macro definitions.
+        """
+        code = "macro norm [N.x,N.y,N.z] //\n"
+        code += "macro Grad(u) [dx(u),dy(u),dz(u)] //\n"
+        code += "macro field(u,x,y,z) [dx(u)(x,y,z),dy(u)(x,y,z),dz(u)(x,y,z)] //\n \n"
+        return code
 
 
-    def script_problem_definition(self, electrode_name: str, mesh_adaptation: bool = False) -> str:
+    def script_problem_definition(self, electrode_name: str, mesh_adaptation: bool = False, declare_globals: bool = True) -> str:
         """
         Defines the problem for the electrostatic potential in FreeFEM, including the finite element space and the dielectric constants.
 
@@ -552,6 +574,9 @@ class EDPpreparer():
             electrode_name (str): Name of the electrode for which the problem is being defined.
             mesh_adaptation (bool): If True, skips the final Electro; call so that
                 script_mesh_adaptation() can call it on the adapted mesh instead. Default is False.
+            declare_globals (bool): If True, emits the eps constant and macro definitions.
+                Set to False when these have already been declared earlier in the script
+                (e.g. during the final solve of mesh adaptation). Default is True.
 
         Returns:
             code (str): code containing the problem definition.
@@ -567,10 +592,9 @@ class EDPpreparer():
         else:
             raise Exception("Wrong polynomial order! Choose between 1 or 2")
 
-        code += "real eps = 1e-6;\n"
-        code += "macro norm [N.x,N.y,N.z] //\n"
-        code += "macro Grad(u) [dx(u),dy(u),dz(u)] //\n"
-        code += "macro field(u,x,y,z) [dx(u)(x,y,z),dy(u)(x,y,z),dz(u)(x,y,z)] //\n \n"
+        if declare_globals:
+            code += "real eps = 1e-6;\n"
+            code += self._script_macros()
 
         if not mesh_adaptation:
             if 'periodic_BC' in self.config:
@@ -589,6 +613,8 @@ class EDPpreparer():
             code += "Electro;\n"
 
         return code
+    
+
     
 
     def script_save_data(self, config: dict) -> str:
@@ -712,7 +738,6 @@ class EDPpreparer():
 
     def script_mesh_adaptation(self, electrode_name: str, n_adapt: int = 3, err_target: float = 0.01, aniso: bool = False, hmin_scale: float = 500.0, hmax_scale: float = 5.0, save_adapted_mesh: bool = False) -> str:
         """
-        DOCSTRING HERE!
 
         Generates mesh adaptation loop code using mshmet and tetgen.
         Based on the adaptation logic provided as reference in ff_a.edp.
@@ -781,6 +806,7 @@ class EDPpreparer():
         code += add_spaces(4) + 'cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;\n'
         code += add_spaces(4) + 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n\n'
 
+# Check if you can put this part in problem definition: 
         code += add_spaces(4) + "fespace VhLoop(Th, P23d);\n"
         code += add_spaces(4) + "fespace FRLoop(Th, P03d);\n\n"
         code += add_spaces(4) + "VhLoop uLoop, vLoop;\n"
@@ -791,6 +817,8 @@ class EDPpreparer():
         code += self._script_electrode_bcs(electrode_name, "uLoop")
         code += add_spaces(8) + ";\n"
         code += add_spaces(4) + "ElectroLoop;\n\n"
+
+# until here
 
         # Track electrostatic energy
         code += add_spaces(4) + "// Track electrostatic energy\n"
@@ -823,20 +851,8 @@ class EDPpreparer():
         code += "// Final solve on adapted mesh (u stays in scope for data extraction)\n"
         code += 'cout << "=== Final solve (iteration " << nAdapt << " / " << nAdapt << ") ===" << endl;\n'
         code += 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n'
-        if 'periodic_BC' in self.config:
-            code += f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
-        else:
-            code += f"fespace Vh(Th,{femSpace});\n"
-
-        code += "fespace FunctionRegion(Th,P03d);\n\n"
-        code += "Vh u, v;\n"
-        code += self._script_dielectric("dielectric")
-
-        code += "problem Electro(u, v, solver=CG) =\n"
-        code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
-        code += self._script_electrode_bcs(electrode_name, "u")
-        code += add_spaces(16) + ";\n"
-        code += "Electro;\n\n"
+        code += self.script_problem_definition(electrode_name, declare_globals=False)
+        code += "\n"
 
         # Final energy
         code += "// Final energy\n"
@@ -1152,3 +1168,46 @@ class FreeFEM():
         await self.ffrunner.run(cores, print_log, freefem_path, timeout, retry)
         rg = ResultGatherer(self.savedir, self.result_files, self.extract_opt, remove_files=remove)
         logging.shutdown()
+        self.convergence_matrix()
+
+    #new convergence matrix function:
+    def convergence_matrix(self):
+        """
+        Parses the log files for each electrode and extracts energy convergence data.
+        Saves a summary to convergence_matrix.log in the logs directory.
+        """
+        log_dir = self.savedir.parent / "logs"
+        output_path = log_dir / "convergence_matrix.log"
+        
+        rows = []
+        
+        for electrode in self.result_files["cm"]:
+            electrode_name = electrode[0]
+            log_file = log_dir / f"ff_{electrode_name}.log"
+            
+            if not log_file.exists():
+                continue
+            
+            iteration = 0
+            with open(log_file, "r") as f:
+                for line in f:
+                    if "Energy =" in line:
+                        iteration += 1
+                        # line looks like: Energy = 758.732  (change = 100%)
+                        parts = line.strip().split("Energy =")[1]
+                        energy_part = parts.split("(change =")[0].strip()
+                        change_part = parts.split("(change =")[1].replace("%)", "").strip()
+                        rows.append({
+                            "electrode": electrode_name,
+                            "iteration": iteration,
+                            "energy": float(energy_part),
+                            "change": float(change_part)
+                        })
+        
+        with open(output_path, "w") as f:
+            f.write(f"{'Electrode':<12} {'Iteration':<12} {'Energy':<20} {'Change (%)':<12}\n")
+            f.write("-" * 56 + "\n")
+            for row in rows:
+                f.write(f"{row['electrode']:<12} {row['iteration']:<12} {row['energy']:<20} {row['change']:<12}\n")
+        
+        print(f"Convergence matrix saved to {output_path}")
