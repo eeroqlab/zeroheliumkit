@@ -67,20 +67,6 @@ def headerFrame(header: str) -> str:
     edp += '//////////////////////////////////////////////////////////\n\n'
     return edp
 
-
-def add_spaces(num: int) -> str:
-    """
-    Adds a specified number of spaces for indentation in the FreeFEM script.
-
-    Args
-        num (int): The number of spaces to add.
-
-    Returns
-        str: A string containing the specified number of spaces.
-    """
-    return ' ' * num
-
-
 def get_dict_by_name(items: list[dict], name: str) -> dict | None:
     """
     Return the first dictionary from the list where dict['name'] == name.
@@ -513,11 +499,13 @@ class EDPpreparer():
         Returns:
             code(str): code containing the dielectric constant
         """
+
+        sp26 = ' ' * 26
         epsilon = self.config["dielectric_constants"]
         code = f"{space_name} {var_name} =\n"
         for k, v in self.physicalVols.items():
-            code += add_spaces(26) + f"+ {epsilon[k]} * (region == {v})\n"
-        code += add_spaces(26) + ";\n"
+            code += sp26 + f"+ {epsilon[k]} * (region == {v})\n"
+        code += sp26 + ";\n"
         return code
 
 
@@ -615,6 +603,8 @@ class EDPpreparer():
             str: A string containing the generated code block for 2D slice data extraction.
         """
 
+        sp4, sp8, sp12 = ' '  * 4, ' ' * 8, ' ' * 12
+
         xyz = axis_ordering[config.get('plane')]
 
         code  = headerFrame("2D SLICES DATA EXTRACTION BLOCK START")
@@ -640,22 +630,22 @@ class EDPpreparer():
         # first for loop, going over the slices
         code += "for(int m = 0; m < n3; m++){\n"
         if not config.get('curvature_config'):
-            code += add_spaces(4) + "real ax3 = zcoords[m];\n"
+            code += sp4 + "real ax3 = zcoords[m];\n"
         # second for loop
-        code += add_spaces(4) + "for(int j = 0; j < n2; j++){\n"
-        code += add_spaces(8) + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
+        code += sp4 + "for(int j = 0; j < n2; j++){\n"
+        code += sp8 + "real ax2 = ymin + j*(ymax-ymin)/(n2-1);\n"
         # third for loop
-        code += add_spaces(8) + "for(int i = 0; i < n1; i++){\n"
-        code += add_spaces(12) + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
+        code += sp8 + "for(int i = 0; i < n1; i++){\n"
+        code += sp12 + "real ax1 = xmin + i*(xmax-xmin)/(n1-1);\n"
         if config.get('curvature_config'):
-            code += add_spaces(12) + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {config.get('curvature_config')['displacement']}(ax1,ax2);\n"
+            code += sp12 + f"real ax3 = {surfaceHelevel} - bulkHeliumLevelDispScales[m] * {config.get('curvature_config')['displacement']}(ax1,ax2);\n"
         
         quantity = config_quantity.get(config['quantity'])
 
-        code += add_spaces(12) + f"""{config['name']} << {quantity}({xyz}) << endl;\n"""
-        code += add_spaces(12) + """}\n"""
-        code += add_spaces(8) + """}\n"""
-        code += add_spaces(4) + "}\n"
+        code += sp12 + f"""{config['name']} << {quantity}({xyz}) << endl;\n"""
+        code += sp12 + """}\n"""
+        code += sp8 + """}\n"""
+        code += sp4 + "}\n"
         code += "}\n"
 
         code += headerFrame("2D SLICES DATA EXTRACTION BLOCK END")
@@ -673,6 +663,8 @@ class EDPpreparer():
         Returns:
             code (str): code containing the Capacitance Matrix.
         """
+
+        sp4, sp42 = ' ' * 4, ' ' * 42
         path = format_freefem_path(str(self.savedir), 'cm_' + electrode_name + ".txt")
         self.result_files["cm"].append((electrode_name, path))
 
@@ -681,9 +673,9 @@ class EDPpreparer():
         code += f"""ofstream cmextract("{path}");\n"""
         code += "\n"
         code += "for(int i = 0; i < numV; i++){\n"
-        code += add_spaces(4) + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
-        code += add_spaces(42) + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
-        code += add_spaces(4) + f"cmextract << charge << endl;\n"
+        code += sp4 + f"real charge = int2d(Th,electrodeid[i])((dielectric(x + eps*N.x, y + eps*N.y, z + eps*N.z) * field(u, x + eps*N.x, y + eps*N.y, z + eps*N.z)' * norm\n"
+        code += sp42 + f"- dielectric(x - eps*N.x, y - eps*N.y, z - eps*N.z) * field(u, x - eps*N.x, y - eps*N.y, z - eps*N.z)' * norm));\n"
+        code += sp4 + f"cmextract << charge << endl;\n"
         code += "}\n"
         code += headerFrame("END / Calculate Capacitance Matrix")
 
@@ -704,6 +696,8 @@ class EDPpreparer():
         Returns:
             code (str): FreeFEM code containing the mesh adaptation loop.
         """
+        
+        sp4, sp8, sp9 = ' ' * 4, ' ' * 8, ' ' * 9
 
         polynomial = self.config["ff_polynomial"]
         femSpace = 'P23d' if polynomial == 2 else 'P13d'
@@ -720,9 +714,9 @@ class EDPpreparer():
         code += "real bbymin = Th(0).y, bbymax = Th(0).y;\n"
         code += "real bbzmin = Th(0).z, bbzmax = Th(0).z;\n"
         code += "for (int i = 1; i < Th.nv; i++) {\n"
-        code += add_spaces(4) + "bbxmin = min(bbxmin, Th(i).x); bbxmax = max(bbxmax, Th(i).x);\n"
-        code += add_spaces(4) + "bbymin = min(bbymin, Th(i).y); bbymax = max(bbymax, Th(i).y);\n"
-        code += add_spaces(4) + "bbzmin = min(bbzmin, Th(i).z); bbzmax = max(bbzmax, Th(i).z);\n"
+        code += sp4 + "bbxmin = min(bbxmin, Th(i).x); bbxmax = max(bbxmax, Th(i).x);\n"
+        code += sp4 + "bbymin = min(bbymin, Th(i).y); bbymax = max(bbymax, Th(i).y);\n"
+        code += sp4 + "bbzmin = min(bbzmin, Th(i).z); bbzmax = max(bbzmax, Th(i).z);\n"
         code += "}\n"
         code += "real domainSize = max(bbxmax - bbxmin, max(bbymax - bbymin, bbzmax - bbzmin));\n"
         code += f"real hmin = domainSize / {adaptation_config.hmin};  // fine near features\n"
@@ -744,36 +738,36 @@ class EDPpreparer():
         # Adaptation iterations: solve, compute metric, remesh
         code += "// Adaptation iterations: solve, compute metric, remesh\n"
         code += "for (int iter = 0; iter < nAdapt - 1; iter++) {\n"
-        code += add_spaces(4) + 'cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;\n'
-        code += add_spaces(4) + 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n\n'
+        code += sp4 + 'cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;\n'
+        code += sp4 + 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n\n'
 
         code += self.script_problem_definition(electrode_name, mesh_adaptation=False, declare_globals=False, indented=1) 
 
         # Track electrostatic energy
-        code += add_spaces(4) + "// Track electrostatic energy\n"
-        code += add_spaces(4) + "real energy = int3d(Th)(dielectric * Grad(u)' * Grad(u));\n"
-        code += add_spaces(4) + "energyHistory[iter] = energy;\n"
-        code += add_spaces(4) + "real relChange = (iter > 0) ? abs(energy - energyPrev) / abs(energyPrev) * 100.0 : 100.0;\n"
-        code += add_spaces(4) + 'cout << "  Energy = " << energy << "  (change = " << relChange << "%)" << endl;\n'
-        code += add_spaces(4) + "energyPrev = energy;\n\n"
+        code += sp4 + "// Track electrostatic energy\n"
+        code += sp4 + "real energy = int3d(Th)(dielectric * Grad(u)' * Grad(u));\n"
+        code += sp4 + "energyHistory[iter] = energy;\n"
+        code += sp4 + "real relChange = (iter > 0) ? abs(energy - energyPrev) / abs(energyPrev) * 100.0 : 100.0;\n"
+        code += sp4 + 'cout << "  Energy = " << energy << "  (change = " << relChange << "%)" << endl;\n'
+        code += sp4 + "energyPrev = energy;\n\n"
 
         # Compute metric (edge-length field) based on solution Hessian
-        code += add_spaces(4) + "// Compute metric (edge-length field) based on solution Hessian\n"
-        code += add_spaces(4) + "fespace Vh1(Th, P13d);\n"
-        code += add_spaces(4) + "Vh1 h;\n"
-        code += add_spaces(4) + "h[] = mshmet(Th, u,\n"
-        code += add_spaces(8) + "normalization = 1,\n"
-        code += add_spaces(8) + f"aniso = {int(adaptation_config.anisotropy)},\n"
-        code += add_spaces(8) + "nbregul = 1,\n"
-        code += add_spaces(8) + "hmin = hmin,\n"
-        code += add_spaces(8) + "hmax = hmax,\n"
-        code += add_spaces(8) + "err = errTarget\n"
-        code += add_spaces(4) + ");\n\n"
+        code += sp4 + "// Compute metric (edge-length field) based on solution Hessian\n"
+        code += sp4 + "fespace Vh1(Th, P13d);\n"
+        code += sp4 + "Vh1 h;\n"
+        code += sp4 + "h[] = mshmet(Th, u,\n"
+        code += sp8 + "normalization = 1,\n"
+        code += sp8 + f"aniso = {int(adaptation_config.anisotropy)},\n"
+        code += sp8 + "nbregul = 1,\n"
+        code += sp8 + "hmin = hmin,\n"
+        code += sp8 + "hmax = hmax,\n"
+        code += sp8 + "err = errTarget\n"
+        code += sp4 + ");\n\n"
 
         # Convert edge-length metric to volume constraint and remesh
-        code += add_spaces(4) + "// Convert edge-length metric to volume constraint and remesh\n"
-        code += add_spaces(4) + 'Th = tetgreconstruction(Th, switch="raAQ",\n'
-        code += add_spaces(8) + "sizeofvolume = h * h * h / 6.0);\n"
+        code += sp4 + "// Convert edge-length metric to volume constraint and remesh\n"
+        code += sp4 + 'Th = tetgreconstruction(Th, switch="raAQ",\n'
+        code += sp8 + "sizeofvolume = h * h * h / 6.0);\n"
         code += "}\n\n"
 
         # Final solve on adapted mesh
@@ -795,14 +789,14 @@ class EDPpreparer():
         code += "// Print convergence summary\n"
         code += 'cout << endl << "=== ENERGY CONVERGENCE SUMMARY ===" << endl;\n'
         code += "for (int i = 0; i < nAdapt; i++) {\n"
-        code += add_spaces(4) + "real relCh = (i > 0) ? abs(energyHistory[i] - energyHistory[i-1]) / abs(energyHistory[i-1]) * 100.0 : 0.0;\n"
-        code += add_spaces(4) + 'cout << "  Iteration " << i + 1 << ": energy = " << energyHistory[i]\n'
-        code += add_spaces(9) + '<< "  change = " << relCh << "%" << endl;\n'
+        code += sp4 + "real relCh = (i > 0) ? abs(energyHistory[i] - energyHistory[i-1]) / abs(energyHistory[i-1]) * 100.0 : 0.0;\n"
+        code += sp4 + 'cout << "  Iteration " << i + 1 << ": energy = " << energyHistory[i]\n'
+        code += sp9 + '<< "  change = " << relCh << "%" << endl;\n'
         code += "}\n"
         code += "if (relChangeFinal < 1.0)\n"
-        code += add_spaces(4) + 'cout << "  >> Mesh adaptation CONVERGED (final change < 1%)" << endl;\n'
+        code += sp4 + 'cout << "  >> Mesh adaptation CONVERGED (final change < 1%)" << endl;\n'
         code += "else\n"
-        code += add_spaces(4) + 'cout << "  >> Mesh adaptation NOT converged - consider increasing nAdapt" << endl;\n'
+        code += sp4 + 'cout << "  >> Mesh adaptation NOT converged - consider increasing nAdapt" << endl;\n'
         code += 'cout << "===================================" << endl;\n\n'
 
         if adaptation_config.save_mesh:
