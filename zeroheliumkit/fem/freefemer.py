@@ -1095,7 +1095,6 @@ class FreeFEM():
         logging.shutdown()
         self.extract_and_save_convergence()
 
-    #new convergence matrix function:
     def extract_and_save_convergence(self):
         """
         Parses the log files for each electrode and extracts energy convergence data.
@@ -1103,35 +1102,51 @@ class FreeFEM():
         """
         log_dir = self.savedir.parent / "logs"
         output_path = log_dir / "convergence_matrix.log"
-        
-        rows = []
-        
+
+        data = {}
+
         for electrode in self.result_files["cm"]:
             electrode_name = electrode[0]
             log_file = log_dir / f"ff_{electrode_name}.log"
-            
+
             if not log_file.exists():
                 continue
-            
-            iteration = 0
+
+            data[electrode_name] = {"energy": [], "change": []}
             with open(log_file, "r") as f:
                 for line in f:
                     if "Energy =" in line:
-                        iteration += 1
                         parts = line.strip().split("Energy =")[1]
                         energy_part = parts.split("(change =")[0].strip()
                         change_part = parts.split("(change =")[1].replace("%)", "").strip()
-                        rows.append({
-                            "electrode": electrode_name,
-                            "iteration": iteration,
-                            "energy": float(energy_part),
-                            "change": float(change_part)
-                        })
-        
+                        data[electrode_name]["energy"].append(float(energy_part))
+                        data[electrode_name]["change"].append(float(change_part))
+
+        electrodes = list(data.keys())
+        n_iterations = max(len(data[e]["energy"]) for e in electrodes)
+
         with open(output_path, "w") as f:
-            f.write(f"{'Electrode':<12} {'Iteration':<12} {'Energy':<20} {'Change (%)':<12}\n")
-            f.write("-" * 56 + "\n")
-            for row in rows:
-                f.write(f"{row['electrode']:<12} {row['iteration']:<12} {row['energy']:<20} {row['change']:<12}\n")
-        
+            
+            f.write("ENERGY MATRIX\n")
+            f.write(f"{'Iteration':<12}" + "".join(f"{e:<16}" for e in electrodes) + "\n")
+            f.write("-" * (12 + 16 * len(electrodes)) + "\n")
+            for i in range(n_iterations):
+                f.write(f"{i+1:<12}")
+                for e in electrodes:
+                    val = data[e]["energy"][i] if i < len(data[e]["energy"]) else ""
+                    f.write(f"{val:<16}")
+                f.write("\n")
+
+            f.write("\n")
+
+            f.write("CHANGE MATRIX (%)\n")
+            f.write(f"{'Iteration':<12}" + "".join(f"{e:<16}" for e in electrodes) + "\n")
+            f.write("-" * (12 + 16 * len(electrodes)) + "\n")
+            for i in range(n_iterations):
+                f.write(f"{i+1:<12}")
+                for e in electrodes:
+                    val = data[e]["change"][i] if i < len(data[e]["change"]) else ""
+                    f.write(f"{val:<16}")
+                f.write("\n")
+
         print(f"Convergence matrix saved to {output_path}")
