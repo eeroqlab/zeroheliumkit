@@ -521,7 +521,7 @@ class EDPpreparer():
         return code
 
 
-    def _script_electrode_bcs(self, electrode_name: str, var_name: str) -> str:
+    def _script_electrode_bcs(self, electrode_name: str, var_name: str, indented: int = 0) -> str:
         """
         EDP helper to define correct Boundary conditions
         Helper function
@@ -529,11 +529,12 @@ class EDPpreparer():
         Returns:
             code(str): code contsining the electrode names, and grounded ones
         """
+        sp4, sp16 = ' ' * 4 * indented, ' ' * 16
         main_electrode = self.physicalSurfs.get(electrode_name)
         ground_electrodes = [v for v in self.physicalSurfs.values() if v != main_electrode]
-        code = add_spaces(16) + f"+ on({main_electrode}, {var_name} = 1.0)\n"
+        code = sp4 + sp16 + f"+ on({main_electrode}, {var_name} = 1.0)\n"
         for v in ground_electrodes:
-            code += add_spaces(16) + f"+ on({v}, {var_name} = 0.0)\n"
+            code += sp4 + sp16 + f"+ on({v}, {var_name} = 0.0)\n"
         return code
     
     def _script_macros(self) -> str:
@@ -549,7 +550,12 @@ class EDPpreparer():
         return code
 
 
-    def script_problem_definition(self, electrode_name: str, mesh_adaptation: bool = False, declare_globals: bool = True) -> str:
+    def script_problem_definition(
+            self,
+            electrode_name: str,
+            mesh_adaptation: bool = False,
+            declare_globals: bool = True,
+            indented: int = 0) -> str:
         """
         Defines the problem for the electrostatic potential in FreeFEM, including the finite element space and the dielectric constants.
 
@@ -564,6 +570,9 @@ class EDPpreparer():
         Returns:
             code (str): code containing the problem definition.
         """
+
+        sp4, sp16 = ' ' * 4 * indented, ' ' * 16
+
         polynomial = self.config["ff_polynomial"]
 
         code = "\n"
@@ -576,24 +585,24 @@ class EDPpreparer():
             raise Exception("Wrong polynomial order! Choose between 1 or 2")
 
         if declare_globals:
-            code += "real eps = 1e-6;\n"
-            code += self._script_macros()
+            code += sp4 + "real eps = 1e-6;\n"
+            code += sp4 + self._script_macros()
 
         if not mesh_adaptation:
             if 'periodic_BC' in self.config:
-                code += f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
+                code += sp4 + f"""fespace Vh(Th,{femSpace}, periodic=[[{self.config.get('periodic_BC')[0]}, x, y], [{self.config.get('periodic_BC')[1]}, x, y]]);\n"""
             else:
-                code += f"""fespace Vh(Th,{femSpace});\n"""
+                code += sp4 + f"""fespace Vh(Th,{femSpace});\n"""
 
-            code += "fespace FunctionRegion(Th,P03d);\n"
-            code += "Vh u,v;\n"
-            code += self._script_dielectric("dielectric")
+            code += sp4 + "fespace FunctionRegion(Th,P03d);\n"
+            code += sp4 + "Vh u,v;\n"
+            code += sp4 + self._script_dielectric("dielectric")
 
-            code += "problem Electro(u,v,solver=CG) =\n"
-            code += add_spaces(16) + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
-            code += self._script_electrode_bcs(electrode_name, "u")
-            code += add_spaces(16) + ";\n"
-            code += "Electro;\n"
+            code += sp4 + "problem Electro(u,v,solver=CG) =\n"
+            code += sp4 + sp16 + "int3d(Th)(dielectric * Grad(u)' * Grad(v))\n"
+            code += self._script_electrode_bcs(electrode_name, "u", indented)
+            code += sp4 + sp16 + ";\n"
+            code += sp4 + "Electro;\n"
 
         return code
 
@@ -738,21 +747,11 @@ class EDPpreparer():
         code += add_spaces(4) + 'cout << "=== Adaptation iteration " << iter+1 << " / " << nAdapt << " ===" << endl;\n'
         code += add_spaces(4) + 'cout << "  Mesh: " << Th.nv << " vertices, " << Th.nt << " tetrahedra" << endl;\n\n'
 
-        # Check if you can put this part in problem definition: 
-        code += add_spaces(4) + "fespace VhLoop(Th, P23d);\n"
-        code += add_spaces(4) + "fespace FRLoop(Th, P03d);\n\n"
-        code += add_spaces(4) + "VhLoop uLoop, vLoop;\n"
-        code += add_spaces(4) + self._script_dielectric("dielectricLoop", "FRLoop")
-
-        code += add_spaces(4) + "problem ElectroLoop(uLoop, vLoop, solver=CG) =\n"
-        code += add_spaces(8) + "int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(vLoop))\n"
-        code += self._script_electrode_bcs(electrode_name, "uLoop")
-        code += add_spaces(8) + ";\n"
-        code += add_spaces(4) + "ElectroLoop;\n\n"
+        code += self.script_problem_definition(electrode_name, mesh_adaptation=False, declare_globals=False, indented=1) 
 
         # Track electrostatic energy
         code += add_spaces(4) + "// Track electrostatic energy\n"
-        code += add_spaces(4) + "real energy = int3d(Th)(dielectricLoop * Grad(uLoop)' * Grad(uLoop));\n"
+        code += add_spaces(4) + "real energy = int3d(Th)(dielectric * Grad(u)' * Grad(u));\n"
         code += add_spaces(4) + "energyHistory[iter] = energy;\n"
         code += add_spaces(4) + "real relChange = (iter > 0) ? abs(energy - energyPrev) / abs(energyPrev) * 100.0 : 100.0;\n"
         code += add_spaces(4) + 'cout << "  Energy = " << energy << "  (change = " << relChange << "%)" << endl;\n'
@@ -762,7 +761,7 @@ class EDPpreparer():
         code += add_spaces(4) + "// Compute metric (edge-length field) based on solution Hessian\n"
         code += add_spaces(4) + "fespace Vh1(Th, P13d);\n"
         code += add_spaces(4) + "Vh1 h;\n"
-        code += add_spaces(4) + "h[] = mshmet(Th, uLoop,\n"
+        code += add_spaces(4) + "h[] = mshmet(Th, u,\n"
         code += add_spaces(8) + "normalization = 1,\n"
         code += add_spaces(8) + f"aniso = {int(adaptation_config.anisotropy)},\n"
         code += add_spaces(8) + "nbregul = 1,\n"
