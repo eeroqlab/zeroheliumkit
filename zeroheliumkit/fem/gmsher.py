@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, asdict
 from tabulate import tabulate
 from pathlib import Path
 
+from zeroheliumkit.src import Layer
+
 EPS = 1e-6
 
 
@@ -65,12 +67,16 @@ class ExtrudeSettings:
             Defaults to None.
         forConstruction (bool, optional): Flag indicating if the layer is for construction purposes. Defaults to False.
     """
-    geometry: Polygon | MultiPolygon
+    geometry: Polygon | MultiPolygon | Layer
     z_base: float = 0.0
     height: float = 1.0
     physical_name: str = "DIELECTRIC"
     cut: tuple[str] = None
     forConstruction: bool = False
+
+    def __post_init__(self):
+        if isinstance(self.geometry, Layer):
+            self.geometry = self.geometry.polygons
 
 
 @dataclass
@@ -83,9 +89,13 @@ class SurfaceSettings:
         z (float): Z-coordinate of the surface.
         index (list[int], optional): List of polygon indices associated with the surface. Defaults to an empty list. Not user defined.
     """
-    geometry: Polygon | MultiPolygon
+    geometry: Polygon | MultiPolygon | Layer
     z: float
     index: list[int] = field(init=False, default_factory=list)
+
+    def __post_init__(self):
+        if isinstance(self.geometry, Layer):
+            self.geometry = self.geometry.polygons
 
 
 @dataclass
@@ -103,7 +113,7 @@ class PECSettings:
         tags (list[int], optional): List of tags associated with the PEC boundary. Automatically assigned. Not user defined.
         prepared_polygons (list[Polygon], optional): List of prepared polygons for the PEC boundary. Automatically assigned. Not user defined.
     """
-    geometry: Polygon | MultiPolygon
+    geometry: Polygon | MultiPolygon | Layer
     indices: list[int]
     volume: ExtrudeSettings = None
     z: float = None
@@ -113,6 +123,8 @@ class PECSettings:
     prepared_polygons: list[Polygon] = field(init=False, default_factory=list)
 
     def __post_init__(self):
+        if isinstance(self.geometry, Layer):
+            self.geometry = self.geometry.polygons
         if (self.z is not None) and (self.volume is not None):
             raise ValueError("PECSettings: Only one of 'z' or 'volume' should be provided initially.")
         for id in self.indices:
