@@ -338,7 +338,7 @@ class Entity():
     #### Exporting operations ####
     ##############################
 
-    def export_dict(self, remove_holes: bool=False) -> dict:
+    def as_dict(self, remove_holes: bool=False, include_anchors_skeletone: bool=True) -> dict:
         """ 
         Returns all layer names and their corresponding geometries in a Dictionary. Includes anchors and skeletone.
 
@@ -348,7 +348,7 @@ class Entity():
         Returns:
             zhk_dict(dict): A dictionary containing layer names as keys and their corresponding geometries as values.
         """
-        lnames = self.layers + ["skeletone", "anchors"]
+        lnames = self.layers + ["skeletone", "anchors"] if include_anchors_skeletone else self.layers
         edict = dict.fromkeys(lnames)
         for lname in lnames:
             layer = getattr(self, lname)
@@ -365,13 +365,13 @@ class Entity():
         Args:
             filename (str): The name of the pickle file to be exported.
         """
-        zhkdict = self.export_dict()
+        zhkdict = self.as_dict()
         zhkdict["colors"] = self.colors
         exp = Exporter_Pickle(filename, zhkdict)
         exp.save()
 
 
-    def export_gds(self, filename: str, layer_cfg: dict, cellname: str="toplevel") -> None:
+    def export_gds(self, filename: str, cellname: str="toplevel") -> None:
         """
         Exports all layers as a GDS file.
 
@@ -380,8 +380,8 @@ class Entity():
             layer_cfg (dict): A dictionary containing the layer configuration.
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
-        zhkdict = self.export_dict(remove_holes=True)
-        exp = Exporter_GDS(filename, zhkdict, layer_cfg, cellname)
+        zhkdict = self.as_dict(remove_holes=True, include_anchors_skeletone=False)
+        exp = Exporter_GDS(filename, zhkdict, cellname)
         exp.save()
 
 
@@ -393,7 +393,7 @@ class Entity():
             filename (str): The name of the dxf file to be exported.
             layer_cfg (dict): A list of layer to be exported.
         """
-        zhkdict = self.export_dict(remove_holes=True)
+        zhkdict = self.as_dict(remove_holes=True, include_anchors_skeletone=False)
         exp = Exporter_DXF(filename, zhkdict, layer_cfg)
         exp.save()
 
