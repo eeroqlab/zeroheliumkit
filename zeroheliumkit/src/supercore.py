@@ -10,18 +10,20 @@ Classes
 """
 
 import numpy as np
+import gdstk
+import math
 
 from warnings import warn
 from dataclasses import dataclass
 from shapely import (line_locate_point, line_interpolate_point, intersection_all, distance)
 from shapely import LineString, Point, Polygon, MultiLineString, MultiPolygon, GeometryCollection, MultiPoint
 
-from .anchors import Anchor, MultiAnchor, Skeletone, Layer
+from .anchors import Anchor, MultiAnchor, Skeletone, Layer, GDSSpec
 from .core import Structure, Entity
 from .geometries import ArcLine
 from .plotting import ColorHandler
 from .utils import (fmodnew, flatten_lines, to_geometry_list, round_corner, buffer_line_with_variable_width)
-from .functions import get_normals_along_line
+from .functions import get_normals_along_line, structure_to_cell, cell_to_structure
 from .routing import create_route
 from .errors import WrongSizeError
 
@@ -394,8 +396,13 @@ class GeomCollection(SuperStructure):
 
     Args:
         layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors/colors.
+        dict_of_gdsspec (dict): Dictionary containing the layer names and corresponding GDSSpec(layer=0,datatype=0) configuration spec.
     """
-    def __init__(self, layers: dict=None):
+    def __init__(
+            self,
+            layers: dict=None,
+            dict_of_gdsspec: dict[str, GDSSpec]=None
+            ):
         super().__init__(route_config={"radius": 50, "num_segments": 13})
         if layers:
             for items in layers.items():
@@ -428,6 +435,9 @@ class GeomCollection(SuperStructure):
         if not hasattr(self, "skeletone"):
             self.skeletone = Skeletone()
 
+        if dict_of_gdsspec:
+            for key, gdsspec in dict_of_gdsspec.items():
+                getattr(self, key).gds_spec = gdsspec
         # if self.colors.is_empty:
         #     self.colors.update_colors(self.layers)
 
@@ -760,3 +770,133 @@ class ContinuousLineBuilder():
     def taper(self, length: float|int, layers: dict):
         # TODO: Implement tapering
         pass
+
+
+
+class GDSAssembly():
+    """
+    Holds a gdstk.Library and a top cell, and composes zhk Structures and/or raw
+    gdstk cells into a hierarchical GDS design via cell references (gdstk.Reference).
+
+    Unlike Structure/Entity, GDSAssembly has no flat layers of its own -- it exists
+    purely to manage the gdstk.Library/cell-reference hierarchy. To include local
+    geometry alongside references, build it as a normal Structure and add it via
+    `add_structure` like any other referenced cell.
+    """
+
+    def __init__(self, top_cell_name: str = 'toplevel'):
+        self.library = gdstk.Library()
+        self.top_cell = self.library.new_cell(top_cell_name)
+
+    @property
+    def cell_names(self) -> list:
+        return [cell.name for cell in self.library.cells]
+
+    ##############################
+    #### reference operations ####
+    ##############################
+
+    def add_structure(self, structure: Entity, layer_cfg: dict, cell_name: str,
+                       position: tuple = (0, 0), rotation: float = 0) -> gdstk.Cell:
+        """
+        Converts `structure` to a gdstk.Cell in this assembly's library (reusing the
+        cell if `cell_name` was already added) and places one reference to it.
+
+        Args:
+            structure (Entity): the zhk Entity/Structure to place.
+            layer_cfg (dict): layer configuration passed to `structure_to_cell`.
+            cell_name (str): name for the converted cell.
+            position (tuple): (x, y) placement of the reference.
+            rotation (float): rotation of the reference, in degrees.
+
+        Returns:
+            gdstk.Cell: the converted cell, reusable for further references
+            (via `add_reference`/`add_reference_array`) without reconverting.
+        """
+        cell = structure_to_cell(structure, layer_cfg, cell_name, library=self.library)
+        self.add_reference(cell, position, rotation)
+        return cell
+
+    def add_reference(self, cell: gdstk.Cell, position: tuple, rotation: float = 0) -> None:
+        """
+        Places a single reference to `cell` in the top cell.
+
+        Args:
+            cell (gdstk.Cell): the cell to reference (e.g. from `add_structure`,
+                or loaded directly via gdstk).
+            position (tuple): (x, y) placement of the reference.
+            rotation (float): rotation of the reference, in degrees.
+        """
+        if cell.name not in self.cell_names:
+            self.library.add(cell)
+        self.top_cell.add(gdstk.Reference(cell, position, rotation=math.radians(rotation)))
+
+    def add_reference_array(self, cell: gdstk.Cell, position: tuple = (0, 0),
+                             columns: int = 1, rows: int = 1, spacing: tuple = (0, 0),
+                             rotation: float = 0) -> None:
+        """
+        Places a 2D array of references to `cell` in the top cell.
+
+        Args:
+            cell (gdstk.Cell): the cell to reference and array.
+            position (tuple): (x, y) placement of the first instance of the array.
+            columns (int): number of columns in the array.
+            rows (int): number of rows in the array.
+            spacing (tuple): (dx, dy) spacing between column/row centerpoints.
+            rotation (float): rotation of each reference, in degrees.
+        """
+        if cell.name not in self.cell_names:
+            self.library.add(cell)
+        self.top_cell.add(gdstk.Reference(cell, position, columns=columns, rows=rows,
+                                           spacing=spacing, rotation=math.radians(rotation)))
+
+    ##############################
+    #### Exporting operations ####
+    ##############################
+
+    def export_gds(self, filename: str) -> None:
+        """
+        Writes this assembly's library (top cell + all referenced cells) to a GDS file.
+
+        Args:
+            filename (str): the name of the gds file to be exported (without extension).
+        """
+        self.library.write_gds(filename + '.gds')
+
+    ##############################
+    #### Importing operations ####
+    ##############################
+
+    @classmethod
+    def from_gds(cls, filepath: str, top_cell_name: str = None) -> "GDSAssembly":
+        """
+        Loads a GDS file, keeping its full cell hierarchy intact (no flattening).
+
+        Args:
+            filepath (str): path to the .gds file.
+            top_cell_name (str, optional): name of the top cell. Defaults to the
+                library's own top-level cell.
+
+        Returns:
+            GDSAssembly: assembly wrapping the loaded library.
+        """
+        assembly = cls.__new__(cls)
+        assembly.library = gdstk.read_gds(filepath)
+        assembly.top_cell = (assembly.library[top_cell_name] if top_cell_name
+                              else assembly.library.top_level()[0])
+        return assembly
+
+    def flatten_to_structure(self, layer_cfg: dict, cell_name: str = None) -> GeomCollection:
+        """
+        Resolves one cell's polygons (default: the top cell) into a flat GeomCollection.
+        Deliberately lossy -- does not preserve hierarchy. See `cell_to_structure`.
+
+        Args:
+            layer_cfg (dict): layer configuration used to map GDS layer numbers to names.
+            cell_name (str, optional): name of the cell to flatten. Defaults to the top cell.
+
+        Returns:
+            GeomCollection: flat structure with the cell's polygons.
+        """
+        cell = self.library[cell_name] if cell_name else self.top_cell
+        return cell_to_structure(cell, layer_cfg)

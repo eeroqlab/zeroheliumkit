@@ -9,6 +9,8 @@ from ezdxf.colors import BYLAYER
 from shapely import Polygon, MultiPolygon, unary_union
 from svgpathtools import parse_path, Line, CubicBezier, QuadraticBezier
 
+from .anchors import Layer
+from .functions import write_layers_to_cell, read_layers_from_cell
 from .errors import *
 from .utils import to_geometry_list
 
@@ -31,48 +33,46 @@ class Exporter_GDS():
         name (str): The base name of the GDSII file (without extension).
         zhk_layers (dict): A dictionary containing the geometries for each layer.
                            Expected: zhk_layers[lname].geoms yields shapely polygons.
-        layer_cfg (dict): A dictionary containing the layer configuration.
-                          Expected keys like {"layer": int, "datatype": int}.
     """
 
-    __slots__ = "name", "zhk_layers", "gdsii", "layer_cfg"
+    __slots__ = "name", "zhk_layers", "gdsii"
 
-    def __init__(self, name: str, zhk_layers: dict, layer_cfg: dict, cellname: str="toplevel") -> None:
+    def __init__(
+            self,
+            name: str,
+            zhk_layers: dict[str, Layer],
+            cellname: str,
+            library: gdstk.Library=None
+            ) -> None:
         self.name = name
-        self.zhk_layers = zhk_layers
-        self.layer_cfg = layer_cfg
-        self.preapre_gds(cellname)
+        self.zhk_layers = {k: v for k, v in zhk_layers.items() if k not in ["anchors", "skeletone"]}
+        self.preapre_gds(cellname, library)
 
-    def preapre_gds(self, cellname: str="toplevel") -> None:
-        """
-        Prepare the GDSII library by creating a top-level cell and adding polygons.
+    def preapre_gds(self, cellname: str, library: gdstk.Library=None) -> None:
+        if library is None:
+            self.gds_lib = gdstk.Library()
+            cell = gdstk.Cell(cellname)
+            self.gds_lib.add(cell)
+        else:
+            self.gds_lib = library
+            # Check if cell already exists in the library
+            existing_names = {c.name: c for c in self.gds_lib.cells}
+            if cellname in existing_names:
+                # Reuse existing cell, just append geometry to it
+                cell = existing_names[cellname]
+            else:
+                # Cell not found, create a new one and add it
+                cell = gdstk.Cell(cellname)
+                self.gds_lib.add(cell)
 
-        Notes vs gdspy:
-        - gdstk does not have `exclude_from_current`; cells are not automatically "current".
-        - gdstk polygons use `layer` and `datatype` (same concepts).
-        """
-        self.gdsii = gdstk.Library()
-        cell = gdstk.Cell(cellname)
-        self.gdsii.add(cell)
-
-        for lname, l_property in self.layer_cfg.items():
-            polygons = self.zhk_layers[lname].polygons
-            for poly in to_geometry_list(polygons):
-                points = list(poly.exterior.coords)
-
-                # Optional: shapely exterior repeats the first point at the end.
-                # gdstk is fine either way, but removing the duplicate keeps things tidy.
-                if len(points) > 1 and points[0] == points[-1]:
-                    points = points[:-1]
-
-                gds_poly = gdstk.Polygon(points, **l_property)
-                cell.add(gds_poly)
+        # Add structure geometry to cell (existing or new)
+        write_layers_to_cell(cell, self.zhk_layers)
 
     def save(self):
         """
-        Saves the GDSII file.
+        Saves the gdstk file.
         """
-        self.gdsii.write_gds(self.name + '.gds')
+        self.gds_lib.write_gds(self.name + '.gds')
         print("Geometries saved successfully.")
 
 

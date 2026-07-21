@@ -20,7 +20,7 @@ import copy
 import numpy as np
 import matplotlib.pyplot as plt
 
-from typing import Self
+from typing import Self, NamedTuple
 from tabulate import tabulate
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
 from shapely import (affinity, unary_union,
@@ -62,6 +62,11 @@ def snap_on_grid(
             return self if return_self else getattr(self, attr)
         return wrapper
     return decorator
+
+
+class GDSSpec(NamedTuple):
+    layer: int
+    datatype: int = 0
 
 
 class Anchor():
@@ -878,17 +883,19 @@ def get_dxdy(point1: tuple | Point | Anchor, point2: tuple | Point | Anchor) -> 
 
 class Layer():
     
-    __slots__ = "name", "polygons", "color", "enable_grid_snap"
+    __slots__ = "name", "polygons", "color", "enable_grid_snap", "gds_spec"
 
     def __init__(self,
                  name: str,
                  polygons: Polygon | MultiPolygon = MultiPolygon(),
                  color: tuple = (RED, 1),
-                 enable_grid_snap: bool = True):
+                 enable_grid_snap: bool = True,
+                 gds_spec: GDSSpec = GDSSpec(0,0)):
         self.name = name
         self.polygons = polygons
         self.color = color if isinstance(color, tuple) else (color, 1)
         self.enable_grid_snap = enable_grid_snap
+        self.gds_spec = gds_spec
 
 
     def __repr__(self):

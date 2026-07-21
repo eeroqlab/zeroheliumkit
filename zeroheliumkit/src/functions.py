@@ -7,10 +7,13 @@ This file contains utility functions for geometric operations, such as calculati
 
 from numpy import cos, sin, pi
 
-from shapely import Point, LineString, Polygon
-from shapely import distance, line_locate_point
+import gdstk
+from shapely import Point, LineString, Polygon, MultiPolygon
+from shapely import distance, line_locate_point, unary_union
 
-from .anchors import Anchor
+from .anchors import Anchor, Layer, GDSSpec
+from .core import Entity, Structure
+from .supercore import GeomCollection
 from .utils import get_normals_along_line
 
 
@@ -133,3 +136,109 @@ def generate_random_anchors(n: int, x_range: tuple, y_range: tuple) -> list:
     """
     from random import uniform
     return [Anchor(Point(uniform(*x_range), uniform(*y_range)), uniform(0, 360), f"anchor_{i}") for i in range(n)]
+
+
+def write_layers_to_cell(
+        cell: gdstk.Cell,
+        dict_of_layers: dict[str, Layer]
+    ) -> None:
+    """
+    Adds polygons from a zhk layers dict into a gdstk.Cell, skipping the
+    'skeletone'/'anchors' pseudo-layers.
+    """
+    for name, layer in dict_of_layers.items():
+        for poly in layer.polygons.geoms:
+            points = list(poly.exterior.coords)
+            if len(points) > 1 and points[0] == points[-1]:
+                points = points[:-1]
+            gds_poly = gdstk.Polygon(points, **layer.gds_spec._asdict())
+            cell.add(gds_poly)
+
+
+def read_layers_from_cell(cell: gdstk.Cell, depth: int=0) -> dict[tuple, MultiPolygon]:
+    """
+    Groups a gdstk.Cell's polygons -- including those from nested references,
+    resolved recursively -- by GDS layer number into shapely MultiPolygons.
+    """
+    by_layer = {}
+    for p in cell.get_polygons(depth=depth):
+        key = (p.layer, p.datatype)
+        points = [(float(x), float(y)) for x, y in p.points]
+        shp = Polygon(points)
+        if shp.is_empty:
+            continue
+        by_layer.setdefault(key, []).append(shp)
+
+    layer_dict = {}
+    for key, polys in by_layer.items():
+        merged = unary_union(polys) if polys else MultiPolygon()
+        if merged.geom_type == "Polygon":
+            merged = MultiPolygon([merged])
+        layer_dict[key] = merged
+    return layer_dict
+
+
+def structure_to_cell(
+        structure: Entity | Structure,
+        cell_name: str,
+        library: gdstk.Library = None
+    ) -> gdstk.Cell:
+    """
+    Flattens a zhk Entity/Structure's layers into a gdstk.Cell. No file I/O.
+
+    Args:
+        structure (Entity): the zhk Entity/Structure to convert.
+        cell_name (str): name of the gdstk.Cell to create (or reuse) within `library`.
+        library (gdstk.Library, optional): library to add the cell to. If None, a fresh
+            library is created. Pass the same library across calls (e.g. via
+            GDSAssembly.add_structure) to accumulate cells for later referencing.
+
+    Returns:
+        gdstk.Cell: the created (or reused) cell, containing the structure's polygons.
+    """
+    dict_of_layers = structure.export_dict(remove_holes=True)
+
+    if library is None:
+        library = gdstk.Library()
+
+    existing_names = {cell.name: cell for cell in library.cells}
+    if cell_name in existing_names:
+        cell = existing_names[cell_name]
+    else:
+        cell = gdstk.Cell(cell_name)
+        library.add(cell)
+
+    write_layers_to_cell(cell, dict_of_layers)
+    return cell
+
+
+def cell_to_structure(cell: gdstk.Cell, name_mapping: dict) -> GeomCollection:
+    """
+    Resolves a gdstk.Cell's polygons back into a flat zhk GeomCollection.
+
+    Nested references inside `cell` are resolved recursively (see _read_layers_from_cell),
+    but the result is flat -- hierarchy information itself is not preserved. See
+    GDSAssembly.from_gds for hierarchy-preserving import.
+
+    Args:
+        cell (gdstk.Cell): the cell to convert.
+        name_mapping (dict): layer configuration, e.g. {1: "metal", 2: "ground"}.
+            Used to map GDS layer numbers back to zhk layer names.
+
+    Returns:
+        GeomCollection: flat structure with one Layer per layer number found in `name_mapping`.
+    """
+    gds_layer_dict = read_layers_from_cell(cell)
+
+    dict_of_layers = {}
+    dict_of_gdsspec = {}
+    for key, multipolygon in gds_layer_dict.items():
+        name = name_mapping.get(key[0], None)
+        if name is None:
+            print(message=f"cell '{cell.name}' has layer {key[0]}, datatype {key[1]} "
+                         "not present in name_mapping; skipping.")
+            continue
+        dict_of_layers[name] = multipolygon
+        dict_of_gdsspec[name] = GDSSpec(**key)
+
+    return GeomCollection(dict_of_layers, dict_of_gdsspec)
