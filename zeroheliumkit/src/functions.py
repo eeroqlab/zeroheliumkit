@@ -137,13 +137,14 @@ def generate_random_anchors(n: int, x_range: tuple, y_range: tuple) -> list:
 
 
 def write_layers_to_cell(
-        cell: gdstk.Cell,
+        cell_name: str,
         dict_of_layers: dict[str, Layer]
     ) -> None:
     """
     Adds polygons from a zhk layers dict into a gdstk.Cell, skipping the
     'skeletone'/'anchors' pseudo-layers.
     """
+    cell = gdstk.Cell(cell_name)
     for name, layer in dict_of_layers.items():
         for poly in layer.polygons.geoms:
             points = list(poly.exterior.coords)
@@ -151,6 +152,7 @@ def write_layers_to_cell(
                 points = points[:-1]
             gds_poly = gdstk.Polygon(points, **layer.gds_spec._asdict())
             cell.add(gds_poly)
+    return cell
 
 
 def read_layers_from_cell(cell: gdstk.Cell, depth: int=0) -> dict[tuple, MultiPolygon]:

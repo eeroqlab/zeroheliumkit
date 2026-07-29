@@ -394,13 +394,8 @@ class GeomCollection(SuperStructure):
 
     Args:
         layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors/colors.
-        dict_of_gdsspec (dict): Dictionary containing the layer names and corresponding GDSSpec(layer=0,datatype=0) configuration spec.
     """
-    def __init__(
-            self,
-            layers: dict=None,
-            dict_of_gdsspec: dict[str, GDSSpec]=None
-            ):
+    def __init__(self, layers: dict=None):
         super().__init__(route_config={"radius": 50, "num_segments": 13})
         if layers:
             for items in layers.items():
@@ -433,9 +428,6 @@ class GeomCollection(SuperStructure):
         if not hasattr(self, "skeletone"):
             self.skeletone = Skeletone()
 
-        if dict_of_gdsspec:
-            for key, gdsspec in dict_of_gdsspec.items():
-                getattr(self, key).gds_spec = gdsspec
         # if self.colors.is_empty:
         #     self.colors.update_colors(self.layers)
 

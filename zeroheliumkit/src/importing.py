@@ -1,12 +1,11 @@
-import warnings
-import numbers
+
 import gdstk
 import ezdxf
 import pickle
 import xml.etree.ElementTree as ET
 
 from ezdxf.colors import BYLAYER
-from shapely import Polygon, MultiPolygon, unary_union
+from shapely import Polygon, MultiPolygon
 from svgpathtools import parse_path, Line, CubicBezier, QuadraticBezier
 
 from .anchors import Layer
@@ -35,44 +34,30 @@ class Exporter_GDS():
                            Expected: zhk_layers[lname].geoms yields shapely polygons.
     """
 
-    __slots__ = "name", "zhk_layers", "gdsii"
+    __slots__ = "name", "zhk_layers", "lib"
 
     def __init__(
             self,
             name: str,
             zhk_layers: dict[str, Layer],
-            cellname: str,
-            library: gdstk.Library=None
+            cell_name: str
             ) -> None:
         self.name = name
         self.zhk_layers = {k: v for k, v in zhk_layers.items() if k not in ["anchors", "skeletone"]}
-        self.preapre_gds(cellname, library)
+        self.preapre_gds(cell_name)
 
-    def preapre_gds(self, cellname: str, library: gdstk.Library=None) -> None:
-        if library is None:
-            self.gds_lib = gdstk.Library()
-            cell = gdstk.Cell(cellname)
-            self.gds_lib.add(cell)
-        else:
-            self.gds_lib = library
-            # Check if cell already exists in the library
-            existing_names = {c.name: c for c in self.gds_lib.cells}
-            if cellname in existing_names:
-                # Reuse existing cell, just append geometry to it
-                cell = existing_names[cellname]
-            else:
-                # Cell not found, create a new one and add it
-                cell = gdstk.Cell(cellname)
-                self.gds_lib.add(cell)
 
-        # Add structure geometry to cell (existing or new)
-        write_layers_to_cell(cell, self.zhk_layers)
+    def preapre_gds(self, cell_name: str) -> None:
+        cell = write_layers_to_cell(cell_name, self.zhk_layers)
+        self.lib = gdstk.Library()
+        self.lib.add(cell)
+        
 
     def save(self):
         """
-        Saves the gdstk file.
+        Saves the gds file.
         """
-        self.gds_lib.write_gds(self.name + '.gds')
+        self.lib.write_gds(self.name + '.gds')
         print("Geometries saved successfully.")
 
 
@@ -82,72 +67,32 @@ class Reader_GDS():
 
     Args:
         filename (str): Path to the GDSII file.
-        cellname (str): Name of the cell to import (default: "toplevel").
 
     Attributes:
-        geometries (dict): Output dict after import2zhk(), mapping "L<layer>" -> MultiPolygon.
-        gdsii (gdstk.Library): Loaded gdstk library.
-        cells (dict): Dict mapping cellname -> {layer_number -> MultiPolygon}.
+        lib (gdstk.Library): Loaded gdstk library.
+        cells (dict): Dict mapping cellname -> {(layer_number, datatype) -> MultiPolygon}.
     """
 
-    __slots__ = "filename", "geometries", "gdsii", "cells"
+    __slots__ = "filename", "lib", "cells"
 
-    def __init__(self, filename: str, cellname: str = "toplevel"):
+    def __init__(self, filename: str):
         self.filename = filename
-        self.geometries = {}
-        self.cells = {}
-        self.gdsii = gdstk.read_gds(filename)
-        self.extract_geometries()
-        self.prepare_dict(cellname)
+        self.lib = gdstk.read_gds(filename)
 
-    def extract_geometries(self) -> None:
-        cells_out = {}
+        print(f"cells in gds library: {self.cell_names}")
 
-        # gdstk: library.cells is a list of Cell objects
-        for cell in self.gdsii.cells:
-            name = cell.name
+        self.extract_cells()
 
-            # Collect polygons per layer (we'll union at the end per layer)
-            by_layer = {}
+    @property
+    def cell_names(self):
+        return [cell.name for cell in self.lib.cells]
 
-            # gdstk polygons live in cell.polygons (list of gdstk.Polygon)
-            for p in cell.polygons:
-                layer = p.layer
+    def extract_cells(self):
+        self.cells = {cell.name: cell for cell in self.lib.cells}
 
-                # gdstk.Polygon.points is an Nx2 numpy array-like
-                pts = p.points
-                # Ensure plain Python list of (x, y)
-                points = [(float(x), float(y)) for x, y in pts]
-
-                # Shapely polygon; if degenerate, Polygon(...) may be invalid/empty
-                shp = Polygon(points)
-                if shp.is_empty:
-                    continue
-
-                by_layer.setdefault(layer, []).append(shp)
-
-            layer_numbers = sorted(by_layer.keys())
-            print(f"{self.filename} // Layers in cell '{name}': {layer_numbers}")
-
-            # Build MultiPolygon per layer via unary_union
-            layer_map = {}
-            for layer in layer_numbers:
-                merged = unary_union(by_layer[layer]) if by_layer[layer] else MultiPolygon()
-                # Ensure MultiPolygon type for consistency
-                if merged.geom_type == "Polygon":
-                    merged = MultiPolygon([merged])
-                layer_map[layer] = merged
-
-            cells_out[name] = layer_map
-
-        self.cells = cells_out
-
-    def prepare_dict(self, cellname: str = "toplevel") -> None:
-        geoms = self.cells[cellname]
-        self.geometries = {
-            ("L" + str(k) if isinstance(k, numbers.Number) else k): v
-            for k, v in geoms.items()
-        }
+    def extract_geometries(self, cellname: str = None, depth: int = 0) -> dict[tuple, MultiPolygon]:
+        cell = self.cells[cellname]
+        return read_layers_from_cell(cell, depth=depth)
 
 
 class Exporter_DXF():

@@ -354,6 +354,7 @@ class Entity():
             layer = getattr(self, lname)
             if (remove_holes and (lname not in ["anchors", "skeletone"])):
                 layer.remove_holes()
+            layer.multipolygonize()
             edict[lname] = layer
         return edict
 
@@ -371,7 +372,7 @@ class Entity():
         exp.save()
 
 
-    def export_gds(self, filename: str, cellname: str="toplevel") -> None:
+    def export_gds(self, filename: str, cell_name: str="toplevel") -> None:
         """
         Exports all layers as a GDS file.
 
@@ -381,7 +382,7 @@ class Entity():
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.as_dict(remove_holes=True, include_anchors_skeletone=False)
-        exp = Exporter_GDS(filename, zhkdict, cellname)
+        exp = Exporter_GDS(filename, zhkdict, cell_name)
         exp.save()
 
 

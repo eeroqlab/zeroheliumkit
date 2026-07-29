@@ -1125,6 +1125,12 @@ class Layer():
         return self.polygons.simplify(tolerance)
 
 
+    def multipolygonize(self) -> None:
+        """ converts Polygon object in self.polygons into MultiPolygon. """
+        if isinstance(self.polygons, Polygon):
+            self.polygons = MultiPolygon([self.polygons])
+
+
     @snap_on_grid(attr="polygons")
     def modify_points(
             self,
