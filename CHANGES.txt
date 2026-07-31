@@ -1,6 +1,18 @@
 Changes
 =======
 
+0.6.1
+----------------
+- adding native interface with gdstk package
+- improved export and import to .gds files
+- Layer has additional attribute Layer().gds_spec = GDSSpec(layer, datatype, kind)
+- introducing GDSRegistryBase for gds layout specification
+    >>> class GDSRegistry(GDSRegistryBase):
+    >>>     L0: GDSSpec(1, 0, "metal")
+    >>>     L1: GDSSpec(2, 0, "via")
+- new methods in Entity: as_dict, assign_gdsspecs
+- new functions: convert_zhk_to_cell, convert_cell_to_zhk
+
 0.6.0
 ----------------
 - added Layer class, which handles polygons within the layer. Now layers are handled differently:
