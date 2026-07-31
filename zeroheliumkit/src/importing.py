@@ -8,8 +8,8 @@ from ezdxf.colors import BYLAYER
 from shapely import Polygon, MultiPolygon
 from svgpathtools import parse_path, Line, CubicBezier, QuadraticBezier
 
-from .anchors import Layer
-from .functions import write_layers_to_cell, read_layers_from_cell
+from .anchors import Layer, GDSRegistryBase
+from .functions import convert_cell_to_zhk, convert_zhk_to_cell
 from .errors import *
 from .utils import to_geometry_list
 
@@ -48,7 +48,7 @@ class Exporter_GDS():
 
 
     def preapre_gds(self, cell_name: str) -> None:
-        cell = write_layers_to_cell(cell_name, self.zhk_layers)
+        cell = convert_zhk_to_cell(cell_name, self.zhk_layers)
         self.lib = gdstk.Library()
         self.lib.add(cell)
         
@@ -90,9 +90,9 @@ class Reader_GDS():
     def extract_cells(self):
         self.cells = {cell.name: cell for cell in self.lib.cells}
 
-    def extract_geometries(self, cellname: str = None, depth: int = 0) -> dict[tuple, MultiPolygon]:
+    def extract_geometries(self, cellname: str, registry: GDSRegistryBase, depth: int = 0) -> dict[tuple, Layer]:
         cell = self.cells[cellname]
-        return read_layers_from_cell(cell, depth=depth)
+        return convert_cell_to_zhk(cell, registry, depth)
 
 
 class Exporter_DXF():

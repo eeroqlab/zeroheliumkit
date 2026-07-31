@@ -18,7 +18,7 @@ from shapely import Point, LineString, Polygon, MultiPolygon
 from .plotting import interactive_widget_handler, listify_colors, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import SIZE, SIZE_L, SIZE_S, RED, DARKGRAY
-from .anchors import Anchor, MultiAnchor, Skeletone, Layer, get_dxdy
+from .anchors import Anchor, MultiAnchor, Skeletone, Layer, GDSRegistryBase, get_dxdy
 from .errors import hard_deprecated
 
 
@@ -359,6 +359,21 @@ class Entity():
         return edict
 
 
+    def assign_gdsspecs(self, registry: GDSRegistryBase) -> None:
+        """
+        Updates the Layer.gds_spec with the GDSSpec available in registry
+
+        Args:
+            registry (GDSRegistryBase): the registry of layer names with GSPSpec:
+                class GDSRegistry(GDSRegistryBase):
+                    L0    = GDSSpec(18, 0, "metal")
+                    L0via = GDSSpec(19, 0, "via")
+        """
+        for layer in list(registry):
+            if layer.name in self.layers:
+                getattr(self, layer.name).gds_spec = layer.value
+
+
     def export_pickle(self, filename: str) -> None:
         """
         Exports all layers as a pickle file.
@@ -372,17 +387,19 @@ class Entity():
         exp.save()
 
 
-    def export_gds(self, filename: str, cell_name: str="toplevel") -> None:
+    def export_gds(self, filename: str, exclude: list[str], cell_name: str="toplevel") -> None:
         """
         Exports all layers as a GDS file.
 
         Args:
             filename (str): The name of the gds file to be exported.
-            layer_cfg (dict): A dictionary containing the layer configuration.
+            exclude (list): List of layers, which will NOT be exported.
+            cell_name (str): Name of the gds cell.
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.as_dict(remove_holes=True, include_anchors_skeletone=False)
-        exp = Exporter_GDS(filename, zhkdict, cell_name)
+        named_layers = {k: v for k,v in zhkdict.items() if k not in exclude}
+        exp = Exporter_GDS(filename, named_layers, cell_name)
         exp.save()
 
 

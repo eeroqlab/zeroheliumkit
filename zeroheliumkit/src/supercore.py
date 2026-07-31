@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from shapely import (line_locate_point, line_interpolate_point, intersection_all, distance)
 from shapely import LineString, Point, Polygon, MultiLineString, MultiPolygon, GeometryCollection, MultiPoint
 
-from .anchors import Anchor, MultiAnchor, Skeletone, Layer, GDSSpec
+from .anchors import Anchor, MultiAnchor, Skeletone, Layer
 from .core import Structure, Entity
 from .geometries import ArcLine
 from .plotting import ColorHandler

@@ -21,6 +21,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from typing import Self, NamedTuple
+from enum import Enum
 from tabulate import tabulate
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
 from shapely import (affinity, unary_union,
@@ -67,6 +68,44 @@ def snap_on_grid(
 class GDSSpec(NamedTuple):
     layer: int
     datatype: int = 0
+    kind: str = "metal"
+
+
+class GDSRegistryBase(Enum):
+    """
+    Base class for defining a GDS layer specification.
+
+    Subclass this and assign each member a GDSSpec(layer, datatype, kind) value, e.g.:
+
+        class GDSRegistry(GDSRegistryBase):
+            L0    = GDSSpec(18, 0, "metal")
+            L0via = GDSSpec(19, 0, "via")
+            ...
+    """
+    _value_: GDSSpec   # documents: "each member's value must be a GDSLayerInfo"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        for member in cls:
+            if not (hasattr(member.value, "layer")
+                    and hasattr(member.value, "datatype")
+                    and hasattr(member.value, "kind")):
+                raise TypeError(
+                    f"{cls.__name__}.{member.name} must be a GDSSpec(layer, datatype, kind)-like "
+                    f"value, got {member.value!r}"
+                )
+
+    @property
+    def layer(self) -> int:
+        return self.value.layer
+
+    @property
+    def datatype(self) -> int:
+        return self.value.datatype
+
+    @property
+    def kind(self) -> str:
+        return self.value.kind
 
 
 class Anchor():
@@ -890,7 +929,7 @@ class Layer():
                  polygons: Polygon | MultiPolygon = MultiPolygon(),
                  color: tuple = (RED, 1),
                  enable_grid_snap: bool = True,
-                 gds_spec: GDSSpec = GDSSpec(0,0)):
+                 gds_spec: GDSSpec = GDSSpec(0,0,"metal")):
         self.name = name
         self.polygons = polygons
         self.color = color if isinstance(color, tuple) else (color, 1)
