@@ -352,9 +352,10 @@ class Entity():
         edict = dict.fromkeys(lnames)
         for lname in lnames:
             layer = getattr(self, lname)
-            if (remove_holes and (lname not in ["anchors", "skeletone"])):
+            if (remove_holes and isinstance(layer, Layer)):
                 layer.remove_holes()
-            layer.multipolygonize()
+            if isinstance(layer, Layer):
+                layer.multipolygonize()
             edict[lname] = layer
         return edict
 
