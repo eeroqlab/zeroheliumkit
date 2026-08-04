@@ -650,20 +650,24 @@ class ReferenceStructure(Structure):
     #### reference operations ####
     ##############################
 
-    def add_reference(self,referenceCell,Coord:tuple,rotation:float=0):
+    def add_reference(self,referenceCell,Coord:tuple=(0,0),rotation:float=0):
         '''
         Adds a 2d array of references to the structures library (visibile upon export)
         
         Args:
-            referenceCell (gdstk.cell): the cell to be referenced and arrayed
-            initCoord (tuple): (x,y) pair for the center of the first instance of the array
-            columns (int): number of columns of the array
-            rows (int): number of rows of the array
-            spacing (tuple): (dx,dx) spacing vector bewteen the columns and rows centerpoints
+            referenceCell (gdstk.cell or gds path): the cell to be referenced and arrayed
+            Coord (tuple): (x,y) pair for the center of the first instance of the array
+            rotation (float): rotation of the reference in degrees
         '''
-        if referenceCell.name not in self.cellNames:
-            self.library.add(referenceCell)
-            self.cellNames.append(referenceCell.name)
+
+        if isinstance(referenceCell,str):
+            A = Reader_GDS(referenceCell,verbose=False)
+            topCellName = A.gdsii.top_level()[0].name
+            topcell = A.gdsii[topCellName]
+            referenceCell = topcell
+
+        self.update_dependencies(referenceCell)
+
         self.topcell.add(gdstk.Reference(referenceCell,Coord,rotation=rotation*3.1415926535/180))
 
 
@@ -672,16 +676,32 @@ class ReferenceStructure(Structure):
         Adds a 2d array of references to the structures library (visibile upon export)
         
         Args:
-            referenceCell (gdstk.cell): the cell to be referenced and arrayed
+            referenceCell (gdstk.cell or gds path): the cell to be referenced and arrayed
             initCoord (tuple): (x,y) pair for the center of the first instance of the array
             columns (int): number of columns of the array
             rows (int): number of rows of the array
             spacing (tuple): (dx,dx) spacing vector bewteen the columns and rows centerpoints
+            rotation (float): rotation of the references in degrees
         '''
+        if isinstance(referenceCell,str):
+            A = Reader_GDS(referenceCell,verbose=False)
+            topCellName = A.gdsii.top_level()[0].name
+            topcell = A.gdsii[topCellName]
+            referenceCell = topcell
+
+        self.update_dependencies(referenceCell)
+
+        self.topcell.add(gdstk.Reference(referenceCell,initCoord,columns=columns,rows=rows,spacing=spacing,rotation=rotation*3.1415926535/180))
+
+    def update_dependencies(self,referenceCell):
+        # brings along any dependent cells that the new reference cell references
         if referenceCell.name not in self.cellNames:
             self.library.add(referenceCell)
             self.cellNames.append(referenceCell.name)
-        self.topcell.add(gdstk.Reference(referenceCell,initCoord,columns=columns,rows=rows,spacing=spacing,rotation=rotation*3.1415926535/180))
+            for dependency in referenceCell.dependencies(True):
+                if dependency.name not in self.cellNames:
+                    self.library.add(dependency)
+                    self.cellNames.append(dependency.name)
 
     ##############################
     #### Exporting operations ####
@@ -706,7 +726,7 @@ class ReferenceStructure(Structure):
 
     def import_gds(self,componentFolder,componentName,export_config,plot_config=None):
         # open the GDS file
-        A = Reader_GDS(f'{componentFolder}/{componentName}.gds')
+        A = Reader_GDS(f'{componentFolder}/{componentName}.gds',verbose=False)
 
         # Add the lib to the struct
         self.library = A.gdsii

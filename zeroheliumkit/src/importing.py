@@ -101,16 +101,16 @@ class Reader_GDS():
 
     __slots__ = "filename", "geometries", "gdsii", "cells","references"
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str,verbose=True):
         self.filename = filename
         self.geometries = {}
         self.cells = {}
         self.references = {}
         self.gdsii = gdstk.read_gds(filename)
-        self.extract_geometries()
+        self.extract_geometries(verbose)
         self.prepare_dict()
 
-    def extract_geometries(self) -> None:
+    def extract_geometries(self,verbose) -> None:
         cells_out = {}
 
         # gdstk: library.cells is a list of Cell objects
@@ -137,7 +137,8 @@ class Reader_GDS():
                 by_layer.setdefault(layer, []).append(shp)
 
             layer_numbers = sorted(by_layer.keys())
-            print(f"{self.filename} // Layers in cell '{name}': {layer_numbers}")
+            if verbose:
+                print(f"{self.filename} // Layers in cell '{name}': {layer_numbers}")
 
             # Build MultiPolygon per layer via unary_union
             layer_map = {}
