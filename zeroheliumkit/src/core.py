@@ -10,6 +10,7 @@ Classes:
 """
 
 import copy
+import math
 import matplotlib.pyplot as plt
 from warnings import warn
 
@@ -670,7 +671,6 @@ class ReferenceStructure(Structure):
 
         self.topcell.add(gdstk.Reference(referenceCell,Coord,rotation=rotation*3.1415926535/180))
 
-
     def add_reference_array(self,referenceCell,initCoord:tuple=(0,0),columns:int=1,rows:int=1,spacing:tuple=(0,0),rotation:float=0):
         '''
         Adds a 2d array of references to the structures library (visibile upon export)
@@ -702,6 +702,63 @@ class ReferenceStructure(Structure):
                 if dependency.name not in self.cellNames:
                     self.library.add(dependency)
                     self.cellNames.append(dependency.name)
+
+    def get_cell_position_dict(self,cellName):
+        cell = self.library[cellName]
+        bb = cell.bounding_box()
+        p_dict = {}
+        p_dict['xmin'] = bb[0][0]
+        p_dict['xmax'] = bb[1][0]
+        p_dict['ymin'] = bb[0][1]
+        p_dict['ymax'] = bb[1][1]
+        p_dict['dx'] = p_dict['xmax']-p_dict['xmin']
+        p_dict['dy'] = p_dict['ymax']-p_dict['ymin']
+        p_dict['x0'] = (p_dict['xmax']+p_dict['xmin'])/2
+        p_dict['y0'] = (p_dict['ymax']+p_dict['ymin'])/2
+        return p_dict
+
+    def move(self, dx: float, dy: float):
+        super().move(dx, dy)
+        for ref in self.topcell.references:
+            ox, oy = ref.origin
+            ref.origin = (ox + dx, oy + dy)
+        return self
+
+    def rotate(self, angle: float = 0, origin=(0, 0)):
+        super().rotate(angle, origin)
+        theta = math.radians(angle)
+        ox0, oy0 = origin
+        cos_t, sin_t = math.cos(theta), math.sin(theta)
+
+        def rotate_vec(v):
+            x, y = v
+            return (x * cos_t - y * sin_t, x * sin_t + y * cos_t)
+
+        for ref in self.topcell.references:
+            x, y = ref.origin
+            dx, dy = x - ox0, y - oy0
+            ref.origin = (ox0 + dx * cos_t - dy * sin_t, oy0 + dx * sin_t + dy * cos_t)
+            ref.rotation += theta
+
+            rep = ref.repetition
+            if rep is None:
+                continue
+
+            if rep.spacing is not None:
+                v1_local, v2_local = (rep.spacing[0], 0.0), (0.0, rep.spacing[1])
+            elif rep.v1 is not None and rep.v2 is not None:
+                v1_local, v2_local = rep.v1, rep.v2
+            else:
+                local_offsets = rep.get_offsets()
+                rotated = [rotate_vec(tuple(o)) for o in local_offsets]
+                ref.repetition = gdstk.Repetition(offsets=rotated[1:])
+                continue
+
+            ref.repetition = gdstk.Repetition(
+                columns=rep.columns, rows=rep.rows,
+                v1=rotate_vec(v1_local), v2=rotate_vec(v2_local),
+            )
+        return self
 
     ##############################
     #### Exporting operations ####
