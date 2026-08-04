@@ -152,7 +152,13 @@ class Entity():
         return name in self.layers
     
 
-    def cut(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None, ignore: list[str]=[]):
+    def cut(
+            self,
+            geom: Polygon | MultiPolygon,
+            loc: tuple[float, float] = None,
+            ignore: list[str] = [],
+            return_cut: bool = False,
+            include_anchors: bool = False):
         """
         Cuts the specified polygon from polygons in all layers.
 
@@ -162,10 +168,25 @@ class Entity():
         Returns:
             Updated instance (self) of the class with the specified polygon cut from all layers.
         """
+        if return_cut:
+            original = self.copy()
+
         for lname in self.layers:
             if lname not in ignore:
                 getattr(self, lname).cut(geom, loc)
-        return self
+        
+        if include_anchors:
+            if return_cut:
+                anchors_inside_geom = self.anchors.cut(geom, loc, return_cut=True)
+            else:
+                self.anchors.cut(geom, loc)
+        
+        if return_cut:
+            original.crop(geom, loc, ignore)
+            original.anchors = MultiAnchor(anchors_inside_geom)
+            return original
+        else:
+            return self
 
 
     def crop(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None, ignore: list[str]=[]):
