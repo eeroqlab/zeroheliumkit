@@ -24,7 +24,7 @@ from typing import Self, NamedTuple
 from enum import Enum
 from tabulate import tabulate
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
-from shapely import (affinity, unary_union,
+from shapely import (affinity, unary_union, intersects,
                      set_precision, distance,
                      set_coordinates, get_coordinates)
 from shapely.plotting import plot_line, plot_polygon
@@ -623,6 +623,60 @@ class MultiAnchor():
                 raise ValueError(f"""point label {p} already exists in MultiAnchor.
                                  Choose different label name.""")
         self.multipoint += points
+
+        return self
+
+
+    def cut(self, geom: Polygon, loc: tuple=None, return_cut: bool=False):
+        """ 
+        Removes anchors inside geom polygon. Additionally if return_cut: returns anchors
+        inside the polygon.
+
+        Args:
+            geom (Polygon | MultiPolygon | Layer): The polygon to be used for cut.
+            loc (tuple[float, float], optional): The location where the polygon will placed for cut.
+                Defaults to None.
+            return_cut (bool): return the list of anchors inside the geom.
+
+        Returns:
+            Updated instance (self) of the class with the cut geometry.
+        """
+
+        cut_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
+    
+        no_intersection = []
+        intersected = []
+        for p in self.multipoint:
+            if intersects(p.point, cut_geom):
+                intersected.append(p)
+            else:
+                no_intersection.append(p)
+        self.multipoint = no_intersection
+
+        if return_cut:
+            return intersected
+        else:
+            return self
+
+
+    def crop(self, geom: Polygon, loc: tuple=None):
+        """ 
+        Removes anchors outside of geom polygon.
+
+        Args:
+            geom (Polygon | MultiPolygon | Layer): The polygon to be used for crop.
+            loc (tuple[float, float], optional): The location where the polygon will be placed for crop.
+                Defaults to None.
+
+        Returns:
+            Updated instance (self) of the class with the cut geometry.
+        """
+        crop_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
+        intersected = []
+        for p in self.multipoint:
+            if intersects(p, crop_geom):
+                intersected.append(p)
+        self.multipoint = intersected
 
         return self
 
