@@ -75,11 +75,12 @@ class Reader_GDS():
 
     __slots__ = "filename", "lib", "cells"
 
-    def __init__(self, filename: str):
+    def __init__(self, filename: str, verbose: bool = True):
         self.filename = filename
         self.lib = gdstk.read_gds(filename)
 
-        print(f"cells in gds library: {self.cell_names}")
+        if verbose:
+            print(f"cells in gds library: {self.cell_names}")
 
         self.extract_cells()
 
