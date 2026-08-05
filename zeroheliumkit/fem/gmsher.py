@@ -962,15 +962,12 @@ class GMSHmaker():
         try:
             for _ in bar:
 
-                if dim == 3 and self.mesh and self.mesh.automatic_mesh_size_field and \
-                    self.mesh.automatic_mesh_size_field.enabled and self.mesh.automatic_mesh_size_field.use_hxt_3d:
+                if dim == 3 and self.mesh.automatic_mesh_size_field.enabled and self.mesh.automatic_mesh_size_field.use_hxt_3d:
                     gmsh.option.setNumber("Mesh.Algorithm3D", 10) # Hxt
 
                 else: 
                     gmsh.option.setNumber("Mesh.Algorithm3D", 1)
                 gmsh.model.mesh.generate(dim)
-
-
 
                 print("mesh is constructed")
                 gmsh.model.mesh.setOrder(1)
