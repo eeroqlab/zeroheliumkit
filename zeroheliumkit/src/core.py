@@ -409,7 +409,7 @@ class Entity():
         exp.save()
 
 
-    def export_gds(self, filename: str, exclude: list[str], cell_name: str="toplevel") -> None:
+    def export_gds(self, filename: str, exclude: list[str]=[], cell_name: str="toplevel") -> None:
         """
         Exports all layers as a GDS file.
 

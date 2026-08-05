@@ -6,10 +6,16 @@ import platform
 
 
 @dataclass
+class OutputFormats:
+    Paraview: bool = True
+    GridFunction: bool = False
+
+@dataclass
 class ProblemConfig:
     Type: str = "Driven"
     Verbose: int = 2
-    Output: str="postpro/"
+    Output: str = "postpro/"
+    OutputFormats: OutputFormats = field(default_factory=OutputFormats)
 
     def __post_init__(self):
         if self.Type not in ["Eigenmode", "Driven", "Transient", "Electrostatic", "Magnetostatic"]:
