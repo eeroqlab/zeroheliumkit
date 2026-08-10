@@ -20,7 +20,7 @@ import gdstk
 
 from .plotting import interactive_widget_handler, listify_colors, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle,Reader_GDS
-from .settings import SIZE, SIZE_L, SIZE_S, RED, DARKGRAY
+from .settings import SIZE, SIZE_L, SIZE_S, RED, DARKGRAY, BLACK
 from .anchors import Anchor, MultiAnchor, Skeletone, Layer, get_dxdy
 from .errors import hard_deprecated
 
@@ -703,14 +703,36 @@ class ReferenceStructure(Structure):
                     self.library.add(dependency)
                     self.cellNames.append(dependency.name)
 
-    def get_cell_position_dict(self,cellName):
-        cell = self.library[cellName]
-        bb = cell.bounding_box()
+    def get_position_dict(self):
+        bounds = []
+
+        for lname in self.layers:
+            layer = getattr(self, lname, None)
+            if layer is None or layer.is_empty:
+                continue
+            bounds.append(layer.polygons.bounds)  # (xmin, ymin, xmax, ymax)
+
+        bb = self.library[self.topCellName].bounding_box()
+        if bb is not None:
+            (xmin, ymin), (xmax, ymax) = bb
+            bounds.append((xmin, ymin, xmax, ymax))
+
+        if not bounds:
+            raise ValueError(
+                "get_position_dict: ReferenceStructure has no polygons or "
+                "references to compute a bounding box from."
+            )
+
+        xmin = min(b[0] for b in bounds)
+        ymin = min(b[1] for b in bounds)
+        xmax = max(b[2] for b in bounds)
+        ymax = max(b[3] for b in bounds)
+
         p_dict = {}
-        p_dict['xmin'] = bb[0][0]
-        p_dict['xmax'] = bb[1][0]
-        p_dict['ymin'] = bb[0][1]
-        p_dict['ymax'] = bb[1][1]
+        p_dict['xmin'] = xmin
+        p_dict['xmax'] = xmax
+        p_dict['ymin'] = ymin
+        p_dict['ymax'] = ymax
         p_dict['dx'] = p_dict['xmax']-p_dict['xmin']
         p_dict['dy'] = p_dict['ymax']-p_dict['ymin']
         p_dict['x0'] = (p_dict['xmax']+p_dict['xmin'])/2
@@ -761,10 +783,185 @@ class ReferenceStructure(Structure):
         return self
 
     ##############################
+    #### Plotting operations  ####
+    ##############################
+
+    def quickplot_with_references(
+            self,
+            size="large",
+            color_config: dict=None,
+            zoom: tuple=None,
+            show_idx: bool=False,
+            off: list=[],
+            labels: bool=False,
+            draw_anchor_dir: bool=True,
+            ax=None,
+            library_mode: str="bbox",
+            library_color=None,
+            library_alpha: float=0.3,
+            library_labels: bool=True,
+            library_fontsize: float=8,
+            export_config: dict=None,
+            **kwargs
+            ) -> None:
+        """
+        ... (same docstring as before, plus:)
+
+        Args:
+            export_config (dict): the same {zhk_layer_name: {"layer": int,
+                "datatype": int}} dict you'd pass to export_gds. When given in
+                "polygons" mode, it's used to map each referenced polygon's GDS
+                (layer, datatype) back to a zhk layer name so it can be colored
+                from `color_config` exactly like quickplot() colors this
+                object's own layers. Ignored in "bbox" mode.
+        """
+        ax = self.quickplot(size=size, color_config=color_config, zoom=None,
+                            show_idx=show_idx, off=off, labels=labels,
+                            draw_anchor_dir=draw_anchor_dir, ax=ax, **kwargs)
+
+        if library_mode == "bbox":
+            self._plot_library_bboxes(ax, color=library_color or DARKGRAY,
+                                    alpha=library_alpha, labels=library_labels,
+                                    fontsize=library_fontsize)
+        elif library_mode == "polygons":
+            self._plot_library_polygons(ax, color=library_color, alpha=library_alpha,
+                                        color_config=color_config, export_config=export_config)
+        elif library_mode not in (None, False):
+            raise ValueError(f"Unknown library_mode {library_mode!r}, expected 'bbox', 'polygons', or None")
+
+        if zoom is not None:
+            xmin, xmax = ax.get_xlim()
+            ymin, ymax = ax.get_ylim()
+            x0, y0 = zoom[0]
+            dx = round((xmax - xmin) / zoom[1] / 2)
+            dy = round((ymax - ymin) / zoom[1] / 2)
+            if len(zoom) > 2:
+                dy = dy / zoom[2]
+            ax.set_xlim(x0 - dx, x0 + dx)
+            ax.set_ylim(y0 - dy, y0 + dy)
+
+        ax.set_aspect('equal')
+        return ax
+
+    def _iter_top_references(self):
+        """
+        Yields (cell, (x, y), rotation, magnification, x_reflection) for every
+        reference sitting directly on self.topcell, expanding array
+        repetitions (add_reference_array) into individual placements.
+        """
+        for ref in self.topcell.references:
+            cell = ref.cell
+            rotation = ref.rotation or 0.0
+            mag = ref.magnification or 1.0
+            x_refl = ref.x_reflection
+            ox, oy = ref.origin
+            rep = ref.repetition
+            if rep is None:
+                yield cell, (ox, oy), rotation, mag, x_refl
+            else:
+                for dx, dy in rep.get_offsets():
+                    yield cell, (ox + dx, oy + dy), rotation, mag, x_refl
+
+    def _plot_library_bboxes(self, ax, color=None, alpha=0.9, labels=True, fontsize=8):
+        """Draws a labeled, axis-aligned bounding box for every reference on the topcell."""
+        from matplotlib.patches import Rectangle
+
+        color = color or "magenta"
+        topcell = self.library[self.topCellName]   # look up by name, not via self.topcell
+
+        for ref in topcell.references:
+            bb = ref.bounding_box()          # gdstk handles rotation/mag/reflection/repetition for us
+            if bb is None:
+                continue  # empty referenced cell, nothing to draw
+            (xmin, ymin), (xmax, ymax) = bb
+
+            ax.add_patch(Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+                                    fill=False, edgecolor=color, linestyle="--",
+                                    alpha=alpha, linewidth=1.2))
+
+            if labels:
+                ax.text((xmin + xmax) / 2, (ymin + ymax) / 2, ref.cell.name,
+                        ha="center", va="center", fontsize=fontsize, color=color)
+
+        ax.autoscale_view()
+
+    def _plot_library_polygons(self, ax, color=None, alpha=0.3, color_config=None, export_config=None):
+        """
+        Flattens and draws the actual geometry of every referenced cell (recursively).
+
+        Styling:
+            If `export_config` is given (the same {zhk_layer_name: {"layer": int,
+            "datatype": int}} dict passed to export_gds), each polygon's GDS
+            (layer, datatype) is mapped back to a zhk layer name, and that
+            layer's [color, alpha] is pulled from `color_config` - same dict you'd
+            pass to quickplot's color_config - or from self.colors if
+            color_config is None. This makes the referenced library geometry
+            match the styling of this object's own layers.
+            Any polygon whose (layer, datatype) isn't found in export_config
+            (or export_config isn't given) falls back to `color`/`alpha` if you
+            passed those explicitly, else a tab20 color cycle.
+
+            Every GDS (layer, datatype) that resolves to the same zhk layer name
+            (e.g. several via sub-layers all mapped to "vias") is merged into a
+            single unioned shape before drawing, so it's plotted once, flat -
+            exactly like quickplot() draws one of this object's own layers -
+            instead of as several overlapping, alpha-stacking patches. Layers are
+            then drawn bottom-to-top in `color_config`'s (or self.colors') order,
+            matching quickplot()'s layer ordering, and get the same black outline
+            quickplot() gives semi-transparent layers.
+        """
+        from collections import defaultdict
+        from shapely.ops import unary_union
+        from shapely.plotting import plot_polygon, plot_line
+
+        topcell = self.library[self.topCellName]   # look up by name, not via self.topcell
+
+        polys = topcell.get_polygons(apply_repetitions=True, include_paths=True, depth=None)
+
+        # (gds layer, datatype) -> zhk layer name
+        spec_to_name = {}
+        if export_config is not None:
+            for lname, spec in export_config.items():
+                spec_to_name[(spec["layer"], spec.get("datatype", 0))] = lname
+
+        # group by resolved zhk layer name (falling back to "L{layer}_{datatype}" for
+        # anything export_config doesn't know about) so every sub-layer sharing a name
+        # ends up in one flat shape rather than several stacked collections
+        by_name = defaultdict(list)
+        for p in polys:
+            lname = spec_to_name.get((p.layer, p.datatype), f"L{p.layer}_{p.datatype}")
+            by_name[lname].append(Polygon(p.points))
+
+        # zhk layer name -> [color, alpha], same source quickplot() itself uses
+        named_styles = listify_colors(color_config) if color_config else self.colors.colors
+
+        # bottom-to-top order: quickplot()'s layer order first, then any leftovers
+        ordered_names = [n for n in named_styles if n in by_name]
+        ordered_names += [n for n in by_name if n not in named_styles]
+
+        cmap = plt.get_cmap("tab20")
+        for i, lname in enumerate(ordered_names):
+            merged = unary_union(by_name[lname])
+            style = named_styles.get(lname)
+
+            if style is not None:
+                c, a = style[0], style[1]
+            elif color is not None:
+                c, a = color, alpha
+            else:
+                c, a = cmap(i % 20), alpha
+
+            plot_polygon(merged, ax=ax, color=c, alpha=a, edgecolor=BLACK,
+                        add_points=False, label=lname)
+            if a != 1:
+                plot_line(merged.boundary, ax=ax, color=BLACK, add_points=False, lw=1.5)
+        ax.autoscale_view()
+
+    ##############################
     #### Exporting operations ####
     ##############################
 
-    def export_gds(self, filename: str, layer_cfg: dict,cellname:str='toplevel') -> None:
+    def export_gds(self, filename: str, layer_cfg: dict) -> None:
         """
         Exports all layers as a GDS file.
 
@@ -774,7 +971,7 @@ class ReferenceStructure(Structure):
                 See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
         """
         zhkdict = self.export_dict(remove_holes=True)
-        exp = Exporter_GDS(filename, zhkdict, layer_cfg,cellname,self.library)
+        exp = Exporter_GDS(filename, zhkdict, layer_cfg,self.topCellName,self.library)
         exp.save()
 
     ##############################
