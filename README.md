@@ -44,3 +44,6 @@ Creating mesh and Caculating electrostatic potential distribution [fem](docs/sou
 <p align="center">
 <img src="docs/source/_static/fig1.png" alt="zhk_logo" width="500"/>
 </p>
+
+## Adaptive meshing 
+To use the latest features in gmsh, aka `Mesh.AutomaticMeshSizeField`, you have to uninstall your default gmsh and compile it from source using external `p4est` library. See instructions [gmsh_build](docs/gmsh_build.md)

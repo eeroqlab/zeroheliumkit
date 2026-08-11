@@ -152,10 +152,59 @@ class PMCSetting:
         self.surface_currents = []
 
 
+
+@dataclass
+class AutomaticMeshSizeFieldSettings:
+    """
+    Settings for the p4est/Hxt AutomaticMeshSizeField adaptive refinement pass.
+
+    When enabled, a coarse reference mesh is generated first (controlled by
+    `ref_clscale`), then Gmsh's AutomaticMeshSizeField computes a p4est
+    octree size field from that reference mesh's curvature/feature data.
+    That field is then combined with any Box/Distance fields already
+    configured and used as the background field for the real mesh.
+
+    Requires a Gmsh build with p4est enabled -- see the module-level NOTE
+    at the top of this file. If p4est isn't available, `gmsh.model.mesh.field.add`
+    will raise ("Unknown field type") when this is turned on.
+
+    Args:
+        enabled (bool): turn the p4est/Hxt adaptive pass on. Defaults to False,
+            No behavior change for existing users of GMSHmaker.
+        ref_clscale (float): global element size scale used for the coarse
+            reference mesh. Smaller = finer reference mesh = more feature data for the size field to work
+            with, at the cost of a slower reference-mesh pass. Defaults to 0.2.
+        nPointsPerCircle (int): node density around curved features; higher
+            = finer resolution on curves. Defaults to 20.
+        nPointsPerGap (int): controls how finely narrow gaps between features
+            get resolved. Defaults to 25.
+        gradation (float): how fast element size is allowed to grow moving
+            away from a fine region. Close to 1.0 = gradual/smooth
+            transitions (more elements); higher = allows abrupt jumps to
+            coarser elements (fewer elements). Defaults to 1.1.
+        hBulk (float): target element size for open/background regions far
+            from any feature. -1 leaves it to Gmsh's automatic choice.
+        hMin (float): hard floor on element size. -1 leaves it automatic.
+        hMax (float): hard ceiling on element size. -1 leaves it automatic.
+        use_hxt_3d (bool): if True and meshing in 3D, sets
+            Mesh.Algorithm3D = 10 (Hxt) for the reference-mesh pass.
+            Defaults to True.
+    """
+    enabled: bool = False
+    ref_clscale: float = 0.2
+    nPointsPerCircle: int = 20
+    nPointsPerGap: int = 25
+    gradation: float = 1.1
+    hBulk: float = -1
+    hMin: float = -1
+    hMax: float = -1
+    use_hxt_3d: bool = True
+
 @dataclass
 class MeshSettings:
     dim: int = 3
     fields: dict = field(default_factory=dict)
+    automatic_mesh_size_field: AutomaticMeshSizeFieldSettings = field(default_factory=AutomaticMeshSizeFieldSettings)
 
 
 @dataclass
@@ -810,6 +859,66 @@ class GMSHmaker():
         return field_ids
 
 
+    def make_automatic_mesh_size_field(self, dim: int) -> int:
+        """
+        Runs the p4est-based AutomaticMeshSizeField pass and returns a field id
+        that can be combined with other fields (Box/Distance) via Min, same as
+        the rest of `setup_mesh_fields`.
+
+        This does three things, all within the current Gmsh session (no CLI /
+        file round-trip needed):
+        1. Generates a coarse reference mesh at `automatic_mesh_size_field.ref_clscale`,
+           since AutomaticMeshSizeField needs an existing mesh to compute
+           curvature/feature data from -- it cannot be evaluated on bare
+           geometry.
+        2. Builds the p4est octree size field from that reference mesh.
+        3. Clears the reference mesh so the field (not the reference mesh
+           itself) is what drives the real mesh generated later in
+           `create_mesh`.
+
+        Requires a Gmsh build with p4est enabled -- see module-level NOTE.
+
+        Args:
+            dim (int): mesh dimension (2 or 3) used for the reference pass.
+
+        Returns:
+            int: id of the AutomaticMeshSizeField field.
+        """
+        cfg = self.mesh.automatic_mesh_size_field
+
+        prev_size_factor = gmsh.option.getNumber("Mesh.MeshSizeFactor")
+        prev_algo_3d = gmsh.option.getNumber("Mesh.Algorithm3D") if dim == 3 else None
+
+        # 1. coarse reference mesh -- gives AutomaticMeshSizeField
+        #    curvature/feature data to compute from
+        gmsh.option.setNumber("Mesh.MeshSizeFactor", cfg.ref_clscale)
+        if dim == 3 and cfg.use_hxt_3d:
+            gmsh.option.setNumber("Mesh.Algorithm3D", 10)  # Hxt
+        gmsh.model.mesh.generate(dim)
+
+        # 2. compute the p4est octree size field from the reference mesh
+        field_id = gmsh.model.mesh.field.add("AutomaticMeshSizeField")
+        gmsh.model.mesh.field.setNumber(field_id, "nPointsPerCircle", cfg.nPointsPerCircle)
+        gmsh.model.mesh.field.setNumber(field_id, "nPointsPerGap", cfg.nPointsPerGap)
+        gmsh.model.mesh.field.setNumber(field_id, "gradation", cfg.gradation)
+        if cfg.hBulk > 0:
+            gmsh.model.mesh.field.setNumber(field_id, "hBulk", cfg.hBulk)
+        if cfg.hMin > 0:
+            gmsh.model.mesh.field.setNumber(field_id, "hMin", cfg.hMin)
+        if cfg.hMax > 0:
+            gmsh.model.mesh.field.setNumber(field_id, "hMax", cfg.hMax)
+
+        # 3. clear the reference mesh and restore mesh-size options so the
+        #    following combined-field generate() call in create_mesh()
+        #    is driven purely by the field(s), not leftover options
+        gmsh.model.mesh.clear()
+        gmsh.option.setNumber("Mesh.MeshSizeFactor", prev_size_factor)
+        if prev_algo_3d is not None:
+            gmsh.option.setNumber("Mesh.Algorithm3D", prev_algo_3d)
+
+        return field_id
+
+
     def setup_mesh_fields(self):
         """
         Build and set the background mesh field.
@@ -830,10 +939,19 @@ class GMSHmaker():
                 case _:
                     print(f"Mesh field '{mesh_field_name}' is not recognized.")
 
+        if self.mesh.automatic_mesh_size_field and self.mesh.automatic_mesh_size_field.enabled:
+            field_ids.append(self.make_automatic_mesh_size_field(dim=self.mesh.dim))
+
+        if not field_ids:
+            return
+
         minimum = gmsh.model.mesh.field.add("Min")
         gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", field_ids)
         gmsh.model.mesh.field.setAsBackgroundMesh(minimum)
         gmsh.model.occ.synchronize()
+
+
+    
 
 
     def create_geo(self):
@@ -855,11 +973,19 @@ class GMSHmaker():
         bar = alive_it([0], title='Gmsh generation ', length=3, spinner='elements', force_tty=True) 
         try:
             for _ in bar:
+
+                if dim == 3 and self.mesh.automatic_mesh_size_field.enabled and self.mesh.automatic_mesh_size_field.use_hxt_3d:
+                    gmsh.option.setNumber("Mesh.Algorithm3D", 10) # Hxt
+
+                else: 
+                    gmsh.option.setNumber("Mesh.Algorithm3D", 1)
                 gmsh.model.mesh.generate(dim)
+
                 print("mesh is constructed")
                 gmsh.model.mesh.setOrder(1)
                 gmsh.option.setNumber("Mesh.MshFileVersion", 2.2)
                 gmsh.option.setNumber("Mesh.Binary", 0)
+                
                 path = self.save.with_suffix(".msh")
                 gmsh.write(str(path))
                 print("mesh saved")
