@@ -13,13 +13,12 @@ import copy
 import matplotlib.pyplot as plt
 from warnings import warn
 
-from shapely import (Point, MultiPoint, LineString, MultiLineString,
-                     Polygon, MultiPolygon, GeometryCollection)
+from shapely import Point, LineString, Polygon, MultiPolygon
 
 from .plotting import interactive_widget_handler, listify_colors, ColorHandler
 from .importing import Exporter_DXF, Exporter_GDS, Exporter_Pickle
 from .settings import SIZE, SIZE_L, SIZE_S, RED, DARKGRAY
-from .anchors import Anchor, MultiAnchor, Skeletone, Layer, get_dxdy
+from .anchors import Anchor, MultiAnchor, Skeletone, Layer, GDSRegistryBase, GDSSpec, get_dxdy
 from .errors import hard_deprecated
 
 
@@ -53,7 +52,7 @@ class Entity():
         self.layers = []
         self.skeletone = Skeletone()
         self.anchors = MultiAnchor()
-        self.colors = ColorHandler({})
+        # self.colors = ColorHandler({})
         self.errors = None
 
 
@@ -94,7 +93,7 @@ class Entity():
             Updated instance (self) of the class with the new layer added.
         """
         self.layers.append(layer.name)
-        self.colors.add_color(layer.name, layer.color[0], layer.color[1])
+        # self.colors.add_color(layer.name, layer.color[0], layer.color[1])
         setattr(self, layer.name, layer)
         return self
 
@@ -112,7 +111,7 @@ class Entity():
         if lname in self.layers:
             self.layers.remove(lname)
             delattr(self, lname)
-            self.colors.remove_color(lname)
+            # self.colors.remove_color(lname)
         else:
             print(f"Layer '{lname}' not found in layers.")
 
@@ -134,7 +133,7 @@ class Entity():
             self.__dict__[new] = self.__dict__.pop(old)
             self.layers[self.layers.index(old)] = new
             self.__dict__[new].name = new
-            self.colors.rename_color(old, new)
+            # self.colors.rename_color(old, new)
         else:
             print(f"Layer '{old}' not found in layers.")
 
@@ -153,7 +152,13 @@ class Entity():
         return name in self.layers
     
 
-    def cut(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None):
+    def cut(
+            self,
+            geom: Polygon | MultiPolygon,
+            loc: tuple[float, float] = None,
+            ignore: list[str] = [],
+            return_cut: bool = False,
+            include_anchors: bool = False):
         """
         Cuts the specified polygon from polygons in all layers.
 
@@ -163,12 +168,28 @@ class Entity():
         Returns:
             Updated instance (self) of the class with the specified polygon cut from all layers.
         """
+        if return_cut:
+            original = self.copy()
+
         for lname in self.layers:
-            getattr(self, lname).cut(geom, loc)
-        return self
+            if lname not in ignore:
+                getattr(self, lname).cut(geom, loc)
+        
+        if include_anchors:
+            if return_cut:
+                anchors_inside_geom = self.anchors.cut(geom, loc, return_cut=True)
+            else:
+                self.anchors.cut(geom, loc)
+        
+        if return_cut:
+            original.crop(geom, loc, ignore)
+            original.anchors = MultiAnchor(anchors_inside_geom)
+            return original
+        else:
+            return self
 
 
-    def crop(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None):
+    def crop(self, geom: Polygon | MultiPolygon, loc: tuple[float, float]=None, ignore: list[str]=[]):
         """
         Crops polygons in all layers.
 
@@ -179,11 +200,12 @@ class Entity():
             Updated instance (self) of the class with polygons in all layers cropped by the specified polygon.
         """
         for lname in self.layers:
-            getattr(self, lname).crop(geom, loc)
+            if lname not in ignore:
+                getattr(self, lname).crop(geom, loc)
         return self
 
 
-    def slice(self, slice_line: LineString | list[LineString]):
+    def slice(self, slice_line: LineString | list[LineString], ignore: list[str]=[]):
         """
         Slices polygons in a layer using a given line.
 
@@ -192,7 +214,8 @@ class Entity():
             slice_line (LineString): The line used for slicing.
         """
         for lname in self.layers:
-            getattr(self, lname).slice(slice_line)
+            if lname not in ignore:
+                getattr(self, lname).slice(slice_line)
         return self
 
 
@@ -336,7 +359,7 @@ class Entity():
     #### Exporting operations ####
     ##############################
 
-    def export_dict(self, remove_holes: bool=False) -> dict:
+    def as_dict(self, remove_holes: bool=False, include_anchors_skeletone: bool=True) -> dict:
         """ 
         Returns all layer names and their corresponding geometries in a Dictionary. Includes anchors and skeletone.
 
@@ -346,14 +369,31 @@ class Entity():
         Returns:
             zhk_dict(dict): A dictionary containing layer names as keys and their corresponding geometries as values.
         """
-        lnames = self.layers + ["skeletone", "anchors"]
+        lnames = self.layers + ["skeletone", "anchors"] if include_anchors_skeletone else self.layers
         edict = dict.fromkeys(lnames)
         for lname in lnames:
             layer = getattr(self, lname)
-            if (remove_holes and (lname not in ["anchors", "skeletone"])):
+            if (remove_holes and isinstance(layer, Layer)):
                 layer.remove_holes()
+            if isinstance(layer, Layer):
+                layer.multipolygonize()
             edict[lname] = layer
         return edict
+
+
+    def assign_gdsspecs(self, registry: GDSRegistryBase) -> None:
+        """
+        Updates the Layer.gds_spec with the GDSSpec available in registry
+
+        Args:
+            registry (GDSRegistryBase): the registry of layer names with GSPSpec:
+                class GDSRegistry(GDSRegistryBase):
+                    L0    = GDSSpec(18, 0, "metal")
+                    L0via = GDSSpec(19, 0, "via")
+        """
+        for layer in list(registry):
+            if layer.name in self.layers:
+                getattr(self, layer.name).gds_spec = layer.value
 
 
     def export_pickle(self, filename: str) -> None:
@@ -363,23 +403,37 @@ class Entity():
         Args:
             filename (str): The name of the pickle file to be exported.
         """
-        zhkdict = self.export_dict()
+        zhkdict = self.as_dict()
         zhkdict["colors"] = self.colors
         exp = Exporter_Pickle(filename, zhkdict)
         exp.save()
 
 
-    def export_gds(self, filename: str, layer_cfg: dict) -> None:
+    def export_gds(self, filename: str, exclude: list[str], export_config: dict=None, cell_name: str="toplevel") -> None:
         """
         Exports all layers as a GDS file.
 
         Args:
             filename (str): The name of the gds file to be exported.
-            layer_cfg (dict): A dictionary containing the layer configuration.
-                See `gdspy docs <https://gdspy.readthedocs.io/en/stable/gettingstarted.html#layer-and-datatype>`_ for 'datatype' details.
+            exclude (list): List of layers, which will NOT be exported.
+            cell_name (str): Name of the gds cell.
+                See `gdstk docs <https://heitzmann.github.io/gdstk/>`_ for 'datatype' details.
         """
-        zhkdict = self.export_dict(remove_holes=True)
-        exp = Exporter_GDS(filename, zhkdict, layer_cfg)
+        ## backward compatibility for export_config dict
+        if export_config:
+            members = {
+                name: GDSSpec(cfg["layer"], cfg["datatype"], "none")
+                for name, cfg in export_config.items()
+            }
+            GDSRegistry = GDSRegistryBase("GDSRegistry", members)
+            self.assign_gdsspecs(GDSRegistry)
+            print(f"export_config atrgument will be deprecated and is no longer will be available in the future updates.\n"
+                   f"Use GDSRegistryBase and .assign_gdsspec() method instead."
+                   )
+
+        zhkdict = self.as_dict(remove_holes=True, include_anchors_skeletone=False)
+        named_layers = {k: v for k,v in zhkdict.items() if k not in exclude}
+        exp = Exporter_GDS(filename, named_layers, cell_name)
         exp.save()
 
 
@@ -391,7 +445,7 @@ class Entity():
             filename (str): The name of the dxf file to be exported.
             layer_cfg (dict): A list of layer to be exported.
         """
-        zhkdict = self.export_dict(remove_holes=True)
+        zhkdict = self.as_dict(remove_holes=True, include_anchors_skeletone=False)
         exp = Exporter_DXF(filename, zhkdict, layer_cfg)
         exp.save()
 
@@ -450,7 +504,7 @@ class Entity():
         #plot layers
         plot_config = {k:v for k,v in plot_config.items() if k not in off}
         for lname, lcolor in plot_config.items():
-            if self.has_layer(lname):
+            if self.has_layer(lname) and (not getattr(self, lname).is_empty):
                 getattr(self, lname).color = lcolor
                 getattr(self, lname).plot(ax=ax, show_idx=show_idx, labels=labels, **kwargs)
 
@@ -514,15 +568,15 @@ class Structure(Entity):
                 Defaults to None.
         """
         s = structure.copy()
-        if move_s:
-            s.move(*move_s)
         if rotate_s:
             s.rotate(rotate_s, origin=(0,0))
+        if move_s:
+            s.move(*move_s)
         attr_list_device = self.layers
         attr_list_structure = s.layers
         self.layers = list(set(attr_list_device + attr_list_structure))
 
-        self.colors.colors = self.colors.colors | s.colors.colors
+        # self.colors.colors = self.colors.colors | s.colors.colors
 
         # snapping direction
         if direction_snap:
@@ -581,47 +635,3 @@ class Structure(Entity):
         """
         cc = self.copy()
         return cc.mirror(aroundaxis, **kwargs)
-
-
-class GeomCollection(Structure):
-    """
-    Represents a collection of geometries.
-    Class attributes are created by layers dictionary.
-
-    Args:
-        layers (dict): Dictionary containing the layers and corresponding polygons/skeletone/anchors/colors.
-    """
-    def __init__(self, layers: dict=None):
-        super().__init__()
-        if layers:
-            for items in layers.items():
-                match items:
-                    case ("skeletone", LineString()) | ("skeletone", MultiLineString()):
-                        self.skeletone.lines = items[1]
-                    case ("skeletone", Skeletone()):
-                        self.skeletone = items[1]
-                    case ("skeletone", GeometryCollection()):
-                        warn(message="imported skeletone contains GeometryCollection object. It will be ignored.")
-                    case ("anchors", MultiAnchor()):
-                        self.anchors = items[1]
-                    case ("anchors", MultiPoint()):
-                        for i, pt in enumerate(items[1].geoms):
-                            self.anchors.add(Anchor(pt, 0, "anchor" + str(i)))
-                    case ("colors", ColorHandler()):
-                        self.colors = items[1]
-                    case (str(), Polygon()) | (str(), MultiPolygon()):
-                        layer = Layer(name=items[0], polygons=items[1])
-                        self.layers.append(items[0])
-                        setattr(self, items[0], layer)
-                    case _:
-                        self.layers.append(items[0])
-                        setattr(self, *items)
-
-        if not hasattr(self, "anchors"):
-            self.anchors = MultiAnchor()
-
-        if not hasattr(self, "skeletone"):
-            self.skeletone = Skeletone()
-
-        if self.colors.is_empty:
-            self.colors.update_colors(self.layers)

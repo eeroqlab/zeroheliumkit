@@ -7,10 +7,11 @@ This file contains utility functions for geometric operations, such as calculati
 
 from numpy import cos, sin, pi
 
-from shapely import Point, LineString, Polygon
-from shapely import distance, line_locate_point
+import gdstk
+from shapely import Point, LineString, Polygon, MultiPolygon
+from shapely import distance, line_locate_point, unary_union
 
-from .anchors import Anchor
+from .anchors import Anchor, Layer, GDSRegistryBase
 from .utils import get_normals_along_line
 
 
@@ -133,3 +134,64 @@ def generate_random_anchors(n: int, x_range: tuple, y_range: tuple) -> list:
     """
     from random import uniform
     return [Anchor(Point(uniform(*x_range), uniform(*y_range)), uniform(0, 360), f"anchor_{i}") for i in range(n)]
+
+
+def convert_zhk_to_cell(
+        cell_name: str,
+        named_layers: dict[str, Layer]
+    ) -> gdstk.Cell:
+    """
+    Builds a gdstk.Cell from a dict of zeroheliumkit Layer objects,
+    converting each Layer's shapely polygons into gdstk polygons
+    using its gds_spec (layer, datatype).
+    Skipping the 'skeletone'/'anchors' pseudo-layers.
+
+    Args:
+        cell_name (str): cell name
+        named_layers (dict): a dictionary of type {"layer_name": Layer,...}
+            use Structure().as_dict() method to get it
+    
+    Returns:
+        gdstk.Cell
+    """
+    cell = gdstk.Cell(cell_name)
+    for name, layer in named_layers.items():
+        specs = layer.gds_spec._asdict()
+        subset = {k: specs[k] for k in ("layer", "datatype")}
+        for poly in layer.polygons.geoms:
+            points = list(poly.exterior.coords)
+            if len(points) > 1 and points[0] == points[-1]:
+                points = points[:-1]
+            gds_poly = gdstk.Polygon(points, **subset)
+            cell.add(gds_poly)
+    return cell
+
+
+def convert_cell_to_zhk(cell: gdstk.Cell, registry: GDSRegistryBase, depth: int=0) -> dict[tuple, Layer]:
+    """
+    Groups a gdstk.Cell's polygons -- including those from nested references,
+    resolved recursively -- by GDS layer number into shapely MultiPolygons.
+    """
+    LAYER_DATATYPE_TO_SPEC = {
+        (gds_spec.layer, gds_spec.datatype): gds_spec.name
+        for gds_spec in registry
+    }
+
+    base = {}
+    for p in cell.get_polygons(depth=depth):
+        key = (p.layer, p.datatype)
+        if key not in LAYER_DATATYPE_TO_SPEC:
+            print(f"gds layer {key} not in registry. Add layer_name: GDSLayerInfo() into registry")
+        points = [(float(x), float(y)) for x, y in p.points]
+        shp = Polygon(points)
+        if shp.is_empty:
+            continue
+        base.setdefault(LAYER_DATATYPE_TO_SPEC.get(key), []).append(shp)
+
+    named_layers = {}
+    for lname, polys in base.items():
+        merged = unary_union(polys) if polys else MultiPolygon()
+        if merged.geom_type == "Polygon":
+            merged = MultiPolygon([merged])
+        named_layers[lname] = Layer(lname, merged, gds_spec=registry[lname].value)
+    return named_layers

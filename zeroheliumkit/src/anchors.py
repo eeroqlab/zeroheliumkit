@@ -14,13 +14,17 @@ Classes:
         Provides methods for creating and manipulating these paths.
     `Layer`: Represents a layer containing polygons with attributes such as name, color, and grid snapping.
 """
+from __future__ import annotations
 
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
+
+from typing import Self, NamedTuple
+from enum import Enum
 from tabulate import tabulate
 from shapely import Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, GeometryCollection
-from shapely import (affinity, unary_union,
+from shapely import (affinity, unary_union, intersects,
                      set_precision, distance,
                      set_coordinates, get_coordinates)
 from shapely.plotting import plot_line, plot_polygon
@@ -59,6 +63,49 @@ def snap_on_grid(
             return self if return_self else getattr(self, attr)
         return wrapper
     return decorator
+
+
+class GDSSpec(NamedTuple):
+    layer: int
+    datatype: int = 0
+    kind: str = "metal"
+
+
+class GDSRegistryBase(Enum):
+    """
+    Base class for defining a GDS layer specification.
+
+    Subclass this and assign each member a GDSSpec(layer, datatype, kind) value, e.g.:
+
+        class GDSRegistry(GDSRegistryBase):
+            L0    = GDSSpec(18, 0, "metal")
+            L0via = GDSSpec(19, 0, "via")
+            ...
+    """
+    _value_: GDSSpec   # documents: "each member's value must be a GDSLayerInfo"
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        for member in cls:
+            if not (hasattr(member.value, "layer")
+                    and hasattr(member.value, "datatype")
+                    and hasattr(member.value, "kind")):
+                raise TypeError(
+                    f"{cls.__name__}.{member.name} must be a GDSSpec(layer, datatype, kind)-like "
+                    f"value, got {member.value!r}"
+                )
+
+    @property
+    def layer(self) -> int:
+        return self.value.layer
+
+    @property
+    def datatype(self) -> int:
+        return self.value.datatype
+
+    @property
+    def kind(self) -> str:
+        return self.value.kind
 
 
 class Anchor():
@@ -580,6 +627,60 @@ class MultiAnchor():
         return self
 
 
+    def cut(self, geom: Polygon, loc: tuple=None, return_cut: bool=False):
+        """ 
+        Removes anchors inside geom polygon. Additionally if return_cut: returns anchors
+        inside the polygon.
+
+        Args:
+            geom (Polygon | MultiPolygon | Layer): The polygon to be used for cut.
+            loc (tuple[float, float], optional): The location where the polygon will placed for cut.
+                Defaults to None.
+            return_cut (bool): return the list of anchors inside the geom.
+
+        Returns:
+            Updated instance (self) of the class with the cut geometry.
+        """
+
+        cut_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
+    
+        no_intersection = []
+        intersected = []
+        for p in self.multipoint:
+            if intersects(p.point, cut_geom):
+                intersected.append(p)
+            else:
+                no_intersection.append(p)
+        self.multipoint = no_intersection
+
+        if return_cut:
+            return intersected
+        else:
+            return self
+
+
+    def crop(self, geom: Polygon, loc: tuple=None):
+        """ 
+        Removes anchors outside of geom polygon.
+
+        Args:
+            geom (Polygon | MultiPolygon | Layer): The polygon to be used for crop.
+            loc (tuple[float, float], optional): The location where the polygon will be placed for crop.
+                Defaults to None.
+
+        Returns:
+            Updated instance (self) of the class with the cut geometry.
+        """
+        crop_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
+        intersected = []
+        for p in self.multipoint:
+            if intersects(p, crop_geom):
+                intersected.append(p)
+        self.multipoint = intersected
+
+        return self
+
+
     def plot(self, ax=None, color: str=None, draw_direction: bool=True) -> None:
         """ 
         Plots the anchors on a given axis.
@@ -875,17 +976,19 @@ def get_dxdy(point1: tuple | Point | Anchor, point2: tuple | Point | Anchor) -> 
 
 class Layer():
     
-    __slots__ = "name", "polygons", "color", "enable_grid_snap"
+    __slots__ = "name", "polygons", "color", "enable_grid_snap", "gds_spec"
 
     def __init__(self,
                  name: str,
                  polygons: Polygon | MultiPolygon = MultiPolygon(),
                  color: tuple = (RED, 1),
-                 enable_grid_snap: bool = True):
+                 enable_grid_snap: bool = True,
+                 gds_spec: GDSSpec = GDSSpec(0,0,"metal")):
         self.name = name
         self.polygons = polygons
         self.color = color if isinstance(color, tuple) else (color, 1)
         self.enable_grid_snap = enable_grid_snap
+        self.gds_spec = gds_spec
 
 
     def __repr__(self):
@@ -1036,34 +1139,38 @@ class Layer():
 
 
     @snap_on_grid(attr="polygons")
-    def add(self, geom: Polygon | MultiPolygon) -> 'Layer':
+    def add(self, geom: Polygon | MultiPolygon | Layer) -> Self:
         """ 
         Adds a polygon or multipolygon to the layer.
 
         Args:
-            geom (Polygon | MultiPolygon): The polygon or multipolygon to add.
+            geom (Polygon | MultiPolygon | Layer): The polygon or multipolygon to add.
 
         Returns:
             Updated instance (self) of the class with the added polygon.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         return unary_union([self.polygons, geom])
 
 
     @snap_on_grid(attr="polygons")
     def cut(self,
-            geom: Polygon | MultiPolygon,
-            loc: tuple[float, float]=None) -> 'Layer':
+            geom: Polygon | MultiPolygon | Layer,
+            loc: tuple[float, float]=None) -> Self:
         """ 
         Cuts the layer with a polygon or multipolygon.
 
         Args:
-            geom (Polygon | MultiPolygon): The polygon to be cut.
+            geom (Polygon | MultiPolygon | Layer): The polygon to be cut.
             loc (tuple[float, float], optional): The location where the polygon will be cut.
                 Defaults to None.
 
         Returns:
             Updated instance (self) of the class with the cut geometry.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         cut_geom = affinity.translate(geom, xoff=loc[0], yoff=loc[1]) if loc else geom
         updated = self.polygons.difference(cut_geom)
         return updated
@@ -1071,19 +1178,21 @@ class Layer():
 
     @snap_on_grid(attr="polygons")
     def crop(self,
-             geom: Polygon | MultiPolygon,
-             loc: tuple[float, float] = None) -> 'Layer':
+             geom: Polygon | MultiPolygon | Layer,
+             loc: tuple[float, float] = None) -> Self:
         """ 
         Crops the layer with a polygon or multipolygon.
 
         Args:
-            geom (Polygon | MultiPolygon): The polygon to be used for cropping.
+            geom (Polygon | MultiPolygon | Layer): The polygon to be used for cropping.
             loc (tuple[float, float], optional): The location where the polygon will be applied.
                 Defaults to None.
 
         Returns:
             Updated instance (self) of the class with the cropped geometry.
         """
+        if isinstance(geom, Layer):
+            geom = geom.polygons
         crop_geom = affinity.translate(geom, xoff = loc[0], yoff = loc[1]) if loc else geom
         updated = self.polygons.intersection(crop_geom)
         if isinstance(updated, (Point, MultiPoint, LineString, MultiLineString)):
@@ -1107,6 +1216,12 @@ class Layer():
             Updated instance (self) of the class with the specified layer simplified.
         """
         return self.polygons.simplify(tolerance)
+
+
+    def multipolygonize(self) -> None:
+        """ converts Polygon object in self.polygons into MultiPolygon. """
+        if isinstance(self.polygons, Polygon):
+            self.polygons = MultiPolygon([self.polygons])
 
 
     @snap_on_grid(attr="polygons")
