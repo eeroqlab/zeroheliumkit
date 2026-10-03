@@ -105,3 +105,59 @@ Add this to ~/.zshrc if you want it permanent:
 echo 'export PYTHONPATH="/usr/local/lib:$PYTHONPATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
+
+
+## 7. New installation instructions (without p4est)
+
+### 1. Install tools
+
+```bash
+brew install autoconf automake libtool open-mpi cmake fltk opencascade gmp jpeg-turbo
+```
+
+### 2. Build Gmsh
+
+```bash
+cd ~
+git clone https://gitlab.onelab.info/gmsh/gmsh.git
+cd gmsh
+mkdir build && cd build
+cmake -DENABLE_HXT=1 -DENABLE_MPI=ON -DENABLE_OPENMP=1 \
+      -DENABLE_BUILD_DYNAMIC=1 \
+      -DCMAKE_PREFIX_PATH="$(brew --prefix jpeg-turbo);/opt/homebrew" \
+      -DCMAKE_C_COMPILER=$(brew --prefix open-mpi)/bin/mpicc \
+      -DCMAKE_CXX_COMPILER=$(brew --prefix open-mpi)/bin/mpicxx \
+      -DJPEG_INCLUDE_DIR=$(brew --prefix jpeg-turbo)/include \
+      -DJPEG_LIBRARY=$(brew --prefix jpeg-turbo)/lib/libjpeg.dylib \
+      -DCMAKE_SHARED_LINKER_FLAGS="-L/opt/homebrew/lib" \
+      -DCMAKE_EXE_LINKER_FLAGS="-L/opt/homebrew/lib" \
+      ..
+make -j$(sysctl -n hw.ncpu)
+make install
+```
+
+Your new gmsh binary is now at `/usr/local/bin/gmsh`.
+
+### 3. Check it worked
+
+```bash
+/usr/local/bin/gmsh -info
+```
+
+Both should print builded app info. If empty, it didn't build in.
+
+### 4. Make sure Python uses this build, not pip's
+
+```bash
+python -c "import gmsh; print(gmsh.__file__)"
+```
+
+If it doesn't point to your new build, run:
+```bash
+pip uninstall gmsh
+```
+
+Add this to ~/.zshrc if you want it permanent:
+```bash
+echo 'export PYTHONPATH="/usr/local/lib:$PYTHONPATH"' >> ~/.zshrc
+source ~/.zs

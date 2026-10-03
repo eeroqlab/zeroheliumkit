@@ -939,20 +939,41 @@ class GMSHmaker():
                 case _:
                     print(f"Mesh field '{mesh_field_name}' is not recognized.")
 
-        if self.mesh.automatic_mesh_size_field and self.mesh.automatic_mesh_size_field.enabled:
-            field_ids.append(self.make_automatic_mesh_size_field(dim=self.mesh.dim))
-
-        if not field_ids:
-            return
-
+        hmin = 0.4
+        hmax = 6.0
+        hbulk = 6.0
+        print("here0")
+        # Pass 1: bootstrap surface mesh from Box/Distance fields
         minimum = gmsh.model.mesh.field.add("Min")
         gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", field_ids)
         gmsh.model.mesh.field.setAsBackgroundMesh(minimum)
+        gmsh.option.setNumber("Mesh.MeshSizeExtendFromBoundary", 0)
+        gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)
+        gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 20)
+        gmsh.model.mesh.generate(2)
+        print("here1")
+
+        # Create + fully configure the automatic field (every option change re-arms updateNeeded,
+        # so set ALL options before the computation is triggered)
+        auto = gmsh.model.mesh.field.add("AutomaticMeshSizeField")
+        for k, v in dict(hMin=hmin, hMax=hmax, hBulk=hbulk, nPointsPerCircle=20,
+                        nPointsPerGap=4, gradation=1.3, features=1, smoothing=1).items():
+            gmsh.model.mesh.field.setNumber(auto, k, v)
+        gmsh.model.mesh.field.setNumbers(minimum, "FieldsList", field_ids + [auto])
+
+        # Trigger the octree computation while the surface mesh exists
+        gmsh.option.setNumber("Mesh.Algorithm3D", 1)       # cheap Delaunay
+        gmsh.option.setNumber("Mesh.MeshSizeFactor", 5)      # throwaway tets ~5x coarser
+        gmsh.model.mesh.generate(3)
+        print("here2")
+
+        # Pass 2: re-mesh everything with the cached octree
+        gmsh.model.mesh.clear()
+        gmsh.option.setNumber("Mesh.MeshSizeFactor", 1)
+        gmsh.option.setNumber("Mesh.MeshSizeFromCurvature", 0)
+
         gmsh.model.occ.synchronize()
-
-
-    
-
+        print("here3")
 
     def create_geo(self):
         path = self.save.with_suffix(".geo_unrolled")
@@ -974,7 +995,7 @@ class GMSHmaker():
         try:
             for _ in bar:
 
-                if dim == 3 and self.mesh.automatic_mesh_size_field.enabled and self.mesh.automatic_mesh_size_field.use_hxt_3d:
+                if dim == 3: #and self.mesh.automatic_mesh_size_field.enabled and self.mesh.automatic_mesh_size_field.use_hxt_3d:
                     gmsh.option.setNumber("Mesh.Algorithm3D", 10) # Hxt
 
                 else: 
@@ -993,17 +1014,42 @@ class GMSHmaker():
             print('interrupted by user')
 
 
+    def setup_options(self):
+        # Mesh > Visibility: draw 2D and 3D element faces
+        gmsh.option.setNumber("Mesh.SurfaceFaces", 1)
+        gmsh.option.setNumber("Mesh.VolumeFaces", 1)
+
+        # Clipping planes: General.Clip<N>A/B/C/D define plane N as A*x + B*y + C*z + D = 0
+        gmsh.option.setNumber("General.Clip0A", 1)
+        gmsh.option.setNumber("General.Clip0B", 0)
+        gmsh.option.setNumber("General.Clip0C", 0)
+        gmsh.option.setNumber("General.Clip0D", 50)
+
+        gmsh.option.setNumber("General.Clip2A", 0)
+        gmsh.option.setNumber("General.Clip2B", 0)
+        gmsh.option.setNumber("General.Clip2C", -1)
+        gmsh.option.setNumber("General.Clip2D", 0.7)
+
+        # "Keep whole elements"
+        gmsh.option.setNumber("General.ClipWholeElements", 1)
+
+        # Enable planes 0 and 2 for the mesh: Mesh.Clip is a bitmask, bit N = plane N
+        gmsh.option.setNumber("Mesh.Clip", (1 << 0) | (1 << 2))   # = 5
+
+
     def launch_gmsh_gui(self):
         """
         Opens the Gmsh graphical user interface with customized color options for geometry points and text.
         """
 
-        gmsh.option.setColor("Geometry.Points", 255, 165, 0)
-        gmsh.option.setColor("General.Text", 255, 255, 255)
+        gmsh.option.setNumber("General.Verbosity", 99)
+        self.setup_options()
+        # gmsh.option.setColor("Geometry.Points", 255, 165, 0)
+        # gmsh.option.setColor("General.Text", 255, 255, 255)
         #gmsh.option.setColor("Mesh.Points", 255, 0, 0)
 
-        r, g, b, a = gmsh.option.getColor("Geometry.Points")
-        gmsh.option.setColor("Geometry.Surfaces", r, g, b, a)
+        # r, g, b, a = gmsh.option.getColor("Geometry.Points")
+        # gmsh.option.setColor("Geometry.Surfaces", r, g, b, a)
 
         if "-nopopup" not in sys.argv:
             gmsh.fltk.initialize()
